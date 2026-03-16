@@ -1,0 +1,74 @@
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: api-gateway
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+      - ./frontend/dist:/usr/share/nginx/html:ro
+    depends_on:
+      - ws-server
+      - users-service
+    networks:
+      - gateway-network
+
+  postgres-users:
+    image: postgres:16-alpine
+    container_name: postgres-users-db
+    environment:
+      POSTGRES_USER: ${USERS_DB_USER}
+      POSTGRES_PASSWORD: ${USERS_DB_PASSWORD}
+      POSTGRES_DB: ${USERS_DB}
+    volumes:
+      - postgres_users_data:/var/lib/postgresql/data
+    networks:
+      - gateway-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  users-service:
+    build:
+      context: ./users-service
+      dockerfile: Dockerfile
+    container_name: users-service
+    environment:
+      DATABASE_URL: ${USERS_DB_URL}
+      SECRET_KEY: ${USERS_SECRET_KEY}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
+      GITHUB_REDIRECT_URI: ${GITHUB_REDIRECT_URI}
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./users-service:/app
+      - /app/__pycache__
+    depends_on:
+      postgres-users:
+        condition: service_healthy
+    networks:
+      - gateway-network
+
+  ws-server:
+    build:
+      context: ./collab-server
+      dockerfile: Dockerfile
+    container_name: ws-server-service
+    ports:
+      - "8082:8080"
+    networks:
+      - gateway-network
+
+volumes:
+  postgres_users_data:
+
+networks:
+  gateway-network:
+    driver: bridge
+
