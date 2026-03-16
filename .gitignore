@@ -1,0 +1,43 @@
+# ENV
+*.env
+*.env.*
+!.env.example
+
+# Nginx
+nginx/certs/
+
+# Docker volumes
+**/postgres-data/
+**/docker-data/
+
+# Logs
+*.log
+
+# Python
+**/__pycache__/
+*.pyc
+*.pyo
+**/.venv/
+**/venv/
+
+# Go
+**/bin/
+**/dist/
+*.test
+
+# Node
+**/node_modules/
+**/dist/
+**/.vite/
+
+# OS
+**/.DS_Store
+**/Thumbs.db
+
+# Editors
+**/.vscode/
+**/.idea/
+
+# Swap
+*.swp
+*.swo
