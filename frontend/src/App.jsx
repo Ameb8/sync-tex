@@ -1,3 +1,28 @@
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { AuthProvider } from './contexts/AuthContext';
+import DashboardView from './views/DashboardView';
+import LoginView from './views/LoginView';
+import ProtectedRoute from './components/ProtectedRoute';
+import './App.css';
+
+
+
+function App() {
+  return (
+    <Router>
+      <div className="app">
+        <Routes>
+          <Route path="/" element={<DashboardView />} />
+        </Routes>
+      </div>
+    </Router>
+  );
+}
+ 
+export default App;
+
+/*
 import { useEffect, useRef, useState } from 'react';
 import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
@@ -191,3 +216,4 @@ function App() {
 }
 
 export default App;
+*/

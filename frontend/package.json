@@ -10,9 +10,10 @@
   "dependencies": {
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "yjs": "^13.6.0",
+    "react-router-dom": "^7.13.1",
+    "y-indexeddb": "^9.0.7",
     "y-websocket": "^1.4.1",
-    "y-indexeddb": "^9.0.7"
+    "yjs": "^13.6.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.0",
