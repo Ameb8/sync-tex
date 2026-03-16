@@ -1,6 +1,40 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
 const AuthContext = createContext(null);
+const API_BASE_URL = '/auth';
+
+// Token storage helper functions
+const TOKEN_KEY = 'auth_token';
+
+const getToken = () => {
+  return localStorage.getItem(TOKEN_KEY);
+};
+
+const setToken = (token) => {
+  localStorage.setItem(TOKEN_KEY, token);
+};
+
+const removeToken = () => {
+  localStorage.removeItem(TOKEN_KEY);
+};
+
+// Helper to make authenticated API calls
+export const authFetch = async (url, options = {}) => {
+  const token = getToken();
+  const headers = {
+    'Content-Type': 'application/json',
+    ...options.headers,
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  return fetch(url, {
+    ...options,
+    headers,
+  });
+};
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -13,19 +47,28 @@ export function AuthProvider({ children }) {
   }, []);
 
   const checkAuth = async () => {
+    const token = getToken();
+    
+    if (!token) {
+      setLoading(false);
+      setUser(null);
+      return;
+    }
+
     try {
-      const response = await fetch('/api/auth/me', {
-        credentials: 'include' // Important for cookies
-      });
+      const response = await authFetch(`${API_BASE_URL}/me`);
 
       if (response.ok) {
         const userData = await response.json();
         setUser(userData);
       } else {
+        // Token is invalid or expired
+        removeToken();
         setUser(null);
       }
     } catch (err) {
       console.error('Auth check failed:', err);
+      removeToken();
       setUser(null);
     } finally {
       setLoading(false);
@@ -35,10 +78,9 @@ export function AuthProvider({ children }) {
   const login = async (email, password) => {
     setError(null);
     try {
-      const response = await fetch('/api/auth/login', {
+      const response = await fetch(`${API_BASE_URL}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ email, password })
       });
 
@@ -47,8 +89,12 @@ export function AuthProvider({ children }) {
         throw new Error(error.message || 'Login failed');
       }
 
-      const userData = await response.json();
-      setUser(userData);
+      const data = await response.json();
+      
+      // Store token and user data
+      setToken(data.token);
+      setUser(data.user);
+      
       return { success: true };
     } catch (err) {
       setError(err.message);
@@ -59,10 +105,9 @@ export function AuthProvider({ children }) {
   const signup = async (email, password, name) => {
     setError(null);
     try {
-      const response = await fetch('/api/auth/signup', {
+      const response = await fetch(`${API_BASE_URL}/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ email, password, name })
       });
 
@@ -71,8 +116,12 @@ export function AuthProvider({ children }) {
         throw new Error(error.message || 'Signup failed');
       }
 
-      const userData = await response.json();
-      setUser(userData);
+      const data = await response.json();
+      
+      // Store token and user data
+      setToken(data.token);
+      setUser(data.user);
+      
       return { success: true };
     } catch (err) {
       setError(err.message);
@@ -81,19 +130,24 @@ export function AuthProvider({ children }) {
   };
 
   const loginWithGithub = () => {
+    // Store the current URL to redirect back after OAuth
+    localStorage.setItem('oauth_redirect', window.location.pathname);
     // Redirect to your backend's GitHub OAuth endpoint
-    window.location.href = '/api/auth/github';
+    window.location.href = `${API_BASE_URL}/github`;
   };
 
   const logout = async () => {
     try {
-      await fetch('/api/auth/logout', {
-        method: 'POST',
-        credentials: 'include'
+      // Optional: call backend logout endpoint if you want to invalidate the token server-side
+      await authFetch(`${API_BASE_URL}logout`, {
+        method: 'POST'
       });
-      setUser(null);
     } catch (err) {
-      console.error('Logout failed:', err);
+      console.error('Logout API call failed:', err);
+    } finally {
+      // Always clear local state
+      removeToken();
+      setUser(null);
     }
   };
 
@@ -106,7 +160,8 @@ export function AuthProvider({ children }) {
     signup,
     loginWithGithub,
     logout,
-    checkAuth
+    checkAuth,
+    getToken
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

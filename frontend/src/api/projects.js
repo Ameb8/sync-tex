@@ -1,3 +1,5 @@
+import { authFetch } from '../contexts/AuthContext';
+
 // API endpoint configuration
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
 
@@ -7,14 +9,8 @@ const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api
  */
 export async function fetchProjects() {
   try {
-    const response = await fetch(`${API_BASE_URL}/projects`, {
+    const response = await authFetch(`${API_BASE_URL}/projects`, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        // Add authentication headers as needed
-        // 'Authorization': `Bearer ${getAuthToken()}`
-      },
-      credentials: 'include' // Include cookies for auth
     });
 
     if (!response.ok) {
@@ -94,12 +90,8 @@ function getMockProjects() {
  * @returns {Promise<Object>} Created project object
  */
 export async function createProject(projectData) {
-  const response = await fetch(`${API_BASE_URL}/projects`, {
+  const response = await authFetch(`${API_BASE_URL}/projects`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    credentials: 'include',
     body: JSON.stringify(projectData)
   });
 
@@ -116,9 +108,14 @@ export async function createProject(projectData) {
  * @returns {Promise<Object>} Imported project object
  */
 export async function importProject(formData) {
+  // For file uploads, don't set Content-Type - let browser set it with boundary
+  const token = localStorage.getItem('auth_token');
+  
   const response = await fetch(`${API_BASE_URL}/projects/import`, {
     method: 'POST',
-    credentials: 'include',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    },
     body: formData
   });
 
