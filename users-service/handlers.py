@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends, Header, status
+from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from typing import Optional
@@ -57,15 +58,15 @@ async def login(req: LoginRequest, db: Session = Depends(get_db)):
 
 
 
-@router.get("/auth/github/login")
+@router.get("/github/login")
 async def github_login():
     """Start GitHub OAuth2 flow"""
     state = secrets.token_urlsafe(32)
     oauth_states.add(state)
-    
+
     github_client_id = os.getenv("GITHUB_CLIENT_ID")
-    redirect_uri = os.getenv("GITHUB_REDIRECT_URI", "http://localhost:8001/auth/github/callback")
-    
+    redirect_uri = os.getenv("GITHUB_REDIRECT_URI")
+
     github_auth_url = (
         f"https://github.com/login/oauth/authorize?"
         f"client_id={github_client_id}&"
@@ -73,11 +74,10 @@ async def github_login():
         f"scope=user:email&"
         f"state={state}"
     )
-    
-    # In production, store state in Redis with expiry
-    return {"auth_url": github_auth_url}
 
-@router.get("/auth/github/callback")
+    return RedirectResponse(url=github_auth_url)
+
+@router.get("/github/callback")
 async def github_callback(code: str, state: str, db: Session = Depends(get_db)):
     """Handle GitHub OAuth2 callback"""
     if state not in oauth_states:
@@ -166,9 +166,9 @@ async def github_callback(code: str, state: str, db: Session = Depends(get_db)):
     # Generate JWT
     token = generate_token(user.id, user.email)
     
-    # Return token (frontend will handle storage)
-    return {"token": token, "user_id": user.id, "email": user.email}
-
+    # Redirect back to frontend with jwt
+    frontend_url = f"http://192.168.1.34/oauth/callback?token={token}"
+    return RedirectResponse(frontend_url)
 
 
 @router.get("/validate", response_model=TokenData)
