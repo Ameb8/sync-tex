@@ -8,19 +8,24 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	
+	"projects-service/internal/auth"
 	db "projects-service/db/sqlc"
 )
 
 // Handlers contains all HTTP handlers
-// Holds shared dependencies such as database queries
+// Stores database and auth dependencies
 type Handler struct {
 	queries *db.Queries
+	authorizer *auth.Authorizer
 }
 
 // NewHandler initializes a new Handler object
 // Includes required dependencies
 func NewHandler(queries *db.Queries) *Handler {
-	return &Handler{queries: queries}
+	return &Handler{
+		queries:    queries,
+		authorizer: auth.NewAuthorizer(queries),
+	}
 }
 
 // getUserID extracts the authenticated user's ID from the Gin context.
@@ -145,6 +150,13 @@ func (h *Handler) CreateProject(c *gin.Context) {
 // GetProject handles:
 // GET /api/v1/projects/:id
 func (h *Handler) GetProject(c *gin.Context) {
+	// Extract user ID
+	userID, err := h.getUserID(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
 	// Extract project ID from URL path
 	projectIDStr := c.Param("id")
 	
@@ -152,6 +164,12 @@ func (h *Handler) GetProject(c *gin.Context) {
 	pgUUID, err := stringToPgUUID(projectIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid project ID"})
+		return
+	}
+
+	// Read permission check
+	if ok, err := h.authorizer.CanRead(c.Request.Context(), pgUUID, userID); !ok || err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
 		return
 	}
 
@@ -173,12 +191,25 @@ func (h *Handler) GetProject(c *gin.Context) {
 //   "name": "Updated Name"
 // }
 func (h *Handler) UpdateProject(c *gin.Context) {
+	// Extract user ID
+	userID, err := h.getUserID(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
 	projectIDStr := c.Param("id")
 	
 	// Validate project ID
 	pgUUID, err := stringToPgUUID(projectIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid project ID"})
+		return
+	}
+
+	// Write permission check
+	if ok, err := h.authorizer.CanWrite(c.Request.Context(), pgUUID, userID); !ok || err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
 		return
 	}
 
@@ -197,7 +228,7 @@ func (h *Handler) UpdateProject(c *gin.Context) {
 	var name pgtype.Text
 	name.Scan(req.Name)
 
-	// Update project nme in DB
+	// Update project name in DB
 	project, err := h.queries.UpdateProjectName(c.Request.Context(), pgUUID, name)
 	if err != nil { // Error updating name
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update project"})
@@ -210,12 +241,25 @@ func (h *Handler) UpdateProject(c *gin.Context) {
 // DeleteProject handles:
 // DELETE /api/v1/projects/:id
 func (h *Handler) DeleteProject(c *gin.Context) {
+	// Extract user ID
+	userID, err := h.getUserID(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
 	projectIDStr := c.Param("id")
 	
 	// Validate project ID
 	pgUUID, err := stringToPgUUID(projectIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid project ID"})
+		return
+	}
+
+	// Owner permission check
+	if ok, err := h.authorizer.IsOwner(c.Request.Context(), pgUUID, userID); !ok || err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Only project owner can delete files"})
 		return
 	}
 
@@ -229,10 +273,53 @@ func (h *Handler) DeleteProject(c *gin.Context) {
 	c.JSON(http.StatusNoContent, nil)
 }
 
-// Stub handlers for unimplemented endpoints
+// GetProjectTree handles:
+// GET /api/v1/projects/:id/tree
+//
+// Returns the full nested directory and file structure for a project as JSON.
 func (h *Handler) GetProjectTree(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "Not implemented yet"})
+	// Extract user ID for authorization check
+	userID, err := h.getUserID(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	// Extract project ID from URL path
+	projectIDStr := c.Param("id")
+	
+	// Convert to pgtype.UUID
+	pgUUID, err := stringToPgUUID(projectIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid project ID"})
+		return
+	}
+
+	// Cheeck read permission
+	if ok, err := h.authorizer.CanRead(c.Request.Context(), pgUUID, userID); !ok || err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
+		return
+	}
+
+	// Verify user has access to this project
+	_, err = h.queries.GetProject(c.Request.Context(), pgUUID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Project not found"})
+		return
+	}
+
+	// Fetch the project structure as JSON
+	structure, err := h.queries.GetProjectStructureAsJSON(c.Request.Context(), pgUUID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch project structure"})
+		return
+	}
+
+	// Return the structure (already JSON from DB)
+	c.JSON(http.StatusOK, structure)
 }
+
+// Stub handlers for unimplemented endpoints
 
 func (h *Handler) CreateDirectory(c *gin.Context) {
 	c.JSON(http.StatusNotImplemented, gin.H{"error": "Not implemented yet"})
