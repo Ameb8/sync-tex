@@ -17,7 +17,7 @@ function App() {
         <div className="app">
           <Routes>
             <Route path="/login" element={<LoginView />} />
-            <Route path="/auth/callback" element={<OAuthCallback />} />
+            ß<Route path="/oauth/callback" element={<OAuthCallback />} />
             <Route 
               path="/" 
               element={

@@ -133,7 +133,7 @@ export function AuthProvider({ children }) {
     // Store the current URL to redirect back after OAuth
     localStorage.setItem('oauth_redirect', window.location.pathname);
     // Redirect to your backend's GitHub OAuth endpoint
-    window.location.href = `${API_BASE_URL}/github`;
+    window.location.href = `${API_BASE_URL}/github/login`;
   };
 
   const logout = async () => {
