@@ -186,9 +186,97 @@ func (h *Handler) DeleteProject(c *gin.Context) {
 	c.JSON(http.StatusNoContent, nil)
 }
 
+type File struct {
+	ID       string `json:"id"`
+	Filename string `json:"filename"`
+	FileType string `json:"file_type"`
+}
+
+type RawFile struct {
+	ID          string `json:"id"`
+	DirectoryID string `json:"directory_id"`
+	Filename    string `json:"filename"`
+	FileType    string `json:"file_type"`
+}
+
+type Node struct {
+	ID       string  `json:"id"`
+	Name     string  `json:"name"`
+	Children []*Node `json:"children"`
+	Files    []File  `json:"files"`
+}
+
+type Directory struct {
+	ID       string  `json:"id"`
+	ParentID *string `json:"parent_id"`
+	Name     string  `json:"name"`
+}
+
+// buildProjectTree converts a flat directory + file list into a nested tree structure.
+//
+// Input:
+// - directories with parent_id relationships
+// - files with directory_id
+//
+// Output:
+// - []*Node representing root directories with recursively nested children
+func buildProjectTree(
+	directories []Directory,
+	files []RawFile,
+) []*Node {
+
+	// Map of directoryID to Node pointer for O(1) lookup
+	dirMap := make(map[string]*Node)
+
+	// Initialize all nodes (no relationships yet)
+	for _, d := range directories {
+		dirMap[d.ID] = &Node{
+			ID:       d.ID,
+			Name:     d.Name,
+			Children: []*Node{}, // ensure [] instead of null
+			Files:    []File{},  // ensure [] instead of null
+		}
+	}
+
+	var roots []*Node
+
+	// Build parent-child relationships
+	for _, d := range directories {
+		node := dirMap[d.ID]
+
+		// Root directory (no parent)
+		if d.ParentID == nil {
+			roots = append(roots, node)
+			continue
+		}
+
+		// Attach to parent if it exists
+		if parent, ok := dirMap[*d.ParentID]; ok {
+			parent.Children = append(parent.Children, node)
+		} else {
+			// Safety fallback: treat as root if parent missing
+			roots = append(roots, node)
+		}
+	}
+
+	// Attach files to their respective directories
+	for _, f := range files {
+		if dir, ok := dirMap[f.DirectoryID]; ok {
+			dir.Files = append(dir.Files, File{
+				ID:       f.ID,
+				Filename: f.Filename,
+				FileType: f.FileType,
+			})
+		}
+	}
+
+	return roots
+}
+
 // GetProjectTree handles:
 // GET /projects/v1/projects/:id/tree
 func (h *Handler) GetProjectTree(c *gin.Context) {
+	// Parse user ID
 	userID, err := h.getUserID(c)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
@@ -209,14 +297,14 @@ func (h *Handler) GetProjectTree(c *gin.Context) {
 		return
 	}
 
-	// Get project fromd database
+	// Ensure project exists
 	_, err = h.queries.GetProject(c.Request.Context(), pgUUID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Project not found"})
 		return
 	}
 
-	// Get project tree from database
+	// Retrieve flat project structure from database
 	structure, err := h.queries.GetProjectStructureAsJSON(c.Request.Context(), pgUUID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch project structure"})
@@ -225,76 +313,22 @@ func (h *Handler) GetProjectTree(c *gin.Context) {
 
 	// Struct to store flat json project from DB
 	var raw struct {
-		ProjectID   string `json:"project_id"`
-		Directories []struct {
-			ID       string  `json:"id"`
-			ParentID *string `json:"parent_id"`
-			Name     string  `json:"name"`
-		} `json:"directories"`
-		Files []struct {
-			ID          string `json:"id"`
-			DirectoryID string `json:"directory_id"`
-			Filename    string `json:"filename"`
-			FileType    string `json:"file_type"`
-		} `json:"files"`
+		ProjectID   string      `json:"project_id"`
+		Directories []Directory `json:"directories"`
+		Files       []RawFile   `json:"files"`
 	}
 
-	type File struct {
-		ID       string `json:"id"`
-		Filename string `json:"filename"`
-		FileType string `json:"file_type"`
-	}
-
-	type Node struct {
-		ID       string  `json:"id"`
-		Name     string  `json:"name"`
-		Children []*Node `json:"children"`
-		Files    []File  `json:"files"`
-	}
-
+	// Parse database response into struct
 	if err := json.Unmarshal(structure, &raw); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse structure"})
 		return
 	}
 
-	dirMap := make(map[string]*Node)
-
-	for _, d := range raw.Directories {
-		dirMap[d.ID] = &Node{
-			ID:   d.ID,
-			Name: d.Name,
-		}
-	}
-
-	var roots []*Node
-
-	for _, d := range raw.Directories {
-		node := dirMap[d.ID]
-
-		if d.ParentID == nil {
-			roots = append(roots, node)
-		} else {
-			if parent, ok := dirMap[*d.ParentID]; ok {
-				parent.Children = append(parent.Children, node)
-			} else {
-				// fallback: treat as root or skip
-				roots = append(roots, node)
-			}
-		}
-	}
-
-	for _, f := range raw.Files {
-		if dir, ok := dirMap[f.DirectoryID]; ok {
-			dir.Files = append(dir.Files, File{
-				ID:       f.ID,
-				Filename: f.Filename,
-				FileType: f.FileType,
-			})
-		}
-	}
+	// Build nested tree from flat data
+	tree := buildProjectTree(raw.Directories, raw.Files)
 
 	c.JSON(http.StatusOK, gin.H{
 		"project_id": raw.ProjectID,
-		"tree":       roots,
+		"tree":       tree,
 	})
 }
