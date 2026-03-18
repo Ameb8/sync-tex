@@ -59,7 +59,7 @@ func main() {
 	})
 	
 	// Protected API routes
-	api := r.Group("/api/v1")
+	api := r.Group("/projects/v1")
 	api.Use(authMiddleware.ValidateJWT())
 	{
 		// Projects

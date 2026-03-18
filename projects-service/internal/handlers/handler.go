@@ -67,7 +67,7 @@ func pgUUIDToString(pgUUID pgtype.UUID) string {
 }
 
 // ListProjects handles:
-// GET /api/v1/projects
+// GET /projects/v1/projects
 //
 // Query params:
 // - ?filter=owned → only projects owned by user
@@ -101,7 +101,7 @@ func (h *Handler) ListProjects(c *gin.Context) {
 }
 
 // CreateProject handles:
-// POST /api/v1/projects
+// POST /projects/v1/projects
 //
 // Body:
 // {
@@ -148,7 +148,7 @@ func (h *Handler) CreateProject(c *gin.Context) {
 }
 
 // GetProject handles:
-// GET /api/v1/projects/:id
+// GET /projects/v1/projects/:id
 func (h *Handler) GetProject(c *gin.Context) {
 	// Extract user ID
 	userID, err := h.getUserID(c)
@@ -184,7 +184,7 @@ func (h *Handler) GetProject(c *gin.Context) {
 }
 
 // UpdateProject handles:
-// PATCH /api/v1/projects/:id
+// PATCH /projects/v1/projects/:id
 //
 // Body:
 // {
@@ -239,7 +239,7 @@ func (h *Handler) UpdateProject(c *gin.Context) {
 }
 
 // DeleteProject handles:
-// DELETE /api/v1/projects/:id
+// DELETE /projects/v1/projects/:id
 func (h *Handler) DeleteProject(c *gin.Context) {
 	// Extract user ID
 	userID, err := h.getUserID(c)
@@ -274,7 +274,7 @@ func (h *Handler) DeleteProject(c *gin.Context) {
 }
 
 // GetProjectTree handles:
-// GET /api/v1/projects/:id/tree
+// GET /projects/v1/projects/:id/tree
 //
 // Returns the full nested directory and file structure for a project as JSON.
 func (h *Handler) GetProjectTree(c *gin.Context) {
