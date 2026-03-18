@@ -11,13 +11,27 @@ import (
 )
 
 type Querier interface {
+	CreateDirectory(ctx context.Context, iD pgtype.UUID, projectID pgtype.UUID, parentID pgtype.UUID, name string) (Directory, error)
+	CreateFile(ctx context.Context, arg CreateFileParams) (File, error)
 	CreateProject(ctx context.Context, iD pgtype.UUID, ownerID string, name pgtype.Text) (Project, error)
+	DeleteDirectory(ctx context.Context, id pgtype.UUID) error
+	DeleteFile(ctx context.Context, id pgtype.UUID) error
 	DeleteProject(ctx context.Context, id pgtype.UUID) error
+	DeleteProjectDirectories(ctx context.Context, projectID pgtype.UUID) error
+	DeleteProjectFiles(ctx context.Context, projectID pgtype.UUID) error
 	GetCollaborator(ctx context.Context, projectID pgtype.UUID, userID string) (ProjectCollaborator, error)
+	GetDirectory(ctx context.Context, id pgtype.UUID) (Directory, error)
+	GetFile(ctx context.Context, id pgtype.UUID) (File, error)
 	GetProject(ctx context.Context, id pgtype.UUID) (Project, error)
 	GetProjectStructureAsJSON(ctx context.Context, jsonbBuildObject interface{}) ([]byte, error)
+	ListDirectoriesByParent(ctx context.Context, projectID pgtype.UUID, parentID pgtype.UUID) ([]Directory, error)
+	ListDirectoriesByProject(ctx context.Context, projectID pgtype.UUID) ([]Directory, error)
+	ListFilesByDirectory(ctx context.Context, directoryID pgtype.UUID) ([]File, error)
+	ListFilesByProject(ctx context.Context, projectID pgtype.UUID) ([]File, error)
 	ListProjectsByOwner(ctx context.Context, ownerID string) ([]Project, error)
 	ListProjectsByUser(ctx context.Context, ownerID string) ([]Project, error)
+	UpdateDirectory(ctx context.Context, iD pgtype.UUID, name string) (Directory, error)
+	UpdateFile(ctx context.Context, iD pgtype.UUID, filename string) (File, error)
 	UpdateProjectName(ctx context.Context, iD pgtype.UUID, name pgtype.Text) (Project, error)
 }
 
