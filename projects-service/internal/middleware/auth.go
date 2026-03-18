@@ -66,7 +66,7 @@ func (m *AuthMiddleware) ValidateJWT() gin.HandlerFunc {
 			return
 		}
 
-		// Extract user_id from claims
+		// Get claims from token
 		claims, ok := token.Claims.(jwt.MapClaims)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token claims"})
@@ -74,13 +74,34 @@ func (m *AuthMiddleware) ValidateJWT() gin.HandlerFunc {
 			return
 		}
 
-		// Validate user_id's existence
-		userID, ok := claims["user_id"].(string)
-		if !ok || userID == "" {
+		// Extract user_id from claims
+		userIDRaw, ok := claims["user_id"]
+		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Missing user_id in token"})
 			c.Abort()
 			return
 		}
+
+		// Handle both int and string values in user_id
+		var userID string
+		switch v := userIDRaw.(type) {
+		case float64:
+			userID = fmt.Sprintf("%d", int(v))
+		case string:
+			userID = v
+		default:
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user_id type"})
+			c.Abort()
+			return
+		}
+
+		// Validate user_id
+		if userID == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Empty user_id"})
+			c.Abort()
+			return
+		}
+		
 
 		// Store user_id in Gin context
 		c.Set("user_id", userID)
