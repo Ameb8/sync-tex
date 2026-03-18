@@ -7,7 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
-	
+
 	db "projects-service/db/sqlc"
 	"projects-service/internal/handlers"
 	"projects-service/internal/middleware"
@@ -37,59 +37,58 @@ func main() {
 
 	// Initialize queries
 	queries := db.New(pool)
-	
+
 	// Initialize handlers
 	h := handlers.NewHandler(queries)
 
 	// Setup router
 	r := gin.Default()
-	
+
 	// Add auth middleware
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
 		jwtSecret = "dev-secret-change-in-production"
 	}
-	
+
 	// Initialize autnetiction middleware
 	authMiddleware := middleware.NewAuthMiddleware(jwtSecret)
-	
+
 	// Public routes
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
-	
+
 	// Protected API routes
 	api := r.Group("/projects/v1")
 	api.Use(authMiddleware.ValidateJWT())
-	{
-		// Projects
-		api.GET("/projects", h.ListProjects)
-		api.POST("/projects", h.CreateProject)
-		api.GET("/projects/:id", h.GetProject)
-		api.PATCH("/projects/:id", h.UpdateProject)
-		api.DELETE("/projects/:id", h.DeleteProject)
-		
-		// Project tree
-		api.GET("/projects/:id/tree", h.GetProjectTree)
-		
-		// Directories
-		api.POST("/projects/:id/directories", h.CreateDirectory)
-		api.PATCH("/directories/:id", h.UpdateDirectory)
-		api.DELETE("/directories/:id", h.DeleteDirectory)
-		
-		// Files
-		api.POST("/files", h.CreateFile)
-		api.GET("/files/:id", h.GetFile)
-		api.GET("/files/:id/content", h.GetFileContent)
-		api.PATCH("/files/:id", h.UpdateFile)
-		api.DELETE("/files/:id", h.DeleteFile)
-		
-		// Collaborators
-		api.POST("/projects/:id/invites", h.CreateInvite)
-		api.POST("/invites/accept", h.AcceptInvite)
-		api.GET("/projects/:id/collaborators", h.ListCollaborators)
-		api.DELETE("/projects/:id/collaborators/:id", h.RemoveCollaborator)
-	}
+
+	// Projects
+	api.GET("/projects", h.ListProjects)
+	api.POST("/projects", h.CreateProject)
+	api.GET("/projects/:projectID", h.GetProject)
+	api.PATCH("/projects/:projectID", h.UpdateProject)
+	api.DELETE("/projects/:projectID", h.DeleteProject)
+
+	// Project tree
+	api.GET("/projects/:projectID/tree", h.GetProjectTree)
+
+	// Directories
+	api.POST("/projects/:projectID/directories", h.CreateDirectory)
+	api.PATCH("/projects/:projectID/directories/:dirID", h.UpdateDirectory)
+	api.DELETE("/projects/:projectID/directories/:dirID", h.DeleteDirectory)
+
+	// Files
+	api.POST("/projects/:projectID/files", h.CreateFile)
+	api.GET("/projects/:projectID/files/:fileID", h.GetFile)
+	api.GET("/projects/:projectID/files/:fileID/content", h.GetFileContent)
+	api.PATCH("/projects/:projectID/files/:fileID", h.UpdateFile)
+	api.DELETE("/projects/:projectID/files/:fileID", h.DeleteFile)
+
+	// Collaborators
+	api.POST("/projects/:projectID/invites", h.CreateInvite)
+	api.POST("/invites/accept", h.AcceptInvite)
+	api.GET("/projects/:projectID/collaborators", h.ListCollaborators)
+	api.DELETE("/projects/:projectID/collaborators/:userID", h.RemoveCollaborator)
 
 	// Initialize port
 	port := os.Getenv("PORT")
