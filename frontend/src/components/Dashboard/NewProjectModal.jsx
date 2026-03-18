@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { authFetch } from '../../contexts/AuthContext';
 import './Modal.css';
 
 function NewProjectModal({ onClose, onProjectCreated }) {
@@ -15,10 +16,9 @@ function NewProjectModal({ onClose, onProjectCreated }) {
 
     setCreating(true);
     try {
-      // TODO: Replace with actual API call
-      const response = await fetch('/api/projects', {
+      // Make POST request to create new project
+      const response = await authFetch('/projects/v1/projects', { 
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: projectName })
       });
 
