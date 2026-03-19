@@ -11,8 +11,14 @@ services:
       - ./nginx/certs:/etc/nginx/certs:ro
       - ./frontend/dist:/usr/share/nginx/html:ro
     depends_on:
-      - ws-server
-      - users-service
+      ws-server:
+        condition: service_started
+      users-service:
+        condition: service_started
+      projects-service:
+        condition: service_started
+      minio:
+        condition: service_healthy 
     networks:
       - gateway-network
 
@@ -103,9 +109,32 @@ services:
     networks:
       - gateway-network
 
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"  # S3 API
+      - "9001:9001"  # Web console
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    volumes:
+      - minio_data:/data
+    mem_limit: 512m
+    restart: unless-stopped
+    healthcheck:        # ADD THIS
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - gateway-network
+
 volumes:
   postgres_users_data:
   postgres_projects_data: 
+  minio_data:
 
 networks:
   gateway-network:
