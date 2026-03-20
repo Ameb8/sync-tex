@@ -93,16 +93,20 @@ services:
   projects-service:
     build:
       context: ./projects-service
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     container_name: projects-service
     environment:
       DATABASE_URL: ${PROJECTS_DB_URL}
       JWT_SECRET: ${USERS_SECRET_KEY}
       PORT: ${PROJECTS_PORT:-8003}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
     ports:
       - "8003:8003"
     volumes:
       - ./projects-service:/app
+      - /app/tmp
     depends_on:
       postgres-projects:
         condition: service_healthy
@@ -117,13 +121,13 @@ services:
       - "9000:9000"  # S3 API
       - "9001:9001"  # Web console
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin123
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     volumes:
       - minio_data:/data
     mem_limit: 512m
     restart: unless-stopped
-    healthcheck:        # ADD THIS
+    healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 10s
       timeout: 5s
