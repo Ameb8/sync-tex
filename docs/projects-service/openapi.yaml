@@ -1,0 +1,977 @@
+openapi: 3.0.0
+info:
+  title: Projects Service API
+  description: Microservice for managing user projects with collaborative filesystem structure
+  version: 1.0.0
+  contact:
+    name: Projects Service Team
+
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+  - url: https://api.example.com
+    description: Production server
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      operationId: healthCheck
+      tags:
+        - System
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /projects/v1/projects:
+    get:
+      summary: List projects
+      description: List all projects accessible to the authenticated user (owned + shared)
+      operationId: listProjects
+      tags:
+        - Projects
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: filter
+          in: query
+          description: Filter projects by ownership
+          schema:
+            type: string
+            enum: [owned]
+          example: owned
+      responses:
+        '200':
+          description: List of projects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Project'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: Create a new project
+      operationId: createProject
+      tags:
+        - Projects
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 255
+                  example: My LaTeX Project
+      responses:
+        '201':
+          description: Project created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /projects/v1/projects/{projectID}:
+    get:
+      summary: Get project details
+      operationId: getProject
+      tags:
+        - Projects
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          example: 550e8400-e29b-41d4-a716-446655440000
+      responses:
+        '200':
+          description: Project details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    patch:
+      summary: Update project
+      description: Update project name (write permission required)
+      operationId: updateProject
+      tags:
+        - Projects
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 255
+                  example: Updated Project Name
+      responses:
+        '200':
+          description: Project updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      summary: Delete project
+      description: Delete a project (owner only)
+      operationId: deleteProject
+      tags:
+        - Projects
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Project deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /projects/v1/projects/{projectID}/tree:
+    get:
+      summary: Get project tree
+      description: Get the complete nested filesystem structure of a project with presigned download URLs
+      operationId: getProjectTree
+      tags:
+        - Projects
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Project tree structure
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  project_id:
+                    type: string
+                    format: uuid
+                  tree:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TreeNode'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /projects/v1/projects/{projectID}/directories:
+    post:
+      summary: Create directory
+      operationId: createDirectory
+      tags:
+        - Directories
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 255
+                  example: src
+                parent_id:
+                  type: string
+                  format: uuid
+                  nullable: true
+                  description: Parent directory UUID; null for root-level directory
+      responses:
+        '201':
+          description: Directory created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Directory'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /projects/v1/projects/{projectID}/directories/{dirID}:
+    patch:
+      summary: Update directory
+      description: Update directory name (write permission required)
+      operationId: updateDirectory
+      tags:
+        - Directories
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: dirID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 255
+      responses:
+        '200':
+          description: Directory updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Directory'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      summary: Delete directory
+      description: Delete a directory (write permission required)
+      operationId: deleteDirectory
+      tags:
+        - Directories
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: dirID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Directory deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /projects/v1/projects/{projectID}/files:
+    post:
+      summary: Create file
+      description: Create a new file and get presigned upload URL
+      operationId: createFile
+      tags:
+        - Files
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - filename
+                - directory_id
+              properties:
+                filename:
+                  type: string
+                  minLength: 1
+                  maxLength: 255
+                  example: document.tex
+                directory_id:
+                  type: string
+                  format: uuid
+                  description: UUID of the target directory
+                file_type:
+                  type: string
+                  enum: [image, tex, pdf, other]
+                  default: other
+                  description: File type classification
+      responses:
+        '201':
+          description: File created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/File'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /projects/v1/projects/{projectID}/files/{fileID}:
+    get:
+      summary: Get file metadata
+      operationId: getFile
+      tags:
+        - Files
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: fileID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: File metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/File'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    patch:
+      summary: Update file
+      description: Update file metadata (e.g., filename)
+      operationId: updateFile
+      tags:
+        - Files
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: fileID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - filename
+              properties:
+                filename:
+                  type: string
+                  minLength: 1
+                  maxLength: 255
+      responses:
+        '200':
+          description: File updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/File'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      summary: Delete file
+      operationId: deleteFile
+      tags:
+        - Files
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: fileID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: File deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /projects/v1/projects/{projectID}/files/{fileID}/upload:
+    post:
+      summary: Get upload URL
+      description: Get presigned URL for direct file upload to storage
+      operationId: getUploadURL
+      tags:
+        - Files
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: fileID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Presigned upload URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  upload_url:
+                    type: string
+                    format: uri
+                    description: Presigned URL valid for 15 minutes
+                  storage_key:
+                    type: string
+                    description: Storage key in format projectID/fileID
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /projects/v1/projects/{projectID}/collaborators:
+    get:
+      summary: List project collaborators
+      description: List all collaborators on a project
+      operationId: listCollaborators
+      tags:
+        - Collaborators
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: List of collaborators
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Collaborator'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /projects/v1/projects/{projectID}/invites:
+    post:
+      summary: Create collaboration invite
+      description: Invite a user to collaborate on a project
+      operationId: createInvite
+      tags:
+        - Collaborators
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - user_id
+                - role
+              properties:
+                user_id:
+                  type: string
+                  description: User ID of the invitee
+                role:
+                  type: string
+                  enum: [editor, viewer]
+                  description: Collaboration role
+      responses:
+        '201':
+          description: Invite created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invite'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /projects/v1/invites/accept:
+    post:
+      summary: Accept collaboration invite
+      description: Accept a pending collaboration invite
+      operationId: acceptInvite
+      tags:
+        - Collaborators
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - invite_id
+              properties:
+                invite_id:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: Invite accepted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Collaborator'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /projects/v1/projects/{projectID}/collaborators/{userID}:
+    delete:
+      summary: Remove collaborator
+      description: Remove a user from a project
+      operationId: removeCollaborator
+      tags:
+        - Collaborators
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: userID
+          in: path
+          required: true
+          schema:
+            type: string
+            description: User ID of the collaborator to remove
+      responses:
+        '204':
+          description: Collaborator removed successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from authentication service
+
+  schemas:
+    Project:
+      type: object
+      required:
+        - id
+        - owner_id
+        - name
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        owner_id:
+          type: string
+          description: User ID of project owner
+        name:
+          type: string
+          maxLength: 255
+        created_at:
+          type: string
+          format: date-time
+
+    Directory:
+      type: object
+      required:
+        - id
+        - project_id
+        - name
+      properties:
+        id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+        parent_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Parent directory UUID; null for root level
+        name:
+          type: string
+          maxLength: 255
+
+    File:
+      type: object
+      required:
+        - id
+        - directory_id
+        - project_id
+        - filename
+        - storage_key
+        - file_type
+      properties:
+        id:
+          type: string
+          format: uuid
+        directory_id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+        filename:
+          type: string
+          maxLength: 255
+        storage_key:
+          type: string
+          description: Storage location in format projectID/fileID
+        file_type:
+          type: string
+          enum: [image, tex, pdf, other]
+        download_url:
+          type: string
+          format: uri
+          description: Presigned download URL (included in tree endpoint, 1 hour expiry)
+
+    TreeNode:
+      type: object
+      required:
+        - id
+        - name
+        - children
+        - files
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        children:
+          type: array
+          items:
+            $ref: '#/components/schemas/TreeNode'
+          description: Nested child directories
+        files:
+          type: array
+          items:
+            $ref: '#/components/schemas/File'
+          description: Files in this directory with presigned download URLs
+
+    Collaborator:
+      type: object
+      required:
+        - user_id
+        - project_id
+        - role
+      properties:
+        user_id:
+          type: string
+          description: User ID
+        project_id:
+          type: string
+          format: uuid
+        role:
+          type: string
+          enum: [editor, viewer]
+        invited_by:
+          type: string
+          nullable: true
+          description: User ID who sent the invite
+        invited_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    Invite:
+      type: object
+      required:
+        - id
+        - project_id
+        - user_id
+        - role
+      properties:
+        id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+        role:
+          type: string
+          enum: [editor, viewer]
+        invited_by:
+          type: string
+          description: User ID who sent the invite
+        invited_at:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [pending, accepted, rejected]
+          default: pending
+
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Unauthorized - missing or invalid JWT token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Forbidden:
+      description: Forbidden - user lacks required permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+tags:
+  - name: System
+    description: System health and status
+  - name: Projects
+    description: Project management endpoints
+  - name: Directories
+    description: Directory structure within projects
+  - name: Files
+    description: File management and storage
+  - name: Collaborators
+    description: Project collaboration and sharing
