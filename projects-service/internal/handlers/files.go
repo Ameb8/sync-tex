@@ -103,7 +103,7 @@ func (h *Handler) UpdateDirectory(c *gin.Context) {
 		return
 	}
 
-	// Paarse project ID
+	// Parse project ID
 	projectIDStr := c.Param("projectID")
 	projectID, err := stringToPgUUID(projectIDStr)
 	if err != nil {
@@ -287,6 +287,13 @@ func (h *Handler) CreateFile(c *gin.Context) {
 	// Error creting file in database
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create file"})
+		return
+	}
+
+	// Generate presigned upload URL
+	uploadURL, err := h.generateUploadURL(c.Request.Context(), "uploads", storageKey, 15*time.Minute)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate upload URL"})
 		return
 	}
 
