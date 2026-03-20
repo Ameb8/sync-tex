@@ -337,17 +337,18 @@ func (h *Handler) GetFile(c *gin.Context) {
 
 	c.JSON(http.StatusOK, file)
 }
-
-// GetFileContent handles:
-// GET /projects/v1/projects/:projectID/files/:fileID/content
-// Returns the file content from storage
-func (h *Handler) GetFileContent(c *gin.Context) {
+// GetUploadURL handles:
+// POST /projects/v1/projects/:projectID/files/:fileID/upload
+//
+// Returns presigned URL for direct upload
+func (h *Handler) GetUploadURL(c *gin.Context) {
 	userID, err := h.getUserID(c)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
+	// Get project ID and convert to PgUUID
 	projectIDStr := c.Param("projectID")
 	projectID, err := stringToPgUUID(projectIDStr)
 	if err != nil {
@@ -355,6 +356,7 @@ func (h *Handler) GetFileContent(c *gin.Context) {
 		return
 	}
 
+	// Get file ID and convert to PgUUID
 	fileIDStr := c.Param("fileID")
 	fileID, err := stringToPgUUID(fileIDStr)
 	if err != nil {
@@ -362,25 +364,35 @@ func (h *Handler) GetFileContent(c *gin.Context) {
 		return
 	}
 
-	// Read permission check
-	if ok, err := h.authorizer.CanRead(c.Request.Context(), projectID, userID); !ok || err != nil {
+	// Write permission check
+	if ok, err := h.authorizer.CanWrite(c.Request.Context(), projectID, userID); !ok || err != nil {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
 		return
 	}
 
+	// Verify file exists and belongs to project
 	file, err := h.queries.GetFile(c.Request.Context(), fileID)
 	if err != nil || file.ProjectID != projectID {
-		// For now, return file metadata with placeholder
 		c.JSON(http.StatusNotFound, gin.H{"error": "File not found"})
 		return
 	}
 
-	// TODO: Fetch content from storage (S3, local, etc.)
+	// storage_key format: projectID/fileID
+	storageKey := fmt.Sprintf("%s/%s", projectIDStr, fileIDStr)
+	
+	// Generate presigned upload URL (15 min expiry)
+	uploadURL, err := h.generateUploadURL(c.Request.Context(), "uploads", storageKey, 15*time.Minute)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate upload URL"})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"file":    file,
-		"content": "TODO: fetch from storage",
+		"upload_url": uploadURL,
+		"storage_key": storageKey,
 	})
 }
+
 
 // UpdateFile handles:
 // PATCH /projects/v1/projects/:projectID/files/:fileID

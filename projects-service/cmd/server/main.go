@@ -43,11 +43,6 @@ func main() {
 	// Initialize handlers
 	h, _ := handlers.NewHandler(queries)
 
-	// Initialize MinIO client
-	//if err := h.InitializeMinioClient(); err != nil {
-//		log.Fatalf("Failed to initialize MinIO: %v", err)
-//	}
-
 	// Setup router
 	r := gin.Default()
 
@@ -86,6 +81,7 @@ func main() {
 
 	// Files
 	api.POST("/projects/:projectID/files", h.CreateFile)
+	api.POST("/projects/:projectID/files:fileID/upload", h.GetUploadURL)
 	api.GET("/projects/:projectID/files/:fileID", h.GetFile)
 	api.GET("/projects/:projectID/files/:fileID/content", h.GetFileContent)
 	api.PATCH("/projects/:projectID/files/:fileID", h.UpdateFile)
