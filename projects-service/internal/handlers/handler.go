@@ -1,13 +1,21 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
+	"os"
+	"strings"
+	"time"
+	"log"
+	
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/minio/minio-go/v7"
 	
 	"projects-service/internal/auth"
+	"projects-service/internal/storage"
 	db "projects-service/db/sqlc"
 )
 
@@ -16,15 +24,25 @@ import (
 type Handler struct {
 	queries *db.Queries
 	authorizer *auth.Authorizer
+	minioClient  *minio.Client
 }
 
 // NewHandler initializes a new Handler object
 // Includes required dependencies
-func NewHandler(queries *db.Queries) *Handler {
-	return &Handler{
+func NewHandler(queries *db.Queries) (*Handler, error) {
+	// Initialize minio client
+	minioClient, err := storage.NewMinioClient()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize MinIO client: %w", err)
+	} else {
+		log.Println("MinIO Client initialized")
+	}
+	
+	return &Handler{ // Initialize handler
 		queries:    queries,
 		authorizer: auth.NewAuthorizer(queries),
-	}
+		minioClient: minioClient,
+	}, nil
 }
 
 // getUserID extracts the authenticated user's ID from the Gin context.
@@ -43,7 +61,6 @@ func (h *Handler) getUserID(c *gin.Context) (string, error) {
 
 // stringToPgUUID converts a UUID string into pgtype.UUID
 // which is required for PostgreSQL queries using pgx.
-//
 // Returns an error if the string is not a valid UUID.
 func stringToPgUUID(uuidStr string) (pgtype.UUID, error) {
 	uid, err := uuid.Parse(uuidStr)
@@ -63,4 +80,73 @@ func pgUUIDToString(pgUUID pgtype.UUID) string {
 	}
 	uid, _ := uuid.FromBytes(pgUUID.Bytes[:])
 	return uid.String()
+}
+
+// generateDownloadURL creates a presigned download URL
+func (h *Handler) generateDownloadURL(
+	ctx context.Context,
+	bucketName string,
+	objectName string,
+	expiry time.Duration,
+) (string, error) {
+	url, err := h.minioClient.PresignedGetObject(
+		ctx,
+		bucketName,
+		objectName,
+		expiry,
+		nil,
+	)
+	if err != nil {
+		log.Println("Error generating presigned download URL", err)
+		return "", err
+	}
+
+	// Replace internal hostname with external gateway
+	externalURL := url.String()
+	gatewayURL := os.Getenv("HOST_DOMAIN")
+	if gatewayURL != "" {
+		externalURL = strings.ReplaceAll(externalURL, "minio:9000", gatewayURL)
+	}
+	
+	return externalURL, nil
+}
+
+// generateUploadURL creates a presigned upload URL
+func (h *Handler) generateUploadURL(
+	ctx context.Context,
+	bucketName string,
+	objectName string,
+	expiry time.Duration,
+) (string, error) {
+	url, err := h.minioClient.PresignedPutObject(
+		ctx,
+		bucketName,
+		objectName,
+		expiry,
+	)
+	if err != nil {
+		log.Println("Error generating presigned upload URL")
+		return "", err
+	}
+
+	// Replace internal hostname with external gateway
+	externalURL := url.String()
+	log.Println("Generated Upload URL:\t", externalURL)
+
+	gatewayURL := os.Getenv("HOST_DOMAIN")
+	if gatewayURL != "" {
+		externalURL = strings.ReplaceAll(externalURL, "minio:9000", gatewayURL)
+	}
+	
+	return externalURL, nil
+}
+
+
+// deleteObject removes a file from MinIO storage
+func (h *Handler) deleteObject(
+	ctx context.Context,
+	bucketName string,
+	objectName string,
+) error {
+	return h.minioClient.RemoveObject(ctx, bucketName, objectName, minio.RemoveObjectOptions{})
 }
