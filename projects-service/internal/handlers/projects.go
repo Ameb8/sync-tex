@@ -1,8 +1,12 @@
 package handlers
 
 import (
+	"time"
+	"context"
 	"encoding/json"
 	"net/http"
+	"log"
+	"fmt"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -187,9 +191,11 @@ func (h *Handler) DeleteProject(c *gin.Context) {
 }
 
 type File struct {
-	ID       string `json:"id"`
-	Filename string `json:"filename"`
-	FileType string `json:"file_type"`
+	ID       		string `json:"id"`
+	Filename 		string `json:"filename"`
+	FileType 		string `json:"file_type"`
+	StorageKey		string `json:"storage_key"`
+	DownloadURL	string `json:"download_url"`
 }
 
 type RawFile struct {
@@ -197,6 +203,7 @@ type RawFile struct {
 	DirectoryID string `json:"directory_id"`
 	Filename    string `json:"filename"`
 	FileType    string `json:"file_type"`
+	StorageKey	string `json:"storage_key"`
 }
 
 type Node struct {
@@ -266,6 +273,7 @@ func buildProjectTree(
 				ID:       f.ID,
 				Filename: f.Filename,
 				FileType: f.FileType,
+				StorageKey: f.StorageKey,
 			})
 		}
 	}
@@ -276,6 +284,7 @@ func buildProjectTree(
 // GetProjectTree handles:
 // GET /projects/v1/projects/:id/tree
 func (h *Handler) GetProjectTree(c *gin.Context) {
+	log.Println("Project Tree requested")
 	// Parse user ID
 	userID, err := h.getUserID(c)
 	if err != nil {
@@ -326,9 +335,41 @@ func (h *Handler) GetProjectTree(c *gin.Context) {
 
 	// Build nested tree from flat data
 	tree := buildProjectTree(raw.Directories, raw.Files)
+	enrichTreeWithPresignedURLs(c.Request.Context(), h, tree, 1*time.Hour)
 
 	c.JSON(http.StatusOK, gin.H{
 		"project_id": raw.ProjectID,
 		"tree":       tree,
 	})
+}
+
+
+// enrichTreeWithPresignedURLs recursively adds presigned URLs to all files in the tree
+func enrichTreeWithPresignedURLs(
+	ctx context.Context,
+	h *Handler,
+	nodes []*Node,
+	expiry time.Duration,
+) {
+	log.Println("Enriching trees with Presigned URL")
+
+	for _, node := range nodes {
+		// Add URLs to files in this node
+		for i := range node.Files {
+			// Generate URL based on storage_key pattern: projectID/fileID
+			url, err := h.generateDownloadURL(ctx, "uploads", node.Files[i].StorageKey, expiry)
+			if err != nil { // Log error but don't fail entire response
+				fmt.Printf("ERROR generating download URL for %s: %v\n", node.Files[i].StorageKey, err)
+				continue
+			} else {
+				log.Println("Presigned URL Generated", url)
+			}
+			node.Files[i].DownloadURL = url
+		}
+
+		// Recurse into children
+		if len(node.Children) > 0 {
+			enrichTreeWithPresignedURLs(ctx, h, node.Children, expiry)
+		}
+	}
 }
