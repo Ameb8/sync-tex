@@ -85,3 +85,13 @@ type ProjectCollaborator struct {
 	InvitedBy pgtype.Text      `json:"invited_by"`
 	InvitedAt pgtype.Timestamp `json:"invited_at"`
 }
+
+type ProjectInvite struct {
+	ID        pgtype.UUID      `json:"id"`
+	ProjectID pgtype.UUID      `json:"project_id"`
+	Token     string           `json:"token"`
+	Role      string           `json:"role"`
+	CreatedBy string           `json:"created_by"`
+	CreatedAt pgtype.Timestamp `json:"created_at"`
+	ExpiresAt pgtype.Timestamp `json:"expires_at"`
+}

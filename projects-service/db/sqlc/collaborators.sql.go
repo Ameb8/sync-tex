@@ -11,6 +11,68 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createProjectCollaborator = `-- name: CreateProjectCollaborator :one
+INSERT INTO project_collaborators (project_id, user_id, role, invited_by, invited_at)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING project_id, user_id, role, invited_by, invited_at
+`
+
+func (q *Queries) CreateProjectCollaborator(ctx context.Context, projectID pgtype.UUID, userID string, role string, invitedBy pgtype.Text, invitedAt pgtype.Timestamp) (ProjectCollaborator, error) {
+	row := q.db.QueryRow(ctx, createProjectCollaborator,
+		projectID,
+		userID,
+		role,
+		invitedBy,
+		invitedAt,
+	)
+	var i ProjectCollaborator
+	err := row.Scan(
+		&i.ProjectID,
+		&i.UserID,
+		&i.Role,
+		&i.InvitedBy,
+		&i.InvitedAt,
+	)
+	return i, err
+}
+
+const createProjectInvite = `-- name: CreateProjectInvite :one
+INSERT INTO project_invites (id, project_id, token, role, created_by, expires_at)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, project_id, token, role, created_by, created_at, expires_at
+`
+
+type CreateProjectInviteParams struct {
+	ID        pgtype.UUID      `json:"id"`
+	ProjectID pgtype.UUID      `json:"project_id"`
+	Token     string           `json:"token"`
+	Role      string           `json:"role"`
+	CreatedBy string           `json:"created_by"`
+	ExpiresAt pgtype.Timestamp `json:"expires_at"`
+}
+
+func (q *Queries) CreateProjectInvite(ctx context.Context, arg CreateProjectInviteParams) (ProjectInvite, error) {
+	row := q.db.QueryRow(ctx, createProjectInvite,
+		arg.ID,
+		arg.ProjectID,
+		arg.Token,
+		arg.Role,
+		arg.CreatedBy,
+		arg.ExpiresAt,
+	)
+	var i ProjectInvite
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.Token,
+		&i.Role,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+	)
+	return i, err
+}
+
 const getCollaborator = `-- name: GetCollaborator :one
 SELECT project_id, user_id, role, invited_by, invited_at FROM project_collaborators
 WHERE project_id = $1 AND user_id = $2
@@ -27,4 +89,62 @@ func (q *Queries) GetCollaborator(ctx context.Context, projectID pgtype.UUID, us
 		&i.InvitedAt,
 	)
 	return i, err
+}
+
+const getProjectInviteByToken = `-- name: GetProjectInviteByToken :one
+SELECT id, project_id, token, role, created_by, created_at, expires_at FROM project_invites WHERE token = $1
+`
+
+func (q *Queries) GetProjectInviteByToken(ctx context.Context, token string) (ProjectInvite, error) {
+	row := q.db.QueryRow(ctx, getProjectInviteByToken, token)
+	var i ProjectInvite
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.Token,
+		&i.Role,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+	)
+	return i, err
+}
+
+const listProjectCollaborators = `-- name: ListProjectCollaborators :many
+SELECT project_id, user_id, role, invited_by, invited_at FROM project_collaborators WHERE project_id = $1
+`
+
+func (q *Queries) ListProjectCollaborators(ctx context.Context, projectID pgtype.UUID) ([]ProjectCollaborator, error) {
+	rows, err := q.db.Query(ctx, listProjectCollaborators, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ProjectCollaborator{}
+	for rows.Next() {
+		var i ProjectCollaborator
+		if err := rows.Scan(
+			&i.ProjectID,
+			&i.UserID,
+			&i.Role,
+			&i.InvitedBy,
+			&i.InvitedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const removeProjectCollaborator = `-- name: RemoveProjectCollaborator :exec
+DELETE FROM project_collaborators WHERE project_id = $1 AND user_id = $2
+`
+
+func (q *Queries) RemoveProjectCollaborator(ctx context.Context, projectID pgtype.UUID, userID string) error {
+	_, err := q.db.Exec(ctx, removeProjectCollaborator, projectID, userID)
+	return err
 }

@@ -14,6 +14,8 @@ type Querier interface {
 	CreateDirectory(ctx context.Context, iD pgtype.UUID, projectID pgtype.UUID, parentID pgtype.UUID, name string) (Directory, error)
 	CreateFile(ctx context.Context, arg CreateFileParams) (File, error)
 	CreateProject(ctx context.Context, iD pgtype.UUID, ownerID string, name pgtype.Text) (Project, error)
+	CreateProjectCollaborator(ctx context.Context, projectID pgtype.UUID, userID string, role string, invitedBy pgtype.Text, invitedAt pgtype.Timestamp) (ProjectCollaborator, error)
+	CreateProjectInvite(ctx context.Context, arg CreateProjectInviteParams) (ProjectInvite, error)
 	DeleteDirectory(ctx context.Context, id pgtype.UUID) error
 	DeleteFile(ctx context.Context, id pgtype.UUID) error
 	DeleteProject(ctx context.Context, id pgtype.UUID) error
@@ -23,13 +25,16 @@ type Querier interface {
 	GetDirectory(ctx context.Context, id pgtype.UUID) (Directory, error)
 	GetFile(ctx context.Context, id pgtype.UUID) (File, error)
 	GetProject(ctx context.Context, id pgtype.UUID) (Project, error)
+	GetProjectInviteByToken(ctx context.Context, token string) (ProjectInvite, error)
 	GetProjectStructureAsJSON(ctx context.Context, jsonbBuildObject interface{}) ([]byte, error)
 	ListDirectoriesByParent(ctx context.Context, projectID pgtype.UUID, parentID pgtype.UUID) ([]Directory, error)
 	ListDirectoriesByProject(ctx context.Context, projectID pgtype.UUID) ([]Directory, error)
 	ListFilesByDirectory(ctx context.Context, directoryID pgtype.UUID) ([]File, error)
 	ListFilesByProject(ctx context.Context, projectID pgtype.UUID) ([]File, error)
+	ListProjectCollaborators(ctx context.Context, projectID pgtype.UUID) ([]ProjectCollaborator, error)
 	ListProjectsByOwner(ctx context.Context, ownerID string) ([]Project, error)
 	ListProjectsByUser(ctx context.Context, ownerID string) ([]Project, error)
+	RemoveProjectCollaborator(ctx context.Context, projectID pgtype.UUID, userID string) error
 	UpdateDirectory(ctx context.Context, iD pgtype.UUID, name string) (Directory, error)
 	UpdateFile(ctx context.Context, iD pgtype.UUID, filename string) (File, error)
 	UpdateProjectName(ctx context.Context, iD pgtype.UUID, name pgtype.Text) (Project, error)
