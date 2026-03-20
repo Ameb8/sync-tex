@@ -195,7 +195,8 @@ type File struct {
 	Filename 		string `json:"filename"`
 	FileType 		string `json:"file_type"`
 	StorageKey		string `json:"storage_key"`
-	DownloadURL	string `json:"download_url"`
+	DownloadURL		string `json:"download_url"`
+	uploadURL		string `json:"upload_url"`
 }
 
 type RawFile struct {

@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -297,7 +299,16 @@ func (h *Handler) CreateFile(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, file) // File created
+	// File created
+	c.JSON(http.StatusCreated, gin.H{
+		"id":           file.ID,
+		"filename":     file.Filename,
+		"file_type":    file.FileType,
+		"storage_key":  file.StorageKey,
+		"directory_id": file.DirectoryID,
+		"project_id":   file.ProjectID,
+		"upload_url":   uploadURL,
+	})
 }
 
 // GetFile handles:
