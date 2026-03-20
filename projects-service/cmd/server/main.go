@@ -19,7 +19,7 @@ func main() {
 	cfg := config.Load()
 
 	// Connect to database
-	queries := db.New(cfg.DatabaseURL)
+	queries, err := db.New(cfg.DatabaseURL)
 	if err != nil {
 		log.Fatalf("Database initialization failed: %v", err)
 	}
