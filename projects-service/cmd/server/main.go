@@ -14,6 +14,8 @@ import (
 )
 
 func main() {
+	log.Println("Server starting...")
+
 	// Database connection
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
@@ -39,7 +41,12 @@ func main() {
 	queries := db.New(pool)
 
 	// Initialize handlers
-	h := handlers.NewHandler(queries)
+	h, _ := handlers.NewHandler(queries)
+
+	// Initialize MinIO client
+	//if err := h.InitializeMinioClient(); err != nil {
+//		log.Fatalf("Failed to initialize MinIO: %v", err)
+//	}
 
 	// Setup router
 	r := gin.Default()
