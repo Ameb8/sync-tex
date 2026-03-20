@@ -103,9 +103,10 @@ func (h *Handler) generateDownloadURL(
 
 	// Replace internal hostname with external gateway
 	externalURL := url.String()
-	gatewayURL := os.Getenv("HOST_DOMAIN")
+	gatewayURL := os.Getenv("GATEWAY_URL")
+	log.Println("gatewayURL for presigned:\t", gatewayURL)
 	if gatewayURL != "" {
-		externalURL = strings.ReplaceAll(externalURL, "minio:9000", gatewayURL)
+		externalURL = strings.ReplaceAll(externalURL, "http://minio:9000", gatewayURL)
 	}
 	
 	return externalURL, nil
@@ -132,10 +133,9 @@ func (h *Handler) generateUploadURL(
 	// Replace internal hostname with external gateway
 	externalURL := url.String()
 	log.Println("Generated Upload URL:\t", externalURL)
-
-	gatewayURL := os.Getenv("HOST_DOMAIN")
+	gatewayURL := os.Getenv("GATEWAY_URL")
 	if gatewayURL != "" {
-		externalURL = strings.ReplaceAll(externalURL, "minio:9000", gatewayURL)
+		externalURL = strings.ReplaceAll(externalURL, "http://minio:9000", gatewayURL)
 	}
 	
 	return externalURL, nil
