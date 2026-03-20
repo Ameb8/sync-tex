@@ -102,6 +102,7 @@ services:
       MINIO_ENDPOINT: ${MINIO_ENDPOINT}
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      GATEWAY_URL: ${HOST_DOMAIN}
     ports:
       - "8003:8003"
     volumes:
