@@ -1,3 +1,4 @@
+/* src/components/Editor/TabBar.css */
 .tab-bar {
   display: flex;
   align-items: center;
@@ -22,6 +23,7 @@
   color: var(--text-secondary, #666);
   transition: all 0.15s ease;
   position: relative;
+  flex-shrink: 0;
 }
 
 .tab:hover {
@@ -57,6 +59,7 @@
   justify-content: center;
   border-radius: 3px;
   transition: all 0.15s ease;
+  flex-shrink: 0;
 }
 
 .tab-close:hover {
