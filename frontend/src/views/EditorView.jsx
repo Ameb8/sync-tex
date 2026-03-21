@@ -1,9 +1,17 @@
+// src/views/EditorView.jsx - Complete with delete/rename handlers
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import Editor from '@monaco-editor/react';
 import FileTree from '../components/Editor/FileTree';
 import TabBar from '../components/Editor/TabBar';
-import { fetchProjectTree, fetchFileContent } from '../api/editor';
+import { 
+  fetchProjectTree, 
+  fetchFileContent, 
+  createFile, 
+  createFolder,
+  deleteItem,
+  renameItem
+} from '../api/editor';
 import './EditorView.css';
 
 const EditorView = () => {
@@ -47,18 +55,15 @@ const EditorView = () => {
 
   // Handle file selection from tree
   const handleFileSelect = useCallback(async (file) => {
-    // Check if already open
     const existingTab = openTabs.find((tab) => tab.id === file.id);
     
     if (existingTab) {
       setActiveTabId(file.id);
     } else {
-      // Add new tab
       setOpenTabs((prev) => [...prev, file]);
       setActiveTabId(file.id);
     }
 
-    // Fetch file content if not cached
     if (!fileContents[file.id]) {
       try {
         const content = await fetchFileContent(file.download_url);
@@ -71,6 +76,73 @@ const EditorView = () => {
       }
     }
   }, [openTabs, fileContents]);
+
+  // Handle creating a new file
+  const handleCreateFile = useCallback(async (parentFolderId, filename) => {
+    try {
+      const response = await createFile(projectId, parentFolderId, filename);
+      
+      // Refresh tree data
+      const updatedData = await fetchProjectTree(projectId);
+      setTreeData(updatedData.tree);
+
+      // Auto-open the newly created file
+      if (response.file) {
+        const newFile = response.file;
+        setOpenTabs((prev) => [...prev, newFile]);
+        setActiveTabId(newFile.id);
+        setFileContents((prev) => ({
+          ...prev,
+          [newFile.id]: '',
+        }));
+      }
+    } catch (err) {
+      console.error('Failed to create file:', err);
+      setError(`Error creating file: ${err.message}`);
+    }
+  }, [projectId]);
+
+  // Handle creating a new folder
+  const handleCreateFolder = useCallback(async (parentFolderId, folderName) => {
+    try {
+      await createFolder(projectId, parentFolderId, folderName);
+      
+      // Refresh tree data
+      const updatedData = await fetchProjectTree(projectId);
+      setTreeData(updatedData.tree);
+    } catch (err) {
+      console.error('Failed to create folder:', err);
+      setError(`Error creating folder: ${err.message}`);
+    }
+  }, [projectId]);
+
+  // Handle deleting a file or folder
+  const handleDeleteItem = useCallback(async (itemId, itemType) => {
+    try {
+      await deleteItem(projectId, itemId, itemType);
+      
+      // Refresh tree data
+      const updatedData = await fetchProjectTree(projectId);
+      setTreeData(updatedData.tree);
+    } catch (err) {
+      console.error('Failed to delete item:', err);
+      setError(`Error deleting ${itemType}: ${err.message}`);
+    }
+  }, [projectId]);
+
+  // Handle renaming a file or folder
+  const handleRenameItem = useCallback(async (itemId, itemType, newName) => {
+    try {
+      await renameItem(projectId, itemId, itemType, newName);
+      
+      // Refresh tree data
+      const updatedData = await fetchProjectTree(projectId);
+      setTreeData(updatedData.tree);
+    } catch (err) {
+      console.error('Failed to rename item:', err);
+      setError(`Error renaming ${itemType}: ${err.message}`);
+    }
+  }, [projectId]);
 
   // Handle tab close
   const handleTabClose = useCallback((tabId) => {
@@ -146,6 +218,11 @@ const EditorView = () => {
         treeData={treeData}
         onFileSelect={handleFileSelect}
         activeFileId={activeTabId}
+        onCreateFile={handleCreateFile}
+        onCreateFolder={handleCreateFolder}
+        onDeleteItem={handleDeleteItem}
+        onRenameItem={handleRenameItem}
+        onTabClose={handleTabClose}
       />
 
       {/* Main Editor Area */}
