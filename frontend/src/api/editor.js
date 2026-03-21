@@ -20,13 +20,25 @@ export const fetchFileContent = async (downloadUrl) => {
 
 // # Save file content
 export const saveFileContent = async (projectId, fileId, content) => {
-  const response = await authFetch(`${API_HOST}/projects/v1/projects/${projectId}/files/${fileId}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ content }),
-  });
-  if (!response.ok) {
+  // Fetch presigned url for direct upload
+  const response = await authFetch(
+    `/projects/v1/projects/${projectId}/files/${fileId}/upload`,
+    { method: 'PUT' }
+  );
+
+  if (!response.ok) { // Error fetching upload url
     throw new Error(`Failed to save file: ${response.statusText}`);
   }
+
+  const url = response.upload_url;
+
+  response = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/octet-stream', 
+    },
+    body: content,
+  });
+
   return response.json();
 };
