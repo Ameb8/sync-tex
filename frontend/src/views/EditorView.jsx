@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
+import Editor from '@monaco-editor/react';
 import FileTree from '../components/Editor/FileTree';
 import TabBar from '../components/Editor/TabBar';
 import { fetchProjectTree, fetchFileContent } from '../api/editor';
@@ -13,7 +14,18 @@ const EditorView = () => {
   const [fileContents, setFileContents] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isDarkMode, setIsDarkMode] = useState(
+    window.matchMedia('(prefers-color-scheme: dark)').matches
+  );
   const editorRef = useRef(null);
+
+  // Listen for dark mode changes
+  useEffect(() => {
+    const darkModeQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleChange = (e) => setIsDarkMode(e.matches);
+    darkModeQuery.addEventListener('change', handleChange);
+    return () => darkModeQuery.removeEventListener('change', handleChange);
+  }, []);
 
   // Fetch project tree on mount
   useEffect(() => {
@@ -75,8 +87,41 @@ const EditorView = () => {
     setActiveTabId(tabId);
   }, []);
 
+  // Get language based on file type
+  const getLanguage = (fileType) => {
+    const languageMap = {
+      tex: 'latex',
+      bib: 'bibtex',
+      pdf: 'text',
+      txt: 'text',
+      md: 'markdown',
+      json: 'json',
+      xml: 'xml',
+      py: 'python',
+      js: 'javascript',
+      ts: 'typescript',
+      html: 'html',
+      css: 'css',
+    };
+    return languageMap[fileType] || 'text';
+  };
+
   const activeTab = openTabs.find((tab) => tab.id === activeTabId);
   const activeContent = activeTab ? fileContents[activeTabId] || '' : '';
+  const activeLanguage = activeTab ? getLanguage(activeTab.file_type) : 'text';
+
+  const handleEditorChange = useCallback((value) => {
+    if (activeTabId) {
+      setFileContents((prev) => ({
+        ...prev,
+        [activeTabId]: value || '',
+      }));
+    }
+  }, [activeTabId]);
+
+  const handleEditorMount = (editor) => {
+    editorRef.current = editor;
+  };
 
   if (loading) {
     return (
@@ -116,17 +161,23 @@ const EditorView = () => {
         {/* Editor Content */}
         <div className="editor-content">
           {activeTab ? (
-            <textarea
-              ref={editorRef}
-              className="editor-textarea"
+            <Editor
+              height="100%"
+              language={activeLanguage}
               value={activeContent}
-              onChange={(e) => {
-                setFileContents((prev) => ({
-                  ...prev,
-                  [activeTabId]: e.target.value,
-                }));
+              onChange={handleEditorChange}
+              onMount={handleEditorMount}
+              theme={isDarkMode ? 'vs-dark' : 'vs'}
+              options={{
+                minimap: { enabled: false },
+                fontSize: 13,
+                lineHeight: 1.6,
+                tabSize: 2,
+                wordWrap: 'on',
+                automaticLayout: true,
+                scrollBeyondLastLine: false,
+                fontFamily: "'Menlo', 'Monaco', 'Courier New', monospace",
               }}
-              spellCheck="false"
             />
           ) : (
             <div className="editor-empty">
@@ -136,7 +187,7 @@ const EditorView = () => {
         </div>
       </div>
 
-      {/* Right Sidebar - Optional */}
+      {/* Right Sidebar - Info Panel */}
       <div className="editor-sidebar-right">
         <div className="sidebar-header">
           <p>Info</p>
