@@ -1,0 +1,149 @@
+/* src/components/Editor/CreateItemModal.css */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: var(--bg-primary, #ffffff);
+  border: 0.5px solid var(--border-color, #e0e0e0);
+  border-radius: 8px;
+  padding: 24px;
+  width: 90%;
+  max-width: 400px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  animation: slideUp 0.2s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.modal-title {
+  margin: 0 0 16px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary, #333);
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary, #666);
+}
+
+.form-group input {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 13px;
+  border: 0.5px solid var(--border-color, #e0e0e0);
+  border-radius: 4px;
+  background: var(--bg-primary, #ffffff);
+  color: var(--text-primary, #333);
+  font-family: inherit;
+  box-sizing: border-box;
+  transition: all 0.15s ease;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: var(--text-info, #1f80dd);
+  box-shadow: 0 0 0 2px rgba(31, 128, 221, 0.1);
+}
+
+.form-group input.error {
+  border-color: #d32f2f;
+}
+
+.form-group input.error:focus {
+  box-shadow: 0 0 0 2px rgba(211, 47, 47, 0.1);
+}
+
+.error-message {
+  margin: 6px 0 0 0;
+  font-size: 12px;
+  color: #d32f2f;
+}
+
+.form-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.btn-cancel,
+.btn-submit {
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 4px;
+  border: 0.5px solid var(--border-color, #e0e0e0);
+  background: var(--bg-primary, #ffffff);
+  color: var(--text-primary, #333);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.btn-cancel:hover {
+  background: var(--bg-sidebar, #f9f9f9);
+}
+
+.btn-submit {
+  background: var(--text-info, #1f80dd);
+  color: white;
+  border-color: var(--text-info, #1f80dd);
+}
+
+.btn-submit:hover {
+  background: #1565c0;
+  border-color: #1565c0;
+}
+
+.btn-submit:active {
+  transform: scale(0.98);
+}
+
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+  .modal-content {
+    background: var(--bg-primary, #1e1e1e);
+    border-color: var(--border-color, #3e3e42);
+  }
+
+  .form-group input {
+    background: var(--bg-sidebar, #252526);
+    border-color: var(--border-color, #3e3e42);
+    color: var(--text-primary, #e0e0e0);
+  }
+
+  .btn-cancel {
+    background: var(--bg-sidebar, #252526);
+    border-color: var(--border-color, #3e3e42);
+  }
+
+  .btn-cancel:hover {
+    background: var(--bg-sidebar, #2d2d30);
+  }
+}
