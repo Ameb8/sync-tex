@@ -353,3 +353,101 @@
     display: none;
   }
 }
+
+.save-button {
+  background: none;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+}
+ 
+.save-button:hover:not(:disabled) {
+  background: rgba(31, 128, 221, 0.1);
+}
+ 
+.save-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+ 
+.save-button:active:not(:disabled) {
+  transform: scale(0.95);
+}
+ 
+/* Unsaved indicator in sidebar */
+.unsaved-indicator {
+  color: var(--text-info, #1f80dd);
+  margin-left: 4px;
+  font-weight: bold;
+}
+ 
+/* Save status bar at bottom of editor */
+.save-indicator {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 24px;
+  background: rgba(31, 128, 221, 0.1);
+  border-top: 0.5px solid var(--text-info, #1f80dd);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  font-size: 12px;
+  color: var(--text-info, #1f80dd);
+  z-index: 10;
+}
+ 
+.unsaved-dot {
+  font-size: 8px;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+ 
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+ 
+.saving-indicator {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 24px;
+  background: rgba(76, 175, 80, 0.1);
+  border-top: 0.5px solid #4caf50;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  font-size: 12px;
+  color: #4caf50;
+  z-index: 10;
+}
+
+
+/* Dark mode adjustments */
+@media (prefers-color-scheme: dark) {
+  .save-button:hover:not(:disabled) {
+    background: rgba(31, 128, 221, 0.2);
+  }
+ 
+  .save-indicator {
+    background: rgba(31, 128, 221, 0.08);
+    border-color: var(--text-info, #1f80dd);
+  }
+ 
+  .saving-indicator {
+    background: rgba(76, 175, 80, 0.08);
+    border-color: #4caf50;
+  }
+}

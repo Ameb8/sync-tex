@@ -1,4 +1,3 @@
-// src/views/EditorView.jsx - Complete with delete/rename handlers
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import Editor from '@monaco-editor/react';
@@ -7,6 +6,7 @@ import TabBar from '../components/Editor/TabBar';
 import { 
   fetchProjectTree, 
   fetchFileContent, 
+  saveFileContent,
   createFile, 
   createFolder,
   deleteItem,
@@ -20,12 +20,15 @@ const EditorView = () => {
   const [openTabs, setOpenTabs] = useState([]);
   const [activeTabId, setActiveTabId] = useState(null);
   const [fileContents, setFileContents] = useState({});
+  const [unsavedFiles, setUnsavedFiles] = useState(new Set()); // Track unsaved files
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(
     window.matchMedia('(prefers-color-scheme: dark)').matches
   );
   const editorRef = useRef(null);
+  const originalContentsRef = useRef({}); // Store original file contents for comparison
 
   // Listen for dark mode changes
   useEffect(() => {
@@ -53,6 +56,21 @@ const EditorView = () => {
     loadProjectTree();
   }, [projectId]);
 
+  // Handle Ctrl+S / Cmd+S save
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        if (activeTabId) {
+          handleSaveFile();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeTabId, fileContents, unsavedFiles]);
+
   // Handle file selection from tree
   const handleFileSelect = useCallback(async (file) => {
     const existingTab = openTabs.find((tab) => tab.id === file.id);
@@ -71,11 +89,42 @@ const EditorView = () => {
           ...prev,
           [file.id]: content,
         }));
+        // Store original content for change detection
+        originalContentsRef.current[file.id] = content;
       } catch (err) {
         console.error('Failed to load file:', err);
+        setError(`Failed to load file: ${err.message}`);
       }
     }
   }, [openTabs, fileContents]);
+
+  // Handle saving the current file
+  const handleSaveFile = useCallback(async () => {
+    if (!activeTabId || isSaving) return;
+
+    try {
+      setIsSaving(true);
+      const content = fileContents[activeTabId];
+      
+      // Call your save API
+      await saveFileContent(projectId, activeTabId, content);
+      
+      // Mark file as saved
+      const newUnsavedFiles = new Set(unsavedFiles);
+      newUnsavedFiles.delete(activeTabId);
+      setUnsavedFiles(newUnsavedFiles);
+      
+      // Update original content reference
+      originalContentsRef.current[activeTabId] = content;
+      
+      console.log('File saved successfully');
+    } catch (err) {
+      console.error('Failed to save file:', err);
+      setError(`Error saving file: ${err.message}`);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [activeTabId, fileContents, projectId, isSaving, unsavedFiles]);
 
   // Handle creating a new file
   const handleCreateFile = useCallback(async (parentFolderId, filename) => {
@@ -95,6 +144,9 @@ const EditorView = () => {
           ...prev,
           [newFile.id]: '',
         }));
+        // New files are unsaved
+        setUnsavedFiles((prev) => new Set(prev).add(newFile.id));
+        originalContentsRef.current[newFile.id] = '';
       }
     } catch (err) {
       console.error('Failed to create file:', err);
@@ -124,11 +176,19 @@ const EditorView = () => {
       // Refresh tree data
       const updatedData = await fetchProjectTree(projectId);
       setTreeData(updatedData.tree);
+      
+      // Clean up unsaved tracking
+      if (itemType === 'file') {
+        const newUnsavedFiles = new Set(unsavedFiles);
+        newUnsavedFiles.delete(itemId);
+        setUnsavedFiles(newUnsavedFiles);
+        delete originalContentsRef.current[itemId];
+      }
     } catch (err) {
       console.error('Failed to delete item:', err);
       setError(`Error deleting ${itemType}: ${err.message}`);
     }
-  }, [projectId]);
+  }, [projectId, unsavedFiles]);
 
   // Handle renaming a file or folder
   const handleRenameItem = useCallback(async (itemId, itemType, newName) => {
@@ -152,7 +212,18 @@ const EditorView = () => {
       const remaining = openTabs.filter((tab) => tab.id !== tabId);
       setActiveTabId(remaining.length > 0 ? remaining[0].id : null);
     }
-  }, [activeTabId, openTabs]);
+
+    // Clean up content and unsaved tracking
+    const newFileContents = { ...fileContents };
+    delete newFileContents[tabId];
+    setFileContents(newFileContents);
+    
+    const newUnsavedFiles = new Set(unsavedFiles);
+    newUnsavedFiles.delete(tabId);
+    setUnsavedFiles(newUnsavedFiles);
+    
+    delete originalContentsRef.current[tabId];
+  }, [activeTabId, openTabs, fileContents, unsavedFiles]);
 
   // Handle tab selection
   const handleTabSelect = useCallback((tabId) => {
@@ -181,6 +252,7 @@ const EditorView = () => {
   const activeTab = openTabs.find((tab) => tab.id === activeTabId);
   const activeContent = activeTab ? fileContents[activeTabId] || '' : '';
   const activeLanguage = activeTab ? getLanguage(activeTab.file_type) : 'text';
+  const isActiveFileDirty = activeTabId && unsavedFiles.has(activeTabId);
 
   const handleEditorChange = useCallback((value) => {
     if (activeTabId) {
@@ -188,8 +260,20 @@ const EditorView = () => {
         ...prev,
         [activeTabId]: value || '',
       }));
+
+      // Mark as unsaved if content differs from original
+      const isChanged = value !== originalContentsRef.current[activeTabId];
+      const newUnsavedFiles = new Set(unsavedFiles);
+      
+      if (isChanged) {
+        newUnsavedFiles.add(activeTabId);
+      } else {
+        newUnsavedFiles.delete(activeTabId);
+      }
+      
+      setUnsavedFiles(newUnsavedFiles);
     }
-  }, [activeTabId]);
+  }, [activeTabId, unsavedFiles]);
 
   const handleEditorMount = (editor) => {
     editorRef.current = editor;
@@ -233,29 +317,46 @@ const EditorView = () => {
           activeTabId={activeTabId}
           onTabSelect={handleTabSelect}
           onTabClose={handleTabClose}
+          unsavedFiles={unsavedFiles}
         />
 
         {/* Editor Content */}
         <div className="editor-content">
           {activeTab ? (
-            <Editor
-              height="100%"
-              language={activeLanguage}
-              value={activeContent}
-              onChange={handleEditorChange}
-              onMount={handleEditorMount}
-              theme={isDarkMode ? 'vs-dark' : 'vs'}
-              options={{
-                minimap: { enabled: false },
-                fontSize: 13,
-                lineHeight: 1.6,
-                tabSize: 2,
-                wordWrap: 'on',
-                automaticLayout: true,
-                scrollBeyondLastLine: false,
-                fontFamily: "'Menlo', 'Monaco', 'Courier New', monospace",
-              }}
-            />
+            <>
+              <Editor
+                height="100%"
+                language={activeLanguage}
+                value={activeContent}
+                onChange={handleEditorChange}
+                onMount={handleEditorMount}
+                theme={isDarkMode ? 'vs-dark' : 'vs'}
+                options={{
+                  minimap: { enabled: false },
+                  fontSize: 13,
+                  lineHeight: 1.6,
+                  tabSize: 2,
+                  wordWrap: 'on',
+                  automaticLayout: true,
+                  scrollBeyondLastLine: false,
+                  fontFamily: "'Menlo', 'Monaco', 'Courier New', monospace",
+                }}
+              />
+              
+              {/* Save Status Bar */}
+              {isActiveFileDirty && (
+                <div className="save-indicator">
+                  <span className="unsaved-dot">●</span>
+                  <span className="save-hint">Press Ctrl+S to save</span>
+                </div>
+              )}
+              
+              {isSaving && (
+                <div className="saving-indicator">
+                  Saving...
+                </div>
+              )}
+            </>
           ) : (
             <div className="editor-empty">
               <p>Select a file to start editing</p>
@@ -267,14 +368,29 @@ const EditorView = () => {
       {/* Right Sidebar - Info Panel */}
       <div className="editor-sidebar-right">
         <div className="sidebar-header">
-          <p>Info</p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <p style={{ margin: 0 }}>Info</p>
+            {activeTabId && (
+              <button
+                onClick={handleSaveFile}
+                disabled={!isActiveFileDirty || isSaving}
+                className="save-button"
+                title="Save file (Ctrl+S)"
+              >
+                {isSaving ? '⏳' : '💾'}
+              </button>
+            )}
+          </div>
         </div>
         <div className="sidebar-content">
           {activeTab && (
             <>
               <div className="info-card">
                 <p className="info-label">File</p>
-                <p className="info-value">{activeTab.filename}</p>
+                <p className="info-value">
+                  {activeTab.filename}
+                  {isActiveFileDirty && <span className="unsaved-indicator">*</span>}
+                </p>
               </div>
               <div className="info-card">
                 <p className="info-label">Type</p>
