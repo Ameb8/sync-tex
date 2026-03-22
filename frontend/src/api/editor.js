@@ -25,7 +25,7 @@ export const saveFileContent = async (projectId, fileId, content) => {
   // Fetch presigned url for direct upload
   const response = await authFetch(
     `/projects/v1/projects/${projectId}/files/${fileId}/upload`,
-    { method: 'PUT' }
+    { method: 'POST' }
   );
 
   if (!response.ok) { // Error fetching upload url
@@ -36,7 +36,7 @@ export const saveFileContent = async (projectId, fileId, content) => {
   const url = data.upload_url;
   console.log(`Upload URL:\t${url}`)
 
-  const uploadResponse = await fetch(response.upload_url, {
+  const uploadResponse = await fetch(url, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/octet-stream', 
