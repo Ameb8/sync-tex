@@ -70,7 +70,7 @@ func (h *Handler) CreateProject(c *gin.Context) {
 	ctx := c.Request.Context()
 
 	// Start transaction
-	tx, err := h.queries.DB.Begin(ctx)
+	tx, err := h.db.Begin(ctx)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
 		return
@@ -120,7 +120,7 @@ func (h *Handler) CreateProject(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
 		return
 	}
-	
+
 	c.JSON(http.StatusCreated, project)
 }
 

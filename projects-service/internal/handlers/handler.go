@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/minio/minio-go/v7"
+	"github.com/jackc/pgx/v5/pgxpool"
 	
 	"projects-service/internal/auth"
 	"projects-service/internal/storage"
@@ -22,14 +23,15 @@ import (
 // Handlers contains all HTTP handlers
 // Stores database and auth dependencies
 type Handler struct {
-	queries *db.Queries
-	authorizer *auth.Authorizer
-	minioClient  *minio.Client
+	db			*pgxpool.Pool
+	queries 	*db.Queries
+	authorizer 	*auth.Authorizer
+	minioClient	*minio.Client
 }
 
 // NewHandler initializes a new Handler object
 // Includes required dependencies
-func NewHandler(queries *db.Queries) (*Handler, error) {
+func NewHandler(pool *pgxpool.Pool, queries *db.Queries) (*Handler, error) {
 	// Initialize minio client
 	minioClient, err := storage.NewMinioClient()
 	if err != nil {
@@ -39,6 +41,7 @@ func NewHandler(queries *db.Queries) (*Handler, error) {
 	}
 	
 	return &Handler{ // Initialize handler
+		db:			pool,
 		queries:    queries,
 		authorizer: auth.NewAuthorizer(queries),
 		minioClient: minioClient,

@@ -19,14 +19,15 @@ func main() {
 	cfg := config.Load()
 
 	// Connect to database
-	queries, err := db.New(cfg.DatabaseURL)
+	pool, queries, err := db.New(cfg.DatabaseURL)
 	if err != nil {
 		log.Fatalf("Database initialization failed: %v", err)
 	}
-	defer db.Close() // Ensure db. connection pool gets closed
+
+	defer db.Close(pool) // Ensure db. connection pool gets closed
 
 	// Initialize handlers
-	h, _ := handlers.NewHandler(queries)
+	h, _ := handlers.NewHandler(pool, queries)
 
 	// Set up auth middleware
 	authMiddleware := middleware.NewAuthMiddleware(cfg.JWTSecret)
