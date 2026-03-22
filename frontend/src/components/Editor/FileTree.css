@@ -1,3 +1,4 @@
+/* src/components/Editor/FileTree.css - Professional context menu styling */
 .file-tree {
   width: 260px;
   border-right: 0.5px solid var(--border-color, #e0e0e0);
@@ -81,7 +82,83 @@
   flex: 1;
 }
 
-/* Dark mode support */
+/* ============ Context Menu Styling ============ */
+.context-menu {
+  position: fixed;
+  background: var(--bg-primary, #ffffff);
+  border: 0.5px solid var(--border-color, #e0e0e0);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  z-index: 999;
+  min-width: 200px;
+  overflow: hidden;
+  animation: contextMenuAppear 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes contextMenuAppear {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 16px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary, #333);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.08s ease;
+  font-family: inherit;
+  position: relative;
+}
+
+.context-menu-item:not(.delete):not(:last-of-type)::after {
+  content: '✎';
+  margin-left: auto;
+  font-size: 14px;
+  color: var(--text-tertiary, #999);
+  opacity: 0.6;
+}
+
+.context-menu-item:hover {
+  background-color: var(--bg-sidebar, #f9f9f9);
+  color: var(--text-primary, #333);
+}
+
+.context-menu-item:active {
+  transform: scale(0.96);
+}
+
+/* Delete button styling */
+.context-menu-item.delete {
+  color: #d32f2f;
+}
+
+.context-menu-item.delete:hover {
+  background-color: rgba(211, 47, 47, 0.08);
+  color: #b71c1c;
+}
+
+/* Divider */
+.context-menu-divider {
+  height: 0.5px;
+  background: var(--border-color, #e0e0e0);
+  margin: 6px 0;
+}
+
+/* Dark mode */
 @media (prefers-color-scheme: dark) {
   .file-tree {
     background: var(--bg-sidebar, #1e1e1e);
@@ -99,5 +176,31 @@
 
   .file-item.active {
     background-color: rgba(31, 128, 221, 0.15);
+  }
+
+  .context-menu {
+    background: var(--bg-primary, #252526);
+    border-color: var(--border-color, #3e3e42);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  }
+
+  .context-menu-item {
+    color: var(--text-primary, #e0e0e0);
+  }
+
+  .context-menu-item:hover {
+    background-color: var(--bg-sidebar, #2d2d30);
+  }
+
+  .context-menu-item.delete:hover {
+    background-color: rgba(211, 47, 47, 0.15);
+  }
+
+  .context-menu-divider {
+    background: var(--border-color, #3e3e42);
+  }
+
+  .context-menu-item:not(.delete):not(:last-of-type)::after {
+    color: var(--text-tertiary, #606060);
   }
 }
