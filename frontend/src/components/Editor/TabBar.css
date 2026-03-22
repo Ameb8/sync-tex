@@ -1,4 +1,4 @@
-/* src/components/Editor/TabBar.css */
+/* src/components/Editor/TabBar.css - Updated with save indicator styles */
 .tab-bar {
   display: flex;
   align-items: center;
@@ -37,12 +37,36 @@
   margin-bottom: -0.5px;
 }
 
+.tab.unsaved {
+  font-style: italic;
+  opacity: 0.9;
+}
+
 .tab-name {
   font-size: 12px;
   font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 150px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.unsaved-dot {
+  font-size: 10px;
+  color: var(--text-info, #1f80dd);
+  animation: pulse 1.5s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
 }
 
 .tab-close {
