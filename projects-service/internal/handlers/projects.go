@@ -67,18 +67,60 @@ func (h *Handler) CreateProject(c *gin.Context) {
 		return
 	}
 
-	projectID := uuid.New()
-	pgUUID, _ := stringToPgUUID(projectID.String())
+	ctx := c.Request.Context()
 
+	// Start transaction
+	tx, err := h.queries.DB.Begin(ctx)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
+		return
+	}
+	defer tx.Rollback(ctx)
+
+	qtx := h.queries.WithTx(tx)
+
+
+	// Create project
+	projectID := uuid.New()
+	pgProjectID, _ := stringToPgUUID(projectID.String())
+
+	// Get project name
 	var name pgtype.Text
 	name.Scan(req.Name)
 
-	project, err := h.queries.CreateProject(c.Request.Context(), pgUUID, userID, name)
+	// Save project to database
+	project, err := qtx.CreateProject(ctx, pgProjectID, userID, name)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create project"})
 		return
 	}
 
+	// Generate ID for root directory
+	rootDirID := uuid.New()
+	pgRootDirID, _ := stringToPgUUID(rootDirID.String())
+
+	// Set parent to null
+	var parentID pgtype.UUID // NULL → root
+
+	// Save root directory to database
+	_, err = qtx.CreateDirectory(
+		ctx,
+		pgRootDirID,
+		pgProjectID,
+		parentID,   // NULL parent
+		req.Name,   // same as project name
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create root directory"})
+		return
+	}
+
+	// Commit transaction
+	if err := tx.Commit(ctx); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
+		return
+	}
+	
 	c.JSON(http.StatusCreated, project)
 }
 
