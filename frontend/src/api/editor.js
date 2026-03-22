@@ -43,8 +43,11 @@ export const saveFileContent = async (projectId, fileId, content) => {
     },
     body: content,
   });
+  if (!uploadResponse.ok) {
+    throw new Error(`Failed to upload file: ${uploadResponse.statusText}`);
+  }
 
-  return uploadResponse.json();
+  return { success: true };
 };
 
 
