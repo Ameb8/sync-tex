@@ -145,8 +145,8 @@ const CollaboratorsPanel = ({ projectId }) => {
                 onChange={(e) => setSelectedAccessLevel(e.target.value)}
                 disabled={loading}
               >
-                <option value="read">Read Only</option>
-                <option value="write">Read & Write</option>
+                <option value="viewer">Read Only</option>
+                <option value="editor">Read & Write</option>
               </select>
             </div>
 
