@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import Editor from '@monaco-editor/react';
 import FileTree from '../components/Editor/FileTree';
 import TabBar from '../components/Editor/TabBar';
+import CollaboratorsPanel from '../components/Editor/CollaboratorsPanel';
 import { 
   fetchProjectTree, 
   fetchFileContent, 
@@ -24,6 +25,7 @@ const EditorView = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [sidebarTab, setSidebarTab] = useState('info');
   const [isDarkMode, setIsDarkMode] = useState(
     window.matchMedia('(prefers-color-scheme: dark)').matches
   );
@@ -367,45 +369,89 @@ const EditorView = () => {
 
       {/* Right Sidebar - Info Panel */}
       <div className="editor-sidebar-right">
-        <div className="sidebar-header">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <p style={{ margin: 0 }}>Info</p>
-            {activeTabId && (
-              <button
-                onClick={handleSaveFile}
-                disabled={!isActiveFileDirty || isSaving}
-                className="save-button"
-                title="Save file (Ctrl+S)"
-              >
-                {isSaving ? '⏳' : '💾'}
-              </button>
-            )}
+        <div style={{ display: 'flex', height: '100%', flexDirection: 'column' }}>
+          {/* Sidebar Tab Navigation */}
+          <div style={{ display: 'flex', gap: 0, borderBottom: '0.5px solid var(--border-color, #e0e0e0)' }}>
+            <button
+              onClick={() => setSidebarTab('info')}
+              className={`sidebar-tab ${sidebarTab === 'info' ? 'active' : ''}`}
+              style={{
+                flex: 1,
+                padding: '12px 16px',
+                border: 'none',
+                background: 'transparent',
+                color: sidebarTab === 'info' ? 'var(--text-info, #1f80dd)' : 'var(--text-secondary, #666)',
+                fontSize: '13px',
+                fontWeight: '500',
+                cursor: 'pointer',
+                borderBottom: sidebarTab === 'info' ? '2px solid var(--text-info, #1f80dd)' : 'none',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              Info
+            </button>
+            <button
+              onClick={() => setSidebarTab('collaborators')}
+              className={`sidebar-tab ${sidebarTab === 'collaborators' ? 'active' : ''}`}
+              style={{
+                flex: 1,
+                padding: '12px 16px',
+                border: 'none',
+                background: 'transparent',
+                color: sidebarTab === 'collaborators' ? 'var(--text-info, #1f80dd)' : 'var(--text-secondary, #666)',
+                fontSize: '13px',
+                fontWeight: '500',
+                cursor: 'pointer',
+                borderBottom: sidebarTab === 'collaborators' ? '2px solid var(--text-info, #1f80dd)' : 'none',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              Share
+            </button>
           </div>
-        </div>
-        <div className="sidebar-content">
-          {activeTab && (
-            <>
-              <div className="info-card">
-                <p className="info-label">File</p>
-                <p className="info-value">
-                  {activeTab.filename}
-                  {isActiveFileDirty && <span className="unsaved-indicator">*</span>}
-                </p>
-              </div>
-              <div className="info-card">
-                <p className="info-label">Type</p>
-                <p className="info-value">{activeTab.file_type.toUpperCase()}</p>
-              </div>
-              <div className="info-card">
-                <p className="info-label">Size</p>
-                <p className="info-value">{(activeContent.length / 1024).toFixed(1)} KB</p>
-              </div>
-              <div className="info-card">
-                <p className="info-label">Lines</p>
-                <p className="info-value">{activeContent.split('\n').length}</p>
-              </div>
-            </>
+      
+          {/* Info Tab */}
+          {sidebarTab === 'info' && (
+            <div className="sidebar-content">
+              {activeTab ? (
+                <>
+                  <div className="info-card">
+                    <p className="info-label">File</p>
+                    <p className="info-value">
+                      {activeTab.filename}
+                      {isActiveFileDirty && <span className="unsaved-indicator">*</span>}
+                    </p>
+                  </div>
+                  <div className="info-card">
+                    <p className="info-label">Type</p>
+                    <p className="info-value">{activeTab.file_type.toUpperCase()}</p>
+                  </div>
+                  <div className="info-card">
+                    <p className="info-label">Size</p>
+                    <p className="info-value">{(activeContent.length / 1024).toFixed(1)} KB</p>
+                  </div>
+                  <div className="info-card">
+                    <p className="info-label">Lines</p>
+                    <p className="info-value">{activeContent.split('\n').length}</p>
+                  </div>
+                  <div className="info-card">
+                    <p className="info-label">Save</p>
+                    <button
+                      onClick={handleSaveFile}
+                      disabled={!isActiveFileDirty || isSaving}
+                      className="save-button"
+                      title="Save file (Ctrl+S)"
+                    >
+                      {isSaving ? '⏳ Saving...' : '💾 Save'}
+                    </button>
+                  </div>
+                </>
+              ) : null}
+            </div>
           )}
+      
+          {/* Collaborators Tab */}
+          {sidebarTab === 'collaborators' && <CollaboratorsPanel projectId={projectId} />}
         </div>
       </div>
     </div>
