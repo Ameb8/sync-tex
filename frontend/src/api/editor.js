@@ -11,36 +11,17 @@ export const fetchProjectTree = async (projectId) => {
 };
 
 
-
-// Get file content
-export const fetchFileContent = async (projectId, fileId, content) => {
-  // Fetch presigned url for direct upload
-  const response = await authFetch(
-    `/projects/v1/projects/${projectId}/files/${fileId}`,
-    { method: 'GET' }
-  );
-
-  if (!response.ok) { // Error fetching upload url
-    throw new Error(`Failed to save file: ${response.statusText}`);
-  }
-
-  const url = response.upload_url;
-
-  const downloadRsponse = await fetch(response.download_url, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/octet-stream', 
-    },
-    body: content,
-  });
-
-  return downloadResponse.json();
+export const fetchFileContent = async (downloadUrl) => {
+  console.log(`Downloadinf File Content From:\t${downloadUrl}`)
+  // Use the presigned URL directly from tree data
+  const response = await fetch(downloadUrl);
+  return response.text();
 };
-
 
 
 // Save file content
 export const saveFileContent = async (projectId, fileId, content) => {
+  console.log("SAVING FILE CONTENT... ... ...")
   // Fetch presigned url for direct upload
   const response = await authFetch(
     `/projects/v1/projects/${projectId}/files/${fileId}/upload`,
@@ -51,7 +32,8 @@ export const saveFileContent = async (projectId, fileId, content) => {
     throw new Error(`Failed to save file: ${response.statusText}`);
   }
 
-  const url = response.upload_url;
+  const data = await response.json();
+  const url = data.upload_url;
   console.log(`Upload URL:\t${url}`)
 
   const uploadResponse = await fetch(response.upload_url, {
