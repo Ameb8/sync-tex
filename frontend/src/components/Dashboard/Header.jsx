@@ -60,9 +60,6 @@ function Header({ onNewProject, onImport, onJoin }) {
         <button className="btn btn-secondary" onClick={onImport}>
           Import
         </button>
-        <button className="btn btn-secondary" onClick={onJoin} title="Join a shared project">
-          Join Project
-        </button>
       </div>
 
       <div className="header-profile" ref={profileMenuRef}>
