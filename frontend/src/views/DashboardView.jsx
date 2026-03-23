@@ -4,6 +4,7 @@ import RecentProjects from '../components/Dashboard/RecentProjects';
 import AllProjects from '../components/Dashboard/AllProjects';
 import NewProjectModal from '../components/Dashboard/NewProjectModal';
 import ImportModal from '../components/Dashboard/ImportModal';
+import JoinProjectModal from '../components/Dashboard/JoinProjectModal';
 import { fetchProjects } from '../api/projects';
 import './DashboardView.css';
 
@@ -12,6 +13,7 @@ function DashboardView() {
   const [loading, setLoading] = useState(true);
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showJoinModal, setShowJoinModal] = useState(false);
   const [filter, setFilter] = useState('all'); // 'all', 'my', 'shared', 'templates'
   const [sortBy, setSortBy] = useState('recent'); // 'recent', 'name', 'modified'
 
@@ -38,6 +40,11 @@ function DashboardView() {
   const handleImport = () => {
     setShowImportModal(true);
   };
+
+  const handleJoin = () => {
+    setShowJoinModal(true);
+  };
+
 
   const handleProjectCreated = () => {
     setShowNewProjectModal(false);
@@ -80,6 +87,7 @@ function DashboardView() {
       <Header 
         onNewProject={handleNewProject}
         onImport={handleImport}
+        onJoin={handleJoin}
       />
       
       <div className="dashboard-content">
@@ -109,6 +117,12 @@ function DashboardView() {
         <ImportModal 
           onClose={() => setShowImportModal(false)}
           onProjectImported={handleProjectImported}
+        />
+      )}
+
+      {showJoinModal && (
+        <JoinProjectModal 
+          onClose={() => setShowJoinModal(false)}
         />
       )}
     </div>

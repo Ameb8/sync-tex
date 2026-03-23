@@ -1,9 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import './Header.css';
 
-function Header({ onNewProject, onImport }) {
+function Header({ onNewProject, onImport, onJoin }) {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const profileMenuRef = useRef(null);
   const navigate = useNavigate();
@@ -59,6 +59,9 @@ function Header({ onNewProject, onImport }) {
         </button>
         <button className="btn btn-secondary" onClick={onImport}>
           Import
+        </button>
+        <button className="btn btn-secondary" onClick={onJoin} title="Join a shared project">
+          Join Project
         </button>
       </div>
 
