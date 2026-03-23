@@ -44,5 +44,6 @@ func SetupRoutes(r *gin.Engine, h *handlers.Handler, authMiddleware *middleware.
 	api.POST("/projects/:projectID/invites", h.CreateInvite)
 	api.POST("/invites/accept", h.AcceptInvite)
 	api.GET("/projects/:projectID/collaborators", h.ListCollaborators)
+	api.GET("/invites/join")
 	api.DELETE("/projects/:projectID/collaborators/:userID", h.RemoveCollaborator)
 }

@@ -226,3 +226,26 @@ func (h *Handler) generateInviteToken() (string, error) {
     }
     return hex.EncodeToString(b), nil
 }
+
+// GET /projects/v1/invites/join?token=...
+func (h *Handler) JoinViaInvite(c *gin.Context) {
+    token := c.Query("token")
+    if token == "" {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "token is required"})
+        return
+    }
+
+    invite, err := h.queries.GetProjectInviteByToken(c.Request.Context(), token)
+    if err != nil {
+        c.JSON(http.StatusNotFound, gin.H{"error": "Invalid or expired invite"})
+        return
+    }
+
+    if time.Now().After(invite.ExpiresAt.Time) {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invite has expired"})
+        return
+    }
+
+    // Redirect to frontend with token 
+    c.Redirect(http.StatusFound, fmt.Sprintf("http://192.168.1.34/join?token=%s", token))
+}
