@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import Header from '../components/Dashboard/Header';
 import RecentProjects from '../components/Dashboard/RecentProjects';
 import AllProjects from '../components/Dashboard/AllProjects';
@@ -16,9 +17,22 @@ function DashboardView() {
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [filter, setFilter] = useState('all'); // 'all', 'my', 'shared', 'templates'
   const [sortBy, setSortBy] = useState('recent'); // 'recent', 'name', 'modified'
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const [joinError, setJoinError] = useState(null);
 
   useEffect(() => {
     loadProjects();
+  }, []);
+
+  useEffect(() => {
+    const err = searchParams.get('join_error');
+    if (err) {
+      setJoinError(
+        err === 'missing_token' ? 'Invalid invite link.' : 'Invite link is invalid or has expired.'
+      );
+      navigate('/', { replace: true }); // clear query param
+    }
   }, []);
 
   const loadProjects = async () => {
@@ -84,6 +98,11 @@ function DashboardView() {
 
   return (
     <div className="dashboard-view">
+      {joinError && (
+        <div className="join-error-toast" onClick={() => setJoinError(null)}>
+          ⚠️ {joinError}
+        </div>
+      )}
       <Header 
         onNewProject={handleNewProject}
         onImport={handleImport}

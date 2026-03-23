@@ -27,3 +27,17 @@
   padding: 2rem;
   color: var(--text-secondary);
 }
+
+.join-error-toast {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  background: #fee2e2;
+  border: 1px solid #f87171;
+  color: #991b1b;
+  padding: 0.75rem 1.25rem;
+  border-radius: 8px;
+  cursor: pointer;
+  z-index: 1000;
+  font-size: 14px;
+}
