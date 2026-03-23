@@ -75,20 +75,17 @@ export const revokeCollaboratorLink = async (projectId, linkId) => {
   return response.json();
 };
 
-// Accept collaborator invite link
 export const acceptCollaboratorLink = async (token) => {
-  const response = await fetch(
-    `projects/v1/invites/accept`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-    }
-  );
- 
+  const response = await authFetch('/projects/v1/invites/accept', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token }),
+  });
+
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
-    throw new Error(error.message || `Failed to join project: ${response.statusText}`);
+    throw new Error(error.error || `Failed to join project`);
   }
- 
+
   return response.json();
 };
