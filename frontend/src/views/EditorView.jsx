@@ -169,7 +169,7 @@ const EditorView = () => {
     session.bindEditor(editor);
     // Switch model ownership to Yjs — value prop becomes undefined after this
     boundFiles.current.add(activeTabId);
-  }, [isCollab, activeTabId]);
+  }, [isCollab]);
 
   useEffect(() => {
     if (editorRef.current) bindActiveSession(editorRef.current);
@@ -378,6 +378,7 @@ const EditorView = () => {
           {activeTab ? (
             <>
               <Editor
+                key={activeTabId}
                 height="100%"
                 language={activeLanguage}
                 // Collab files: DO NOT pass value — MonacoBinding owns the model.
