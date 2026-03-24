@@ -4,302 +4,346 @@ import Editor from '@monaco-editor/react';
 import FileTree from '../components/Editor/FileTree';
 import TabBar from '../components/Editor/TabBar';
 import CollaboratorsPanel from '../components/Editor/CollaboratorsPanel';
-import { 
-  fetchProjectTree, 
-  fetchFileContent, 
+import { createCollabSession } from '../api/session';
+import { useAuth } from '../contexts/AuthContext';
+import {
+  fetchProjectTree,
+  fetchFileContent,
   saveFileContent,
-  createFile, 
+  createFile,
   createFolder,
   deleteItem,
-  renameItem
+  renameItem,
 } from '../api/editor';
-import './EditorView.css';
-
+import './EditorViewcss';
+E/ Constants
+const getLanguage = (fileType) => ({
+  tex: 'latex', bib: 'bibtex', pdf: 'text', txt: 'text',
+  md: 'markdown', json: 'json', xml: 'xml', py: 'python',
+  js: 'javascript', ts: 'typescript', html: 'html', css: 'css',
+}[fileType] || 'text');
+ 
 const EditorView = () => {
-  const { projectId } = useParams();
-  const [treeData, setTreeData] = useState([]);
-  const [openTabs, setOpenTabs] = useState([]);
-  const [activeTabId, setActiveTabId] = useState(null);
-  const [fileContents, setFileContents] = useState({});
-  const [unsavedFiles, setUnsavedFiles] = useState(new Set()); // Track unsaved files
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [isSaving, setIsSaving] = useState(false);
-  const [sidebarTab, setSidebarTab] = useState('info');
-  const [isDarkMode, setIsDarkMode] = useState(
-    window.matchMedia('(prefers-color-scheme: dark)').matches
-  );
-  const editorRef = useRef(null);
-  const originalContentsRef = useRef({}); // Store original file contents for comparison
+  const { projectId }  = useParams();
+ const { getToken }   = useAuth(); // pulls JWT for WS auth
 
-  // Listen for dark mode changes
+  // Project / tree state
+  const [treeData, setTreeData]           = useState([]);
+  const [isCollab, setIsCollab]           = useState(false);
+  const [loading, setLoading]             = useState(true);
+  const [error, setError]                 = useState(null);
+
+  // Tab state
+  const [openTabs, setOpenTabs]           = useState([]);
+  const [activeTabId, setActiveTabId]     = useState(null);
+
+  // File content (non-collab files only) 
+  // For collab files, content lives in the Y.Doc — we don't track it in React
+  // state because MonacoBinding owns the Monaco model and 's  // `value` prop would fight it.
+  const [fileContents, setFileContents]   = useState({});
+  const [unsavedFiles, setUnsavedFiles]   = useState(new Set());
+  const originalContentsRef               = useRef({});
+
+  // Save state 
+  const [isSaving, setIsSaving]           = useState(false);
+
+  // Collab sessions 
+  // Map of fileId → session object from createCollabSession().
+  // Stored in a ref (not state) because mutations don't need re-renders.
+  const collabSessions                    = useRef({});
+  // Collab connection status per file — drives the UI indicator.
+  const [collabStatus, setCollabStatus]   = useState({}); // fileId → 'connecting'|'connected'|'disconnected'
+
+  // Editor ref 
+  const editorRef                         = useRef(null);
+
+  // UI state 
+  const [sidebarTab, setSidebarTab]       = useState('info');
+  const [isDarkMode, setIsDarkMode]       = useState(
+    window.matchMedia('(prefers-color-scheme: dark)').matches,
+  );
+
+  // Dark mode listener
   useEffect(() => {
-    const darkModeQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const handleChange = (e) => setIsDarkMode(e.matches);
-    darkModeQuery.addEventListener('change', handleChange);
-    return () => darkModeQuery.removeEventListener('change', handleChange);
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = (e) => setIsDarkMode(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
   }, []);
 
-  // Fetch project tree on mount
+  // Load project tree
   useEffect(() => {
-    const loadProjectTree = async () => {
+    const load = async () => {
       try {
         setLoading(true);
         const data = await fetchProjectTree(projectId);
         setTreeData(data.tree);
+        // projects-service sets this when the project has >1 collaborator
+        //setIsCollab(data.is_collab ?? false);
+
+        // Temporary always set to collaborative mode
+        setIsCollab(true);
       } catch (err) {
         setError(err.message);
-        console.error('Failed to load project tree:', err);
       } finally {
         setLoading(false);
       }
     };
-
-    loadProjectTree();
+    load();
   }, [projectId]);
 
-  // Handle Ctrl+S / Cmd+S save
+
+  // For collab files Ctrl+S triggers a manual save (same REST path, but reads
+  // from the Y.Doc instead of React state). The server-signal save is the
+  // primary path; Ctrl+S is a user-initiated override.
   useEffect(() => {
-    const handleKeyDown = (e) => {
+    const handler = (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
-        if (activeTabId) {
-          handleSaveFile();
-        }
+        if (activeTabId) handleSaveFile();
       }
     };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
   }, [activeTabId, fileContents, unsavedFiles]);
 
-  // Handle file selection from tree
+
+  // Open collab-service connection
+  const openCollabSession = useCallback((file) => {
+    if (collabSessions.current[file.id]) return; // already open
+
+    const token = getToken();
+    if (!token) {
+      console.error('[collab] no auth token available');
+      return;
+    }
+
+    const session = createCollabSession({
+      fileId:    file.id,
+      projectId,
+      token,
+      onSave: async (content) => {
+        // Save file content
+        await saveFileContent(projectId, file.id, content);
+        console.log("Saving File Content")
+      },
+      onStatus: (status) => {
+        setCollabStatus((prev) => ({ ...prev, [file.id]: status }));
+      },
+    });
+
+    collabSessions.current[file.id] = session;
+  }, [projectId, getToken]);
+
+  // Close collab-service connection
+  const closeCollabSession = useCallback((fileId) => {
+    const session = collabSessions.current[fileId];
+    if (!session) return;
+    session.destroy();
+    delete collabSessions.current[fileId];
+    setCollabStatus((prev) => {
+      const next = { ...prev };
+      delete next[fileId];
+      return next;
+    });
+  }, []);
+
+  // Tear down all sessions on unmount
+  useEffect(() => {
+    return () => {
+      Object.keys(collabSessions.current).forEach(closeCollabSession);
+    };
+  }, [closeCollabSession]);
+
+  // Bind collab session to Monaco when editor mounts / tab changes
+  // Called both from handleEditorMount (new mount) and from the activeTabId
+  // effect below (tab switch to an already-open collab file).
+  const bindActiveSession = useCallback((editor) => {
+    if (!isCollab || !activeTabId) return;
+    const session = collabSessions.current[activeTabId];
+    if (session) session.bindEditor(editor);
+  }, [isCollab, activeTabId]);
+
+  useEffect(() => {
+    if (editorRef.current) bindActiveSession(editorRef.current);
+  }, [activeTabId, bindActiveSession]);
+
+
+  // File select handling
   const handleFileSelect = useCallback(async (file) => {
-    const existingTab = openTabs.find((tab) => tab.id === file.id);
-    
-    if (existingTab) {
+    // Switch to existing tab or open new one
+    const existing = openTabs.find((t) => t.id === file.id);
+    if (existing) {
       setActiveTabId(file.id);
     } else {
       setOpenTabs((prev) => [...prev, file]);
       setActiveTabId(file.id);
     }
 
+    // For collab files, open (or reuse) the WS session.
+    // The Y.Doc is the source of truth — we don't load file content into React state.
+    if (isCollab) {
+      openCollabSession(file);
+      return;
+    }
+
+    // Non-collab: load content into React state as before
     if (!fileContents[file.id]) {
       try {
         const content = await fetchFileContent(file.download_url);
-        setFileContents((prev) => ({
-          ...prev,
-          [file.id]: content,
-        }));
-        // Store original content for change detection
+        setFileContents((prev) => ({ ...prev, [file.id]: content }));
         originalContentsRef.current[file.id] = content;
       } catch (err) {
-        console.error('Failed to load file:', err);
         setError(`Failed to load file: ${err.message}`);
       }
     }
-  }, [openTabs, fileContents]);
+  }, [openTabs, fileContents, isCollab, openCollabSession]);
 
-  // Handle saving the current file
+
+  // Unified save handler — works for both collab and non-collab files.
+  // For collab files this is the manual Ctrl+S / button path.
+  // The relay-signal path calls saveFileContent directly via onSave in the session.
   const handleSaveFile = useCallback(async () => {
     if (!activeTabId || isSaving) return;
-
     try {
       setIsSaving(true);
-      const content = fileContents[activeTabId];
-      
-      // Call your save API
+
+      let content;
+      const session = collabSessions.current[activeTabId];
+      if (session) {
+        content = session.getContent();
+      } else {
+        content = fileContents[activeTabId];
+      }
+
       await saveFileContent(projectId, activeTabId, content);
-      
-      // Mark file as saved
-      const newUnsavedFiles = new Set(unsavedFiles);
-      newUnsavedFiles.delete(activeTabId);
-      setUnsavedFiles(newUnsavedFiles);
-      
-      // Update original content reference
-      originalContentsRef.current[activeTabId] = content;
-      
-      console.log('File saved successfully');
+
+      // Only track unsaved state for non-collab files — for collab files
+      // the Y.Doc is always the source of truth and the relay handles saves.
+      if (!session) {
+        setUnsavedFiles((prev) => {
+          const next = new Set(prev);
+          next.delete(activeTabId);
+          return next;
+        });
+        originalContentsRef.current[activeTabId] = content;
+      }
     } catch (err) {
-      console.error('Failed to save file:', err);
       setError(`Error saving file: ${err.message}`);
     } finally {
       setIsSaving(false);
     }
-  }, [activeTabId, fileContents, projectId, isSaving, unsavedFiles]);
+  }, [activeTabId, fileContents, projectId, isSaving]);
 
-  // Handle creating a new file
+  // Editor mount 
+  const handleEditorMount = useCallback((editor) => {
+    editorRef.current = editor;
+    bindActiveSession(editor);
+  }, [bindActiveSession]);
+
+  // Editor change (non-collab only) 
+  // For collab files MonacoBinding owns the model — onChange fires but we
+  // ignore it to avoid stale React state fighting with Yjs.
+  const handleEditorChange = useCallback((value) => {
+    if (!activeTabId) return;
+    if (collabSessions.current[activeTabId]) return; // Yjs owns this
+
+    setFileContents((prev) => ({ ...prev, [activeTabId]: value || '' }));
+    const changed = value !== originalContentsRef.current[activeTabId];
+    setUnsavedFiles((prev) => {
+      const next = new Set(prev);
+      changed ? next.add(activeTabId) : next.delete(activeTabId);
+      return next;
+    });
+  }, [activeTabId]);
+
+  // Tab close
+  const handleTabClose = useCallback((tabId) => {
+    // Tear down collab session for this tab
+    closeCollabSession(tabId);
+
+    setOpenTabs((prev) => {
+      const remaining = prev.filter((t) => t.id !== tabId);
+      if (activeTabId === tabId) {
+        setActiveTabId(remaining.length > 0 ? remaining[remaining.length - 1].id : null);
+      }
+      return remaining;
+    });
+
+    setFileContents((prev) => { const n = { ...prev }; delete n[tabId]; return n; });
+    setUnsavedFiles((prev) => { const n = new Set(prev); n.delete(tabId); return n; });
+    delete originalContentsRef.current[tabId];
+  }, [activeTabId, closeCollabSession]);
+
+  // Tab select
+
+  const handleTabSelect = useCallback((tabId) => setActiveTabId(tabId), []);
+
+  // File / folder CRUD
   const handleCreateFile = useCallback(async (parentFolderId, filename) => {
     try {
       const response = await createFile(projectId, parentFolderId, filename);
-      
-      // Refresh tree data
-      const updatedData = await fetchProjectTree(projectId);
-      setTreeData(updatedData.tree);
-
-      // Auto-open the newly created file
+      const updated = await fetchProjectTree(projectId);
+      setTreeData(updated.tree);
       if (response.file) {
-        const newFile = response.file;
-        setOpenTabs((prev) => [...prev, newFile]);
-        setActiveTabId(newFile.id);
-        setFileContents((prev) => ({
-          ...prev,
-          [newFile.id]: '',
-        }));
-        // New files are unsaved
-        setUnsavedFiles((prev) => new Set(prev).add(newFile.id));
-        originalContentsRef.current[newFile.id] = '';
+        const f = response.file;
+        setOpenTabs((prev) => [...prev, f]);
+        setActiveTabId(f.id);
+        setFileContents((prev) => ({ ...prev, [f.id]: '' }));
+        setUnsavedFiles((prev) => new Set(prev).add(f.id));
+        originalContentsRef.current[f.id] = '';
+        if (isCollab) openCollabSession(f);
       }
-    } catch (err) {
-      console.error('Failed to create file:', err);
-      setError(`Error creating file: ${err.message}`);
-    }
-  }, [projectId]);
+    } catch (err) { setError(`Error creating file: ${err.message}`); }
+  }, [projectId, isCollab, openCollabSession]);
 
-  // Handle creating a new folder
   const handleCreateFolder = useCallback(async (parentFolderId, folderName) => {
     try {
       await createFolder(projectId, parentFolderId, folderName);
-      
-      // Refresh tree data
-      const updatedData = await fetchProjectTree(projectId);
-      setTreeData(updatedData.tree);
-    } catch (err) {
-      console.error('Failed to create folder:', err);
-      setError(`Error creating folder: ${err.message}`);
-    }
+      const updated = await fetchProjectTree(projectId);
+      setTreeData(updated.tree);
+    } catch (err) { setError(`Error creating folder: ${err.message}`); }
   }, [projectId]);
 
-  // Handle deleting a file or folder
   const handleDeleteItem = useCallback(async (itemId, itemType) => {
     try {
       await deleteItem(projectId, itemId, itemType);
-      
-      // Refresh tree data
-      const updatedData = await fetchProjectTree(projectId);
-      setTreeData(updatedData.tree);
-      
-      // Clean up unsaved tracking
+      const updated = await fetchProjectTree(projectId);
+      setTreeData(updated.tree);
       if (itemType === 'file') {
-        const newUnsavedFiles = new Set(unsavedFiles);
-        newUnsavedFiles.delete(itemId);
-        setUnsavedFiles(newUnsavedFiles);
+        closeCollabSession(itemId);
+        setUnsavedFiles((prev) => { const n = new Set(prev); n.delete(itemId); return n; });
         delete originalContentsRef.current[itemId];
       }
-    } catch (err) {
-      console.error('Failed to delete item:', err);
-      setError(`Error deleting ${itemType}: ${err.message}`);
-    }
-  }, [projectId, unsavedFiles]);
+    } catch (err) { setError(`Error deleting ${itemType}: ${err.message}`); }
+  }, [projectId, closeCollabSession]);
 
-  // Handle renaming a file or folder
   const handleRenameItem = useCallback(async (itemId, itemType, newName) => {
     try {
       await renameItem(projectId, itemId, itemType, newName);
-      
-      // Refresh tree data
-      const updatedData = await fetchProjectTree(projectId);
-      setTreeData(updatedData.tree);
-    } catch (err) {
-      console.error('Failed to rename item:', err);
-      setError(`Error renaming ${itemType}: ${err.message}`);
-    }
+      const updated = await fetchProjectTree(projectId);
+      setTreeData(updated.tree);
+    } catch (err) { setError(`Error renaming ${itemType}: ${err.message}`); }
   }, [projectId]);
 
-  // Handle tab close
-  const handleTabClose = useCallback((tabId) => {
-    setOpenTabs((prev) => prev.filter((tab) => tab.id !== tabId));
-    
-    if (activeTabId === tabId) {
-      const remaining = openTabs.filter((tab) => tab.id !== tabId);
-      setActiveTabId(remaining.length > 0 ? remaining[0].id : null);
-    }
+  // Derived state 
 
-    // Clean up content and unsaved tracking
-    const newFileContents = { ...fileContents };
-    delete newFileContents[tabId];
-    setFileContents(newFileContents);
-    
-    const newUnsavedFiles = new Set(unsavedFiles);
-    newUnsavedFiles.delete(tabId);
-    setUnsavedFiles(newUnsavedFiles);
-    
-    delete originalContentsRef.current[tabId];
-  }, [activeTabId, openTabs, fileContents, unsavedFiles]);
+  const activeTab          = openTabs.find((t) => t.id === activeTabId);
+  const isActiveCollab     = activeTabId && !!collabSessions.current[activeTabId];
+  const activeCollabStatus = activeTabId ? (collabStatus[activeTabId] ?? null) : null;
+  const activeContent      = activeTab && !isActiveCollab ? (fileContents[activeTabId] ?? '') : '';
+  const activeLanguage     = activeTab ? getLanguage(activeTab.file_type) : 'text';
+  const isActiveFileDirty  = !isActiveCollab && activeTabId && unsavedFiles.has(activeTabId);
 
-  // Handle tab selection
-  const handleTabSelect = useCallback((tabId) => {
-    setActiveTabId(tabId);
-  }, []);
+  // Render 
 
-  // Get language based on file type
-  const getLanguage = (fileType) => {
-    const languageMap = {
-      tex: 'latex',
-      bib: 'bibtex',
-      pdf: 'text',
-      txt: 'text',
-      md: 'markdown',
-      json: 'json',
-      xml: 'xml',
-      py: 'python',
-      js: 'javascript',
-      ts: 'typescript',
-      html: 'html',
-      css: 'css',
-    };
-    return languageMap[fileType] || 'text';
-  };
-
-  const activeTab = openTabs.find((tab) => tab.id === activeTabId);
-  const activeContent = activeTab ? fileContents[activeTabId] || '' : '';
-  const activeLanguage = activeTab ? getLanguage(activeTab.file_type) : 'text';
-  const isActiveFileDirty = activeTabId && unsavedFiles.has(activeTabId);
-
-  const handleEditorChange = useCallback((value) => {
-    if (activeTabId) {
-      setFileContents((prev) => ({
-        ...prev,
-        [activeTabId]: value || '',
-      }));
-
-      // Mark as unsaved if content differs from original
-      const isChanged = value !== originalContentsRef.current[activeTabId];
-      const newUnsavedFiles = new Set(unsavedFiles);
-      
-      if (isChanged) {
-        newUnsavedFiles.add(activeTabId);
-      } else {
-        newUnsavedFiles.delete(activeTabId);
-      }
-      
-      setUnsavedFiles(newUnsavedFiles);
-    }
-  }, [activeTabId, unsavedFiles]);
-
-  const handleEditorMount = (editor) => {
-    editorRef.current = editor;
-  };
-
-  if (loading) {
-    return (
-      <div className="editor-loading">
-        <p>Loading project...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="editor-error">
-        <p>Error: {error}</p>
-      </div>
-    );
-  }
+  if (loading) return <div className="editor-loading"><p>Loading project...</p></div>;
+  if (error)   return <div className="editor-error"><p>Error: {error}</p></div>;
 
   return (
     <div className="editor-container">
-      {/* File Tree Sidebar */}
+
+      {/* File tree */}
       <FileTree
         treeData={treeData}
         onFileSelect={handleFileSelect}
@@ -311,9 +355,8 @@ const EditorView = () => {
         onTabClose={handleTabClose}
       />
 
-      {/* Main Editor Area */}
+      {/* Main editor area */}
       <div className="editor-main">
-        {/* Tab Bar */}
         <TabBar
           tabs={openTabs}
           activeTabId={activeTabId}
@@ -322,98 +365,83 @@ const EditorView = () => {
           unsavedFiles={unsavedFiles}
         />
 
-        {/* Editor Content */}
         <div className="editor-content">
           {activeTab ? (
             <>
               <Editor
                 height="100%"
                 language={activeLanguage}
-                value={activeContent}
+                // Collab files: DO NOT pass value — MonacoBinding owns the model.
+                // Passing value here causes React to reset the model on every render,
+                // fighting Yjs and causing cursor jumps / doubled characters.
+                value={isActiveCollab ? undefined : activeContent}
                 onChange={handleEditorChange}
                 onMount={handleEditorMount}
                 theme={isDarkMode ? 'vs-dark' : 'vs'}
                 options={{
-                  minimap: { enabled: false },
-                  fontSize: 13,
-                  lineHeight: 1.6,
-                  tabSize: 2,
-                  wordWrap: 'on',
-                  automaticLayout: true,
+                  minimap:              { enabled: false },
+                  fontSize:             13,
+                  lineHeight:           1.6,
+                  tabSize:              2,
+                  wordWrap:             'on',
+                  automaticLayout:      true,
                   scrollBeyondLastLine: false,
-                  fontFamily: "'Menlo', 'Monaco', 'Courier New', monospace",
+                  fontFamily:           "'Menlo', 'Monaco', 'Courier New', monospace",
                 }}
               />
-              
-              {/* Save Status Bar */}
+
+              {/* Collab connection status bar */}
+              {isActiveCollab && (
+                <div className={`collab-indicator collab-${activeCollabStatus}`}>
+                  <span className="collab-dot">⬤</span>
+                  {activeCollabStatus === 'connected'    && 'Live collaboration'}
+                  {activeCollabStatus === 'connecting'   && 'Connecting…'}
+                  {activeCollabStatus === 'disconnected' && 'Disconnected — attempting to reconnect'}
+                </div>
+              )}
+
+              {/* Non-collab unsaved indicator */}
               {isActiveFileDirty && (
                 <div className="save-indicator">
                   <span className="unsaved-dot">●</span>
                   <span className="save-hint">Press Ctrl+S to save</span>
                 </div>
               )}
-              
-              {isSaving && (
-                <div className="saving-indicator">
-                  Saving...
-                </div>
-              )}
+
+              {isSaving && <div className="saving-indicator">Saving…</div>}
             </>
           ) : (
-            <div className="editor-empty">
-              <p>Select a file to start editing</p>
-            </div>
+            <div className="editor-empty"><p>Select a file to start editing</p></div>
           )}
         </div>
       </div>
 
-      {/* Right Sidebar - Info Panel */}
+      {/* Right sidebar */}
       <div className="editor-sidebar-right">
         <div style={{ display: 'flex', height: '100%', flexDirection: 'column' }}>
-          {/* Sidebar Tab Navigation */}
-          <div style={{ display: 'flex', gap: 0, borderBottom: '0.5px solid var(--border-color, #e0e0e0)' }}>
-            <button
-              onClick={() => setSidebarTab('info')}
-              className={`sidebar-tab ${sidebarTab === 'info' ? 'active' : ''}`}
-              style={{
-                flex: 1,
-                padding: '12px 16px',
-                border: 'none',
-                background: 'transparent',
-                color: sidebarTab === 'info' ? 'var(--text-info, #1f80dd)' : 'var(--text-secondary, #666)',
-                fontSize: '13px',
-                fontWeight: '500',
-                cursor: 'pointer',
-                borderBottom: sidebarTab === 'info' ? '2px solid var(--text-info, #1f80dd)' : 'none',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              Info
-            </button>
-            <button
-              onClick={() => setSidebarTab('collaborators')}
-              className={`sidebar-tab ${sidebarTab === 'collaborators' ? 'active' : ''}`}
-              style={{
-                flex: 1,
-                padding: '12px 16px',
-                border: 'none',
-                background: 'transparent',
-                color: sidebarTab === 'collaborators' ? 'var(--text-info, #1f80dd)' : 'var(--text-secondary, #666)',
-                fontSize: '13px',
-                fontWeight: '500',
-                cursor: 'pointer',
-                borderBottom: sidebarTab === 'collaborators' ? '2px solid var(--text-info, #1f80dd)' : 'none',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              Share
-            </button>
+
+          {/* Sidebar tab nav */}
+          <div style={{ display: 'flex', borderBottom: '0.5px solid var(--border-color, #e0e0e0)' }}>
+            {[['info', 'Info'], ['collaborators', 'Share']].map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => setSidebarTab(key)}
+                className={`sidebar-tab ${sidebarTab === key ? 'active' : ''}`}
+                style={{
+                  flex: 1, padding: '12px 16px', border: 'none', background: 'transparent',
+                  color: sidebarTab === key ? 'var(--text-info, #1f80dd)' : 'var(--text-secondary, #666)',
+                  fontSize: '13px', fontWeight: '500', cursor: 'pointer',
+                  borderBottom: sidebarTab === key ? '2px solid var(--text-info, #1f80dd)' : 'none',
+                  transition: 'all 0.15s ease',
+                }}
+              >{label}</button>
+            ))}
           </div>
-      
-          {/* Info Tab */}
+
+          {/* Info tab */}
           {sidebarTab === 'info' && (
             <div className="sidebar-content">
-              {activeTab ? (
+              {activeTab && (
                 <>
                   <div className="info-card">
                     <p className="info-label">File</p>
@@ -426,31 +454,42 @@ const EditorView = () => {
                     <p className="info-label">Type</p>
                     <p className="info-value">{activeTab.file_type.toUpperCase()}</p>
                   </div>
-                  <div className="info-card">
-                    <p className="info-label">Size</p>
-                    <p className="info-value">{(activeContent.length / 1024).toFixed(1)} KB</p>
-                  </div>
-                  <div className="info-card">
-                    <p className="info-label">Lines</p>
-                    <p className="info-value">{activeContent.split('\n').length}</p>
-                  </div>
+                  {isActiveCollab ? (
+                    <div className="info-card">
+                      <p className="info-label">Mode</p>
+                      <p className="info-value" style={{ color: 'var(--text-info, #1f80dd)' }}>
+                        Live collaboration
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="info-card">
+                        <p className="info-label">Size</p>
+                        <p className="info-value">{(activeContent.length / 1024).toFixed(1)} KB</p>
+                      </div>
+                      <div className="info-card">
+                        <p className="info-label">Lines</p>
+                        <p className="info-value">{activeContent.split('\n').length}</p>
+                      </div>
+                    </>
+                  )}
                   <div className="info-card">
                     <p className="info-label">Save</p>
                     <button
                       onClick={handleSaveFile}
-                      disabled={!isActiveFileDirty || isSaving}
+                      disabled={(!isActiveCollab && !isActiveFileDirty) || isSaving}
                       className="save-button"
                       title="Save file (Ctrl+S)"
                     >
-                      {isSaving ? '⏳ Saving...' : '💾 Save'}
+                      {isSaving ? '⏳ Saving…' : '💾 Save'}
                     </button>
                   </div>
                 </>
-              ) : null}
+              )}
             </div>
           )}
-      
-          {/* Collaborators Tab */}
+
+          {/* Collaborators tab */}
           {sidebarTab === 'collaborators' && <CollaboratorsPanel projectId={projectId} />}
         </div>
       </div>
