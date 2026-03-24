@@ -1,0 +1,15 @@
+FROM golang:1.25-alpine
+
+WORKDIR /app
+
+# Install air (hot reload) and build tools
+RUN go install github.com/air-verse/air@latest
+
+# Copy go.mod/go.sum first for better layer caching.
+# The actual source is bind-mounted at runtime, so this layer is only
+# used to pre-download dependencies.
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Auto-reload with air
+CMD ["air", "-c", ".air.toml"]
