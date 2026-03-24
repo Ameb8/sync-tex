@@ -13,6 +13,7 @@
     "react-dom": "^18.2.0",
     "react-router-dom": "^7.13.1",
     "y-indexeddb": "^9.0.7",
+    "y-monaco": "^0.1.6",
     "y-websocket": "^1.4.1",
     "yjs": "^13.6.0"
   },
