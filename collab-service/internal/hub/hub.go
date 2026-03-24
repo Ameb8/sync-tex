@@ -79,14 +79,9 @@ func (h *Hub) removeIfEmpty(doc *Document) {
 	}
 }
 
-// Register adds a client to its document and loads seed state if this is the
-// first connection to this document.
+// Register adds a client to its document
 func (h *Hub) Register(c *client.Client) {
 	doc := h.GetOrCreate(c.DocID)
-
-	// Load seed state exactly once per document lifetime.
-	// Subsequent clients receive state from their peers via normal Yjs sync.
-	//seedState := doc.seeder.Load()
 
 	doc.mu.Lock()
 	doc.clients[c] = true
@@ -94,18 +89,6 @@ func (h *Hub) Register(c *client.Client) {
 	doc.mu.Unlock()
 
 	log.Printf("[%s] %s (%s) connected — %d clients\n", c.DocID, c.UserID, c.Role, n)
-
-	// Send seed state to the new client as a sync step 2.
-	// This brings them to the last persisted version before peer sync kicks in.
-	/*
-	if len(seedState) > 0 {
-		select {
-		case c.Send <- yjs.WrapSyncStep2(seedState):
-		default:
-			log.Printf("[%s] seed send to %s dropped (buffer full)\n", c.DocID, c.UserID)
-		}
-	}
-	*/
 }
 
 // Unregister removes a client. If it was the last one, triggers a final save
