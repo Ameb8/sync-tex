@@ -11,7 +11,7 @@ services:
       - ./nginx/certs:/etc/nginx/certs:ro
       - ./frontend/dist:/usr/share/nginx/html:ro
     depends_on:
-      ws-server:
+      collab-service:
         condition: service_started
       users-service:
         condition: service_started
@@ -61,15 +61,36 @@ services:
     networks:
       - gateway-network
 
-  ws-server:
+  collab-service:
     build:
-      context: ./collab-server
-      dockerfile: Dockerfile
-    container_name: ws-server-service
-    ports:
-      - "8082:8080"
+      context: ./collab-service
+      dockerfile: Dockerfile.dev
+    container_name: collab-service
+    environment:
+      PORT: 8080
+      PROJECTS_SERVICE_URL: http://projects-service:8003
+      INTERNAL_SECRET: ${USERS_SECRET_KEY}
+      SAVE_DEBOUNCE_MS: 5000
+      SAVE_ACK_TIMEOUT_MS: 3000
+      SAVE_MAX_RETRIES: 3
+    volumes:
+      # Bind-mount source so air sees edits without a rebuild
+      - ./collab-service:/app
+      # Named volume for the Go module cache so deps aren't re-downloaded
+      - collab_go_cache:/root/go/pkg/mod
+      # Named volume for the air tmp build output
+      - collab_build_tmp:/tmp/air
+    depends_on:
+      projects-service:
+        condition: service_started
     networks:
       - gateway-network
+    # No ports exposed externally — nginx proxies /ws/ to this container
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
 
   postgres-projects:
     image: postgres:16-alpine
@@ -140,6 +161,8 @@ volumes:
   postgres_users_data:
   postgres_projects_data: 
   minio_data:
+  collab_go_cache:
+  collab_build_tmp:
 
 networks:
   gateway-network:
