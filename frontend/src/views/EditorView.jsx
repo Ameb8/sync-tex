@@ -58,6 +58,7 @@ const EditorView = () => {
 
   // Editor ref 
   const editorRef                         = useRef(null);
+  const boundFiles                        = useRef(new Set());
 
   // UI state 
   const [sidebarTab, setSidebarTab]       = useState('info');
@@ -142,6 +143,7 @@ const EditorView = () => {
     const session = collabSessions.current[fileId];
     if (!session) return;
     session.destroy();
+    boundFiles.current.delete(fileId);
     delete collabSessions.current[fileId];
     setCollabStatus((prev) => {
       const next = { ...prev };
@@ -163,7 +165,10 @@ const EditorView = () => {
   const bindActiveSession = useCallback((editor) => {
     if (!isCollab || !activeTabId) return;
     const session = collabSessions.current[activeTabId];
-    if (session) session.bindEditor(editor);
+    if (!session) return;
+    session.bindEditor(editor);
+    // Switch model ownership to Yjs — value prop becomes undefined after this
+    boundFiles.current.add(activeTabId);
   }, [isCollab, activeTabId]);
 
   useEffect(() => {
@@ -264,6 +269,7 @@ const EditorView = () => {
   const handleTabClose = useCallback((tabId) => {
     // Tear down collab session for this tab
     closeCollabSession(tabId);
+    boundFiles.current.delete(tabId);
 
     setOpenTabs((prev) => {
       const remaining = prev.filter((t) => t.id !== tabId);
@@ -377,7 +383,13 @@ const EditorView = () => {
                 // Collab files: DO NOT pass value — MonacoBinding owns the model.
                 // Passing value here causes React to reset the model on every render,
                 // fighting Yjs and causing cursor jumps / doubled characters.
-                value={isActiveCollab ? undefined : activeContent}
+                value={
+                  !isActiveCollab
+                    ? activeContent                          // non-collab: controlled normally
+                    : boundFiles.current.has(activeTabId)
+                      ? undefined                            // bound: Yjs owns the model
+                      : (fileContents[activeTabId] ?? '')   // pre-bind: seed Monaco with fetched content
+                }
                 onChange={handleEditorChange}
                 onMount={handleEditorMount}
                 theme={isDarkMode ? 'vs-dark' : 'vs'}
