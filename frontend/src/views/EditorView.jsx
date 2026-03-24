@@ -15,8 +15,10 @@ import {
   deleteItem,
   renameItem,
 } from '../api/editor';
-import './EditorViewcss';
-E/ Constants
+import './EditorView.css';
+
+
+// Constants
 const getLanguage = (fileType) => ({
   tex: 'latex', bib: 'bibtex', pdf: 'text', txt: 'text',
   md: 'markdown', json: 'json', xml: 'xml', py: 'python',
@@ -175,19 +177,13 @@ const EditorView = () => {
     const existing = openTabs.find((t) => t.id === file.id);
     if (existing) {
       setActiveTabId(file.id);
-    } else {
-      setOpenTabs((prev) => [...prev, file]);
-      setActiveTabId(file.id);
+      return; // Content already loaded
     }
 
-    // For collab files, open (or reuse) the WS session.
-    // The Y.Doc is the source of truth — we don't load file content into React state.
-    if (isCollab) {
-      openCollabSession(file);
-      return;
-    }
+    setOpenTabs((prev) => [...prev, file]);
+    setActiveTabId(file.id);
 
-    // Non-collab: load content into React state as before
+    // load content into React state
     if (!fileContents[file.id]) {
       try {
         const content = await fetchFileContent(file.download_url);
@@ -195,8 +191,15 @@ const EditorView = () => {
         originalContentsRef.current[file.id] = content;
       } catch (err) {
         setError(`Failed to load file: ${err.message}`);
+        return;
       }
     }
+    
+    // Connect to collab-service
+    if (isCollab) {
+      openCollabSession(file);
+    }
+
   }, [openTabs, fileContents, isCollab, openCollabSession]);
 
 
