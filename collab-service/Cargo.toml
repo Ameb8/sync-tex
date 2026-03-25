@@ -1,0 +1,24 @@
+[package]
+name = "collab-service"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+axum = { version = "0.7", features = ["ws"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["trace"] }
+reqwest = { version = "0.12", features = ["json"] }
+yrs = "0.21"
+dashmap = "5"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+dotenvy = "0.15"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+thiserror = "1"
+anyhow = "1"
+futures-util = "0.3"
+
+[dev-dependencies]
+tokio-tungstenite = "0.23"
