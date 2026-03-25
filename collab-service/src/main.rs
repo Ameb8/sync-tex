@@ -42,7 +42,10 @@ async fn main() {
         .with_state(app_state);
 
     // Run server
-    info!("collab-service listening on {bind_addr}");
+    info!("binding to {bind_addr}");
     let listener = tokio::net::TcpListener::bind(&bind_addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    info!("listening...");
+    if let Err(err) = axum::serve(listener, app).await {
+        eprintln!("server error: {err}");
+    }
 }
