@@ -1,0 +1,33 @@
+# Dockerfile.dev — Rust collab-service with cargo-watch for hot reload
+# Uses a multi-stage approach: cache deps layer separately so only src
+# changes trigger a recompile, not a full dep download.
+
+FROM rust:1.88-slim-bookworm
+
+# System deps: pkg-config and libssl-dev are needed by reqwest's TLS stack
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# cargo-watch watches src/ for changes and reruns `cargo run`.
+# Equivalent to `air` in the Go setup.
+RUN cargo install cargo-watch
+
+WORKDIR /app
+
+# Copy manifests first and build a dep-only dummy binary.
+# Docker caches this layer; it only reruns when Cargo.toml/Cargo.lock change.
+COPY Cargo.toml Cargo.lock ./
+RUN mkdir src && echo 'fn main(){}' > src/main.rs \
+    && cargo build \
+    && rm -rf src
+
+# Copy actual source — this layer busts on any src change but deps are cached
+COPY src ./src
+
+EXPOSE 8080
+
+# --watch src re-triggers on any .rs file change
+# -x run passes the subcommand to cargo
+CMD ["cargo-watch", "-w", "src", "-x", "run"]
