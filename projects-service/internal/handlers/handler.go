@@ -91,6 +91,7 @@ func (h *Handler) generateDownloadURL(
 	bucketName string,
 	objectName string,
 	expiry time.Duration,
+	bool internalURL
 ) (string, error) {
 	url, err := h.minioClient.PresignedGetObject(
 		ctx,
@@ -104,12 +105,15 @@ func (h *Handler) generateDownloadURL(
 		return "", err
 	}
 
-	// Replace internal hostname with external gateway
-	externalURL := url.String()
-	gatewayURL := os.Getenv("GATEWAY_URL")
-	log.Println("gatewayURL for presigned:\t", gatewayURL)
-	if gatewayURL != "" {
-		externalURL = strings.ReplaceAll(externalURL, "http://minio:9000", gatewayURL)
+	externalURL := url.String() // Get URL as string
+
+	// Relace url domain if client rquest
+	if !internalURL {
+		gatewayURL := os.Getenv("GATEWAY_URL")
+		log.Println("gatewayURL for presigned:\t", gatewayURL)
+		if gatewayURL != "" {
+			externalURL = strings.ReplaceAll(externalURL, "http://minio:9000", gatewayURL)
+		}
 	}
 	
 	return externalURL, nil
@@ -121,6 +125,7 @@ func (h *Handler) generateUploadURL(
 	bucketName string,
 	objectName string,
 	expiry time.Duration,
+	bool internalURL
 ) (string, error) {
 	url, err := h.minioClient.PresignedPutObject(
 		ctx,
@@ -133,14 +138,18 @@ func (h *Handler) generateUploadURL(
 		return "", err
 	}
 
-	// Replace internal hostname with external gateway
+	// Get URL as string
 	externalURL := url.String()
 	log.Println("Generated Upload URL:\t", externalURL)
-	gatewayURL := os.Getenv("GATEWAY_URL")
-	if gatewayURL != "" {
-		externalURL = strings.ReplaceAll(externalURL, "http://minio:9000", gatewayURL)
+
+	// Relace url domain if client rquest
+	if !internalURL { 
+		gatewayURL := os.Getenv("GATEWAY_URL")
+		if gatewayURL != "" {
+			externalURL = strings.ReplaceAll(externalURL, "http://minio:9000", gatewayURL)
+		}
 	}
-	
+
 	return externalURL, nil
 }
 
