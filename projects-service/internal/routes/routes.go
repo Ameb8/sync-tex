@@ -46,4 +46,9 @@ func SetupRoutes(r *gin.Engine, h *handlers.Handler, authMiddleware *middleware.
 	api.GET("/projects/:projectID/collaborators", h.ListCollaborators)
 	api.GET("/invites/join")
 	api.DELETE("/projects/:projectID/collaborators/:userID", h.RemoveCollaborator)
+
+	internal := r.Group("/projects/internal/v1")
+
+	// Internal
+	internal.GET("/file/:fileID/download", h.InternalDownloadFile)
 }
