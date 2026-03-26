@@ -31,7 +31,7 @@ impl ProjectsClient {
     /// from the file store.
     pub async fn get_download_url(&self, doc_id: &str) -> Result<String> {
         let url = format!(
-            "{}/internal/docs/{}/presigned-url?op=download",
+            "{}/file/{}/download",
             self.base_url, doc_id
         );
         let resp: PresignedUrlResponse = self.http
