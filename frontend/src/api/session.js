@@ -62,7 +62,7 @@ export function createCollabSession({ fileId, projectId, token, onStatus }) {
       // Y.applyUpdate merges it into the local Y.Doc, which automatically
       // updates the Monaco model via MonacoBinding.
       const update = new Uint8Array(event.data);
-      Y.applyUpdate(ydoc, update);
+      Y.applyUpdate(ydoc, update, 'remote');
     };
 
     ws.onclose = () => {
@@ -91,13 +91,9 @@ export function createCollabSession({ fileId, projectId, token, onStatus }) {
   // a remote update is applied — but Y.js marks remote-origin updates with
   // a transaction origin so we can skip re-broadcasting them.
   ydoc.on('update', (update, origin) => {
-    // Only forward updates that originated locally (origin === null means
-    // the change came from the local Monaco editor via MonacoBinding).
-    // Remote updates (applied in onmessage above) have origin set to the
-    // WebSocket object or a string — skip those to avoid echo loops.
-    if (origin !== null) return;
+    if (origin === 'remote') return;
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
-    ws.send(update); // raw Uint8Array — matches the Rust server's Message::Binary handler
+    ws.send(update); // raw Uint8Array
   });
 
   /**
