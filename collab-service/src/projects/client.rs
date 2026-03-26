@@ -48,7 +48,7 @@ impl ProjectsClient {
     /// to the file store.
     pub async fn get_upload_url(&self, doc_id: &str) -> Result<String> {
         let url = format!(
-            "{}/internal/docs/{}/presigned-url?op=upload",
+            "{}/file/{}/upload",
             self.base_url, doc_id
         );
         let resp: PresignedUrlResponse = self.http
