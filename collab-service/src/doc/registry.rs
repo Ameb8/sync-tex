@@ -35,15 +35,15 @@ impl DocRegistry {
         self.docs.get(doc_id).map(|r| r.clone())
     }
 
-    /// Insert a brand-new document entry.
-    ///
-    /// Called after the first client connects and we have downloaded the
-    /// initial snapshot from the file store.
+    /// Insert a new document entry, or return the existing one if already present.
+    /// This prevents two simultaneous first-connects from creating duplicate state.
     pub fn insert(&self, doc_id: String, engine: YjsEngine) -> SharedDocState {
-        let state = Arc::new(RwLock::new(DocState::new(engine)));
-        self.docs.insert(doc_id, state.clone());
-        state
-    }
+        // entry().or_insert_with() is atomic in DashMap — only one caller wins
+        self.docs
+            .entry(doc_id)
+            .or_insert_with(|| Arc::new(RwLock::new(DocState::new(engine))))
+            .clone()
+}
 
     /// Remove a document from the registry entirely.
     ///

@@ -15,7 +15,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot, RwLock};
 use tokio::time::{sleep, Instant};
-use tracing::{error, info};
+use tracing::{error, info, debug};
 
 use crate::doc::doc_state::DocState;
 use crate::projects::client::ProjectsClient;
@@ -63,6 +63,7 @@ pub fn spawn(
                     Duration::from_secs(3600)
                 }), if debounce_armed => {
                     debounce_armed = false;
+                    debug!(doc_id = %doc_id, "Save triggered: debounce quiet period elapsed");
                     do_upload(&doc_id, &doc_state, &projects_client).await;
                     last_upload = Instant::now();
                 }
@@ -72,6 +73,7 @@ pub fn spawn(
                 _ = sleep(force_in) => {
                     if debounce_armed {
                         debounce_armed = false;
+                        debug!(doc_id = %doc_id, "Save triggered: max interval ceiling reached");
                         do_upload(&doc_id, &doc_state, &projects_client).await;
                         last_upload = Instant::now();
                     }
@@ -79,7 +81,7 @@ pub fn spawn(
 
                 // Last client disconnected — do a final upload then exit.
                 _ = &mut stop_rx => {
-                    info!(doc_id = %doc_id, "Last client disconnected — performing final upload");
+                    debug!(doc_id = %doc_id, "Save triggered: last client disconnected");
                     do_upload(&doc_id, &doc_state, &projects_client).await;
                     break;
                 }
@@ -101,11 +103,20 @@ async fn do_upload(
     doc_state: &Arc<RwLock<DocState>>,
     projects_client: &ProjectsClient,
 ) {
-    // Encode state while holding only a read lock — don't block writers.
-    let snapshot = {
+    // Get textual state of doocument
+    let text = {
         let state = doc_state.read().await;
-        state.engine.encode_state()
+        state.engine.get_text_content()
     };
+
+    debug!(
+        doc_id = %doc_id,
+        bytes = text.len(),
+        content = %text,
+        "Upload triggered"
+    );
+
+    let snapshot = text.into_bytes();
 
     // Fetch a fresh presigned upload URL from the projects-service.
     let upload_url = match projects_client.get_upload_url(doc_id).await {

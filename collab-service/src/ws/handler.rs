@@ -104,7 +104,13 @@ async fn handle_socket(
         match msg {
             // Handle Yjs CRDT updates
             Ok(Message::Binary(bytes)) => {
-                debug!("Document Update Received");
+                debug!(
+                    client_id,
+                    doc_id = %doc_id,
+                    bytes = bytes.len(),
+                    "Yjs update received"
+                );
+
                 // 1. Apply the update to the in-memory Yjs engine.
                 // 2. Broadcast to all *other* clients connected to this doc.
                 // 3. Notify the upload scheduler.
@@ -176,8 +182,21 @@ async fn handle_socket(
         // proper shutdown barrier here (e.g. a oneshot reply or join handle),
         // but a short yield is often sufficient for low-latency file stores.
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    
+        let still_empty = {
+            let state = doc_state.read().await;
+            state.clients.is_empty()
+        };
 
-        app_state.registry.remove(&doc_id);
+        if still_empty {
+            info!(doc_id = %doc_id, "No reconnect during flush window — removing doc from registry");
+            app_state.registry.remove(&doc_id);
+        } else {
+            info!(doc_id = %doc_id, "Client reconnected during flush window — keeping doc in registry");
+            // Re-spawn the upload scheduler since we consumed stop_tx
+            respawn_scheduler(&doc_id, &doc_state, &app_state).await;
+        }
+        
     }
 }
 
@@ -248,3 +267,24 @@ async fn load_document(
     Ok(doc_state)
 }
 
+
+/// Re-spawn the upload scheduler after a reconnect during the flush window.
+/// Called when a new client joins before the old scheduler fully exits.
+async fn respawn_scheduler(
+    doc_id: &str,
+    doc_state: &crate::doc::registry::SharedDocState,
+    app_state: &Arc<AppState>,
+) {
+    let (notify_tx, notify_rx) = mpsc::unbounded_channel();
+    let stop_tx = upload::scheduler::spawn(
+        doc_id.to_string(),
+        doc_state.clone(),
+        app_state.projects_client.clone(),
+        notify_rx,
+        app_state.config.upload_debounce,
+        app_state.config.upload_max_interval,
+    );
+    let mut state = doc_state.write().await;
+    state.upload_notify = Some(notify_tx);
+    state.upload_stop_tx = Some(stop_tx);
+}
