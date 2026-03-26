@@ -400,7 +400,7 @@ func enrichTreeWithPresignedURLs(
 		// Add URLs to files in this node
 		for i := range node.Files {
 			// Generate URL based on storage_key pattern: projectID/fileID
-			url, err := h.generateDownloadURL(ctx, "uploads", node.Files[i].StorageKey, expiry)
+			url, err := h.generateDownloadURL(ctx, "uploads", node.Files[i].StorageKey, expiry, false)
 			if err != nil { // Log error but don't fail entire response
 				fmt.Printf("ERROR generating download URL for %s: %v\n", node.Files[i].StorageKey, err)
 				continue
