@@ -65,6 +65,7 @@ async fn handle_socket(
         // Document already loaded — send the current in-memory snapshot to this
         // new client so they can catch up immediately.
         let snapshot = {
+            debug!("Loading existing snapshot...");
             let state = existing.read().await;
             state.engine.encode_state()
         };
@@ -78,7 +79,10 @@ async fn handle_socket(
     } else {
         // First client for this document — load state from the file store.
         match load_document(&doc_id, &app_state).await {
-            Ok(doc_state) => doc_state,
+            Ok(doc_state) => {
+                info!(doc_id = %doc_id, "Successfully loaded document");
+                doc_state
+            }
             Err(e) => {
                 error!(client_id, doc_id = %doc_id, error = %e, "Failed to load document");
                 return;
@@ -87,6 +91,7 @@ async fn handle_socket(
     };
 
     // Register this client in the document's client map.
+    debug!("Registering client in document map...");
     {
         let mut state = doc_state.write().await;
         state.clients.insert(client_id, outbound_tx.clone());
@@ -99,6 +104,7 @@ async fn handle_socket(
         match msg {
             // Handle Yjs CRDT updates
             Ok(Message::Binary(bytes)) => {
+                debug!("Document Update Received");
                 // 1. Apply the update to the in-memory Yjs engine.
                 // 2. Broadcast to all *other* clients connected to this doc.
                 // 3. Notify the upload scheduler.
@@ -201,10 +207,15 @@ async fn load_document(
 ) -> crate::error::Result<crate::doc::registry::SharedDocState> {
     let download_url = app_state.projects_client.get_download_url(doc_id).await?;
 
+    debug!("fetched presigned download URL:\t{download_url}");
+
     let snapshot = app_state.projects_client
         .download_state(&download_url)
-        .await
-        .unwrap_or_default();
+        .await;
+
+    debug!(?snapshot, "Download result");
+
+    let snapshot = snapshot.unwrap_or_default();
 
     let engine = if snapshot.is_empty() {
         YjsEngine::new()
