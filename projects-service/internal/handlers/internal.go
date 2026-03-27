@@ -36,7 +36,7 @@ func (h* Handler) InternalDownloadFile(c *gin.Context) {
 		"uploads",
 		file.StorageKey,
 		15*time.Minute,
-		true
+		true,
 	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate download URL"})
@@ -49,7 +49,7 @@ func (h* Handler) InternalDownloadFile(c *gin.Context) {
 }
 
 
-// DownloadFileInternal handles:
+// UploadFileInternal handles:
 // GET /internal/file/:fileID/upload
 //
 // Returns:
@@ -69,7 +69,7 @@ func (h* Handler) InternalUploadFile(c *gin.Context) {
 	file, err := h.queries.GetFile(c.Request.Context(), fileID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "File not found"})
-		return
+		return 
 	}
 
 	// Generate presigned upload URL
@@ -78,7 +78,7 @@ func (h* Handler) InternalUploadFile(c *gin.Context) {
 		"uploads",
 		file.StorageKey,
 		15*time.Minute,
-		true
+		true,
 	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate upload URL"})

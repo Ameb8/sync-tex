@@ -3,30 +3,29 @@ package handlers
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 	"time"
-	"log"
-	
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/minio/minio-go/v7"
 	"github.com/jackc/pgx/v5/pgxpool"
-	
+	"github.com/minio/minio-go/v7"
+
+	db "projects-service/db/sqlc"
 	"projects-service/internal/auth"
 	"projects-service/internal/storage"
-	db "projects-service/db/sqlc"
 )
 
 // Handlers contains all HTTP handlers
 // Stores database and auth dependencies
 type Handler struct {
-	db			*pgxpool.Pool
-	queries 	*db.Queries
-	authorizer 	*auth.Authorizer
-	minioClient	*minio.Client
+	db          *pgxpool.Pool
+	queries     *db.Queries
+	authorizer  *auth.Authorizer
+	minioClient *minio.Client
 }
 
 // NewHandler initializes a new Handler object
@@ -39,11 +38,11 @@ func NewHandler(pool *pgxpool.Pool, queries *db.Queries) (*Handler, error) {
 	} else {
 		log.Println("MinIO Client initialized")
 	}
-	
+
 	return &Handler{ // Initialize handler
-		db:			pool,
-		queries:    queries,
-		authorizer: auth.NewAuthorizer(queries),
+		db:          pool,
+		queries:     queries,
+		authorizer:  auth.NewAuthorizer(queries),
 		minioClient: minioClient,
 	}, nil
 }
@@ -70,7 +69,7 @@ func stringToPgUUID(uuidStr string) (pgtype.UUID, error) {
 	if err != nil {
 		return pgtype.UUID{}, err
 	}
-	
+
 	var pgUUID pgtype.UUID
 	err = pgUUID.Scan(uid.String())
 	return pgUUID, err
@@ -91,7 +90,7 @@ func (h *Handler) generateDownloadURL(
 	bucketName string,
 	objectName string,
 	expiry time.Duration,
-	bool internalURL
+	internalURL bool,
 ) (string, error) {
 	url, err := h.minioClient.PresignedGetObject(
 		ctx,
@@ -115,7 +114,7 @@ func (h *Handler) generateDownloadURL(
 			externalURL = strings.ReplaceAll(externalURL, "http://minio:9000", gatewayURL)
 		}
 	}
-	
+
 	return externalURL, nil
 }
 
@@ -125,7 +124,7 @@ func (h *Handler) generateUploadURL(
 	bucketName string,
 	objectName string,
 	expiry time.Duration,
-	bool internalURL
+	internalURL bool,
 ) (string, error) {
 	url, err := h.minioClient.PresignedPutObject(
 		ctx,
@@ -143,7 +142,7 @@ func (h *Handler) generateUploadURL(
 	log.Println("Generated Upload URL:\t", externalURL)
 
 	// Relace url domain if client rquest
-	if !internalURL { 
+	if !internalURL {
 		gatewayURL := os.Getenv("GATEWAY_URL")
 		if gatewayURL != "" {
 			externalURL = strings.ReplaceAll(externalURL, "http://minio:9000", gatewayURL)
@@ -152,7 +151,6 @@ func (h *Handler) generateUploadURL(
 
 	return externalURL, nil
 }
-
 
 // deleteObject removes a file from MinIO storage
 func (h *Handler) deleteObject(
