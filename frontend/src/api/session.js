@@ -27,9 +27,6 @@ const MAX_RECONNECT_ATTEMPTS = 5;
 export function createCollabSession({ fileId, projectId, token, onStatus }) {
   // Each file gets its own Y.Doc — they must not be shared across files.
   const ydoc = new Y.Doc();
-
-  // The shared text type. Key MUST match what the Rust server uses:
-  // `doc.get_or_insert_text("content")` in engine.rs.
   const ytext = ydoc.getText('content');
 
   let ws = null;
@@ -43,10 +40,7 @@ export function createCollabSession({ fileId, projectId, token, onStatus }) {
     if (destroyed) return;
 
     onStatus('connecting');
-
-    // The Rust server route is /ws/:doc_id. Token goes in the query string
-    // because browser WebSocket API doesn't support custom headers.
-    const url = `${getWsBase()}/ws/${fileId}?token=${encodeURIComponent(token)}`;
+    const url = `${getWsBase()}/ws/${fileId}?projectId=${projectId}&token=${encodeURIComponent(token)}`;
     ws = new WebSocket(url);
     ws.binaryType = 'arraybuffer'; // Yjs works with ArrayBuffer, not Blob
 
@@ -96,6 +90,13 @@ export function createCollabSession({ fileId, projectId, token, onStatus }) {
     ws.send(update); // raw Uint8Array
   });
 
+  ydoc.on('update', () => {
+    console.log('LOCAL UPDATE FIRED');
+  });
+  ytext.observe(() => {
+    console.log('YTEXT CHANGE');
+  });
+
   /**
    * Attach MonacoBinding to a Monaco editor instance.
    * Call this from the editor's onMount callback.
@@ -114,10 +115,16 @@ export function createCollabSession({ fileId, projectId, token, onStatus }) {
       return;
     }
 
+    console.log('Binding to model', model.id);
+
     // MonacoBinding keeps the Monaco model in sync with ytext bidirectionally.
     // It replaces the model's content with the current Y.Doc state on attach,
     // so whatever the server sent us on connect is immediately reflected.
     binding = new MonacoBinding(ytext, model, new Set([editor]));
+
+    editor.onDidChangeModelContent(() => {
+      console.log('MONACO CHANGE DETECTED');
+    });
   }
 
   /**
