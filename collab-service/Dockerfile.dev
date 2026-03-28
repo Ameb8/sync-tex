@@ -1,33 +1,15 @@
-# Dockerfile.dev — Rust collab-service with cargo-watch for hot reload
-# Uses a multi-stage approach: cache deps layer separately so only src
-# changes trigger a recompile, not a full dep download.
-
-FROM rust:1.88-slim-bookworm
-
-# System deps: pkg-config and libssl-dev are needed by reqwest's TLS stack
-RUN apt-get update && apt-get install -y \
-    pkg-config \
-    libssl-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# cargo-watch watches src/ for changes and reruns `cargo run`.
-# Equivalent to `air` in the Go setup.
-RUN cargo install cargo-watch
+FROM golang:1.25-alpine
 
 WORKDIR /app
 
-# Copy manifests first and build a dep-only dummy binary.
-# Docker caches this layer; it only reruns when Cargo.toml/Cargo.lock change.
-COPY Cargo.toml Cargo.lock ./
-RUN mkdir src && echo 'fn main(){}' > src/main.rs \
-    && cargo build \
-    && rm -rf src
+# Install air (hot reload) and build tools
+RUN go install github.com/air-verse/air@latest
 
-# Copy actual source — this layer busts on any src change but deps are cached
-COPY src ./src
+# Copy go.mod/go.sum first for better layer caching.
+# The actual source is bind-mounted at runtime, so this layer is only
+# used to pre-download dependencies.
+COPY go.mod go.sum ./
+RUN go mod download
 
-EXPOSE 8080
-
-# --watch src re-triggers on any .rs file change
-# -x run passes the subcommand to cargo
-CMD ["cargo-watch", "-w", "src", "-x", "run"]
+# Auto-reload with air
+CMD ["air", "-c", ".air.toml"]
