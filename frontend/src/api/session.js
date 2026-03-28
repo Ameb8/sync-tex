@@ -77,6 +77,7 @@ export function createCollabSession({ fileId, projectId, token, onStatus }) {
       return;
     }
     reconnectAttempts++;
+    console.log(`[collab:${fileId}] reconnect attempt ${reconnectAttempts}`);
     reconnectTimer = setTimeout(connect, RECONNECT_DELAY_MS);
   }
 
@@ -85,14 +86,28 @@ export function createCollabSession({ fileId, projectId, token, onStatus }) {
   // a remote update is applied — but Y.js marks remote-origin updates with
   // a transaction origin so we can skip re-broadcasting them.
   ydoc.on('update', (update, origin) => {
-    if (origin === 'remote') return;
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
-    ws.send(update); // raw Uint8Array
+    console.log('[update] origin:', origin, 'readyState:', ws?.readyState);
+    if (origin === 'remote') {
+      console.log('[update] skipping remote origin');
+      return;
+    }
+
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      console.warn('[update observer] WebSocket not open — update dropped');
+      return;
+    }
+    
+    // Collab-service expects Yjs wire format: [MsgSync=0x00, SyncUpdate=0x02, ...payload]
+    // Raw Y.Doc update bytes alone won't parse correctly on the server.
+    const msg = new Uint8Array(2 + update.length);
+    msg[0] = 0;  // MsgSync
+    msg[1] = 2;  // SyncUpdate
+    msg.set(update, 2);
+    console.log('[update] SENDING to server, bytes:', msg.length, 'first bytes:', msg[0], msg[1]);
+    ws.send(msg);
   });
 
-  ydoc.on('update', () => {
-    console.log('LOCAL UPDATE FIRED');
-  });
+
   ytext.observe(() => {
     console.log('YTEXT CHANGE');
   });
@@ -120,7 +135,8 @@ export function createCollabSession({ fileId, projectId, token, onStatus }) {
     // MonacoBinding keeps the Monaco model in sync with ytext bidirectionally.
     // It replaces the model's content with the current Y.Doc state on attach,
     // so whatever the server sent us on connect is immediately reflected.
-    binding = new MonacoBinding(ytext, model, new Set([editor]));
+    console.log('[collab] creating MonacoBinding for', fileId);
+    binding = new MonacoBinding(ytext, model, new Set([editor]), null);
 
     editor.onDidChangeModelContent(() => {
       console.log('MONACO CHANGE DETECTED');
