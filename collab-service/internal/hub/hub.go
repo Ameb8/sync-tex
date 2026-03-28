@@ -134,11 +134,10 @@ func (h *Hub) seedClient(doc *Document, c *client.Client) {
 	}
 
 	// Replay all in-memory updates since last persist
-	for _, update := range updates {
-		c.Send <- update
-	}
-	if len(updates) > 0 {
-		log.Printf("[%s] replayed %d updates to %s\n", doc.ID, len(updates), c.UserID)
+	for i, payload := range updates {
+		c.Send <- yjs.WrapSyncStep2(payload)
+		log.Printf("[%s] replayed update %d/%d (%d bytes) to %s\n",
+			doc.ID, i+1, len(updates), len(payload), c.UserID)
 	}
 }
 
@@ -184,13 +183,20 @@ func (h *Hub) HandleMessage(c *client.Client, msg []byte) {
 	doc := h.GetOrCreate(c.DocID)
 
 	m, ok := yjs.Parse(msg)
-	if !ok {
+	if !ok { // Message parse failure
+		log.Printf("[%s] failed to parse message from %s — first byte=0x%02x len=%d\n",
+			c.DocID, c.UserID, msg[0], len(msg))
 		return
 	}
+
+	// Log message
+	log.Printf("[%s] parsed outer=%d inner=%d payload=%d bytes\n",
+		c.DocID, m.Outer, m.Inner, len(m.Payload))
 
 	switch m.Outer {
 	case yjs.MsgAwareness:
 		// Awareness (cursors/presence) — broadcast to all peers including viewers.
+		log.Println("[Message Type]: Awareness")
 		Broadcast(doc, c, msg)
 
 	case yjs.MsgSync:
@@ -198,9 +204,11 @@ func (h *Hub) HandleMessage(c *client.Client, msg []byte) {
 		case yjs.SyncStep1:
 			// New client requesting state. Broadcast to trigger peers to respond
 			// with their current state, catching up any edits since last flush.
+			log.Println("[Message Type]: SyncStep1")
 			Broadcast(doc, c, msg)
 
 		case yjs.SyncStep2, yjs.SyncUpdate:
+			log.Println("[Message Type]: SyncStep2")
 			// Document update — viewers cannot push these.
 			if !c.CanWrite() {
 				log.Printf("[%s] blocked update from viewer %s\n", c.DocID, c.UserID)
@@ -212,16 +220,14 @@ func (h *Hub) HandleMessage(c *client.Client, msg []byte) {
 
 			// Append changes to in-memory update log
 			doc.mu.Lock()
-			doc.updateLog = append(doc.updateLog, msg)
+			doc.updateLog = append(doc.updateLog, m.Payload)
 			logLen := len(doc.updateLog)
 			doc.mu.Unlock()
 
 			log.Printf("[%s] update log now has %d entries\n", doc.ID, logLen)
 
 			Broadcast(doc, c, msg) // Broadcast changes
-
-			// Reset debounce timer — upload fires after quiet period
-			doc.scheduleUpload()
+			doc.scheduleUpload()   // Reset debounce timer
 		}
 	}
 }
@@ -262,18 +268,18 @@ func (doc *Document) upload() {
 	// Concatenate seed + all updates into one blob.
 	// A Yjs client applies them in sequence — concatenation is valid
 	// because each entry is a self-contained Yjs message.
-	var total int
+	var totalBytes int
 	for _, u := range updates {
-		total += len(u)
+		totalBytes += len(u)
 	}
-	blob := make([]byte, 0, len(seed)+total)
+	blob := make([]byte, 0, len(seed)+totalBytes)
 	blob = append(blob, seed...)
 	for _, u := range updates {
 		blob = append(blob, u...)
 	}
 
-	log.Printf("[%s] uploading %d bytes (%d seed + %d update bytes)\n",
-		doc.ID, len(blob), len(seed), total)
+	log.Printf("[%s] uploading %d bytes (%d seed + %d update bytes across %d entries)\n",
+		doc.ID, len(blob), len(seed), totalBytes, len(updates))
 
 	if err := doc.uploader.Upload(blob); err != nil {
 		log.Printf("[%s] upload failed: %v\n", doc.ID, err)
