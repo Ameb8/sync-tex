@@ -158,15 +158,18 @@ const EditorView = () => {
   // Called both from handleEditorMount (new mount) and from the activeTabId
   // effect below (tab switch to an already-open collab file).
   const bindActiveSession = useCallback((editor) => {
+    console.log('[bind] attempt', { isCollab, activeTabId, hasSession: !!collabSessions.current[activeTabId] });
     if (!isCollab || !activeTabId) return;
     const session = collabSessions.current[activeTabId];
     if (!session) return;
+    console.log('[bind] binding session to editor for', activeTabId);
     session.bindEditor(editor);
     // Switch model ownership to Yjs — value prop becomes undefined after this
     boundFiles.current.add(activeTabId);
-  }, [isCollab]);
+  }, [isCollab, activeTabId]);
 
   useEffect(() => {
+    if (!activeTabId) return; 
     if (editorRef.current) bindActiveSession(editorRef.current);
   }, [activeTabId, bindActiveSession]);
 
@@ -186,6 +189,15 @@ const EditorView = () => {
    if (isCollab) {
       // Collab path: session opens WS, server sends initial state as Yjs update.
       openCollabSession(file);
+      // Editor may already be mounted from a previous tab — try binding now.
+      // If editor isn't mounted yet, handleEditorMount will catch it.
+      if (editorRef.current) {
+          const session = collabSessions.current[file.id];
+          if (session) {
+              session.bindEditor(editorRef.current);
+              boundFiles.current.add(file.id);
+          }
+      }
     } else {
       // Non-collab path: fetch content from REST API
       if (!fileContents[file.id]) {
