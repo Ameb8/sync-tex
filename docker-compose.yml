@@ -67,11 +67,11 @@ services:
       dockerfile: Dockerfile.dev
     container_name: collab-service
     environment:
-      BIND_ADDR: 0.0.0.0:8080
+      BIND_ADDR: ${COLLAB_SERVICE_BIND_ADDR}
       PROJECTS_SERVICE_URL: ${PROJECTS_SERVICE_URL}
-      UPLOAD_DEBOUNCE_MS: 2000
-      UPLOAD_MAX_INTERVAL_SECS: 30
-      RUST_LOG: info
+      UPLOAD_DEBOUNCE_MS: ${COLLAB_UPLOAD_DEBOUNCE_MS}
+      UPLOAD_MAX_INTERVAL_SECS: ${COLLAB_UPLOAD_MAX_SEC}
+
     volumes:
       # Bind-mount source so cargo-watch sees edits without rebuild
       - ./collab-service:/app
