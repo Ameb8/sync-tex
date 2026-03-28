@@ -129,7 +129,7 @@ func (h *Hub) seedClient(doc *Document, c *client.Client) {
 
 	// Send persisted snapshot as a sync step 2 message if present
 	if len(seed) > 0 {
-		c.Send <- yjs.WrapSyncStep2(seed)
+		c.Send <- seed
 		log.Printf("[%s] sent seed (%d bytes) to %s\n", doc.ID, len(seed), c.UserID)
 	}
 
@@ -226,8 +226,25 @@ func (h *Hub) HandleMessage(c *client.Client, msg []byte) {
 
 			log.Printf("[%s] update log now has %d entries\n", doc.ID, logLen)
 
-			Broadcast(doc, c, msg) // Broadcast changes
-			doc.scheduleUpload()   // Reset debounce timer
+			BroadcastPayload(doc, c, m.Payload) // Broadcast changes
+			doc.scheduleUpload()                // Reset debounce timer
+		}
+	}
+}
+
+// BroadcastPayload sends raw Yjs update bytes to every client except the sender.
+func BroadcastPayload(doc *Document, sender *client.Client, payload []byte) {
+	doc.mu.RLock()
+	defer doc.mu.RUnlock()
+
+	for peer := range doc.clients {
+		if peer == sender {
+			continue
+		}
+		select {
+		case peer.Send <- payload:
+		default:
+			log.Printf("[%s] dropped payload for slow peer %s\n", doc.ID, peer.UserID)
 		}
 	}
 }
