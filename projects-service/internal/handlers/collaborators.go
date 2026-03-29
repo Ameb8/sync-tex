@@ -256,40 +256,42 @@ func (h *Handler) JoinViaInvite(c *gin.Context) {
 func (h *Handler) GetRole(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	// 1. Get projectId from query
+	// Get projectId from query
 	projectIDStr := c.Query("projectId")
 	if projectIDStr == "" {
 		c.JSON(400, gin.H{"error": "projectId is required"})
 		return
 	}
 
+	// Convert project ID to UUID
 	var projectID pgtype.UUID
 	if err := projectID.Scan(projectIDStr); err != nil {
 		c.JSON(400, gin.H{"error": "invalid projectId"})
 		return
 	}
 
-	// Extract userID from JWT (assumes middleware already set it)
+	// Extract userID from JWT
 	userID, exists := c.Get("userID")
 	if !exists {
 		c.JSON(401, gin.H{"error": "unauthorized"})
 		return
 	}
 
+	// Get user ID
 	userIDStr, ok := userID.(string)
 	if !ok {
 		c.JSON(500, gin.H{"error": "invalid userID type"})
 		return
 	}
 
-	// 3. Get permission
+	// Get permission level
 	perm, err := h.authorizer.GetUserPermission(ctx, projectID, userIDStr)
 	if err != nil {
 		c.JSON(500, gin.H{"error": "failed to check permissions"})
 		return
 	}
 
-	// 4. If no access → 403
+	// Return 403 if no access
 	if perm == auth.PermissionNone {
 		c.JSON(403, gin.H{
 			"allowed": false,
@@ -297,7 +299,7 @@ func (h *Handler) GetRole(c *gin.Context) {
 		return
 	}
 
-	// 5. Success response
+	// Success response
 	c.JSON(200, gin.H{
 		"allowed": true,
 		"user_id": userIDStr,
