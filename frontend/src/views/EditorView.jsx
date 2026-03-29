@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import Editor from '@monaco-editor/react';
 import FileTree from '../components/Editor/FileTree';
 import TabBar from '../components/Editor/TabBar';
@@ -26,8 +26,9 @@ const getLanguage = (fileType) => ({
 }[fileType] || 'text');
  
 const EditorView = () => {
+  const navigate = useNavigate();
   const { projectId }  = useParams();
- const { getToken }   = useAuth(); // pulls JWT for WS auth
+  const { getToken }   = useAuth(); // pulls JWT for WS auth
 
   // Project / tree state
   const [treeData, setTreeData]           = useState([]);
@@ -81,7 +82,7 @@ const EditorView = () => {
         setLoading(true);
         const data = await fetchProjectTree(projectId);
         setTreeData(data.tree);
-        // projects-service sets this when the project has >1 collaborator
+        //projects-service sets this when the project has >1 collaborator
         //setIsCollab(data.is_collab ?? false);
 
         // Temporary always set to collaborative mode
@@ -434,6 +435,15 @@ const EditorView = () => {
 
           {/* Sidebar tab nav */}
           <div style={{ display: 'flex', borderBottom: '0.5px solid var(--border-color, #e0e0e0)' }}>
+            {/* Home button */}
+            <button
+              onClick={() => navigate('/')}
+              className="home-button"
+              title="Back to dashboard"
+            >
+              ← Dashboard
+            </button>
+
             {[['info', 'Info'], ['collaborators', 'Share']].map(([key, label]) => (
               <button
                 key={key}
