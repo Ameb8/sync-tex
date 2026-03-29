@@ -30,6 +30,9 @@ Collab-Service enables real-time collaborative editing between users, allowing m
 
 Collab-Service primarily uses the websocket protocol to enable collaborative editing. The server stores an in-memory map of files to connected users. When an edit is received by a server, it is broadcasted to all other users connected to that document. The payload of each update consists of Yjs's binary CRDT protocol. Thus, Collab-Service does not understand, parse, or analyze any file updates, simply broadcasting them to other users.
 
+In order to ensure consistent states between users, Collab-Service provides an initial seed state for connecting users. When the first user connects to a document, Collab-Service fetches the Yjs-formatted state of a document. This is done by fetching a presigned download URL from Projects-Service, then downloading the file. It is the responsibility of Projects-Service to ensure the download URL links to the Yjs binary version of the document. This document is sent as-is to the first connecting user. However, as new users join, the initial document state no longer suffices, as it has been edited. To handle this, Collab-Service keeps a log of all edits applied to the document. These updates can then be sent to connecting users, ensuring they have the most up-to-date version. When all users disconnect on a given document, these changes will be uploaded to filestore and evicted from Collab-Service memory. 
+
+In order to avoid saving collisions and mismatching document states, clients do not save documents when editing collaboratively. Instead, Collab-Service is responsible for document persistence. Collab-Service utilizes configurable debounce saving, as well as ensuring a final upload when all users disconnect from a given document. The saved document will be in Yjs-binary form. It may be compacted into a more memory-efficient format, but this is not Collab-Service's responsibility. 
 
 
 ## Users-Service
