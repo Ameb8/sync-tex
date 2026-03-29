@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	db "projects-service/db/sqlc"
+	"projects-service/internal/auth"
 )
 
 // CreateInvite - POST /projects/v1/projects/:projectID/invites
@@ -244,4 +245,62 @@ func (h *Handler) JoinViaInvite(c *gin.Context) {
 
 	// Redirect to frontend with token
 	c.Redirect(http.StatusFound, fmt.Sprintf("http://100.79.49.102/join?token=%s", token))
+}
+
+// GetRole handles:
+// GET /projects/v1/access
+//
+// Returns:
+// 200 { allowed: true, user_id: "...", role: "owner"|"editor"|"viewer" }
+// 403 { allowed: false }
+func (h *Handler) GetRole(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	// 1. Get projectId from query
+	projectIDStr := c.Query("projectId")
+	if projectIDStr == "" {
+		c.JSON(400, gin.H{"error": "projectId is required"})
+		return
+	}
+
+	var projectID pgtype.UUID
+	if err := projectID.Scan(projectIDStr); err != nil {
+		c.JSON(400, gin.H{"error": "invalid projectId"})
+		return
+	}
+
+	// Extract userID from JWT (assumes middleware already set it)
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(401, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	userIDStr, ok := userID.(string)
+	if !ok {
+		c.JSON(500, gin.H{"error": "invalid userID type"})
+		return
+	}
+
+	// 3. Get permission
+	perm, err := h.authorizer.GetUserPermission(ctx, projectID, userIDStr)
+	if err != nil {
+		c.JSON(500, gin.H{"error": "failed to check permissions"})
+		return
+	}
+
+	// 4. If no access → 403
+	if perm == auth.PermissionNone {
+		c.JSON(403, gin.H{
+			"allowed": false,
+		})
+		return
+	}
+
+	// 5. Success response
+	c.JSON(200, gin.H{
+		"allowed": true,
+		"user_id": userIDStr,
+		"role":    perm,
+	})
 }
