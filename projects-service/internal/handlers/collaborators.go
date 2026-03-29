@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"crypto/rand"
-    "encoding/hex"
+	"encoding/hex"
 	"fmt"
 	"net/http"
 	"time"
@@ -13,8 +13,6 @@ import (
 
 	db "projects-service/db/sqlc"
 )
-
-
 
 // CreateInvite - POST /projects/v1/projects/:projectID/invites
 func (h *Handler) CreateInvite(c *gin.Context) {
@@ -55,7 +53,7 @@ func (h *Handler) CreateInvite(c *gin.Context) {
 	pgInviteID, _ := stringToPgUUID(inviteID.String())
 
 	// Generate invite token
-	token, err := h.generateInviteToken()  // Generate secure token
+	token, err := h.generateInviteToken() // Generate secure token
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate invite"})
 		return
@@ -80,12 +78,12 @@ func (h *Handler) CreateInvite(c *gin.Context) {
 
 	// Generate sharable URL
 	shareableURL := fmt.Sprintf("http://192.168.1.34./join?token=%s", token)
-	
+
 	c.JSON(http.StatusCreated, gin.H{
-		"invite_id": invite.ID,
-		"token":     token,
-		"link":      shareableURL,
-		"role":      invite.Role,
+		"invite_id":  invite.ID,
+		"token":      token,
+		"link":       shareableURL,
+		"role":       invite.Role,
 		"expires_at": invite.ExpiresAt,
 	})
 }
@@ -146,7 +144,6 @@ func (h *Handler) AcceptInvite(c *gin.Context) {
 
 	c.JSON(http.StatusOK, collaborator)
 }
-
 
 // ListCollaborators - GET /projects/v1/projects/:projectID/collaborators
 func (h *Handler) ListCollaborators(c *gin.Context) {
@@ -217,35 +214,34 @@ func (h *Handler) RemoveCollaborator(c *gin.Context) {
 	c.JSON(http.StatusNoContent, nil)
 }
 
-
 func (h *Handler) generateInviteToken() (string, error) {
-    b := make([]byte, 32)
-    _, err := rand.Read(b)
-    if err != nil {
-        return "", err
-    }
-    return hex.EncodeToString(b), nil
+	b := make([]byte, 32)
+	_, err := rand.Read(b)
+	if err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
 }
 
 // GET /projects/v1/invites/join?token=...
 func (h *Handler) JoinViaInvite(c *gin.Context) {
-    token := c.Query("token")
-    if token == "" {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "token is required"})
-        return
-    }
+	token := c.Query("token")
+	if token == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "token is required"})
+		return
+	}
 
-    invite, err := h.queries.GetProjectInviteByToken(c.Request.Context(), token)
-    if err != nil {
-        c.JSON(http.StatusNotFound, gin.H{"error": "Invalid or expired invite"})
-        return
-    }
+	invite, err := h.queries.GetProjectInviteByToken(c.Request.Context(), token)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Invalid or expired invite"})
+		return
+	}
 
-    if time.Now().After(invite.ExpiresAt.Time) {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Invite has expired"})
-        return
-    }
+	if time.Now().After(invite.ExpiresAt.Time) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invite has expired"})
+		return
+	}
 
-    // Redirect to frontend with token 
-    c.Redirect(http.StatusFound, fmt.Sprintf("http://192.168.1.34/join?token=%s", token))
+	// Redirect to frontend with token
+	c.Redirect(http.StatusFound, fmt.Sprintf("http://100.79.49.102/join?token=%s", token))
 }
