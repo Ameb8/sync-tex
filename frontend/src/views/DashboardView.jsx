@@ -7,6 +7,7 @@ import NewProjectModal from '../components/Dashboard/NewProjectModal';
 import ImportModal from '../components/Dashboard/ImportModal';
 import JoinProjectModal from '../components/Dashboard/JoinProjectModal';
 import { fetchProjects } from '../api/projects';
+import { useAuth } from '../contexts/AuthContext';
 import './DashboardView.css';
 
 function DashboardView() {
@@ -20,6 +21,7 @@ function DashboardView() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [joinError, setJoinError] = useState(null);
+  const { user } = useAuth();
 
   useEffect(() => {
     loadProjects();
@@ -73,8 +75,8 @@ function DashboardView() {
   // Filter projects based on current filter
   const filteredProjects = projects.filter(project => {
     if (filter === 'all') return true;
-    if (filter === 'my') return project.isOwner;
-    if (filter === 'shared') return !project.isOwner && project.collaborators?.length > 0;
+    if (filter === 'my') return String(project.owner_id) === String(user?.id);
+    if (filter === 'shared') return String(project.owner_id) !== String(user?.id);
     if (filter === 'templates') return project.isTemplate;
     return true;
   });
