@@ -82,13 +82,13 @@ function DashboardView() {
   // Sort projects
   const sortedProjects = [...filteredProjects].sort((a, b) => {
     if (sortBy === 'recent') {
-      return new Date(b.lastModified) - new Date(a.lastModified);
+      return new Date(b.created_at) - new Date(a.created_at);
     }
     if (sortBy === 'name') {
       return a.name.localeCompare(b.name);
     }
     if (sortBy === 'modified') {
-      return new Date(b.lastModified) - new Date(a.lastModified);
+      return new Date(b.created_at) - new Date(a.created_at);
     }
     return 0;
   });

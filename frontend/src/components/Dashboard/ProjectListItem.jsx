@@ -30,7 +30,7 @@ function ProjectListItem({ project }) {
       <div className="project-list-content">
         <span className="project-list-name">{project.name}</span>
         <span className="project-list-separator">-</span>
-        <span className="project-list-date">{formatDate(project.lastModified)}</span>
+        <span className="project-list-date">{formatDate(project.created_at)}</span>
       </div>
     </li>
   );

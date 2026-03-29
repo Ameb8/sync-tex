@@ -34,7 +34,7 @@ function ProjectCard({ project }) {
       <div className="project-card-content">
         <h3 className="project-card-title">{project.name}</h3>
         <p className="project-card-modified">
-          Modified {formatTimeAgo(project.lastModified)}
+          Created {formatTimeAgo(project.created_at)}
         </p>
         {collaboratorCount > 0 && (
           <div className="project-card-collaborators">
