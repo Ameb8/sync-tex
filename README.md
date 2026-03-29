@@ -1,5 +1,7 @@
 # SyncTex
 
+![SyncTex Logo](https://github.com/Ameb8/sync-tex/blob/master/docs/SyncTex.png)
+
 SyncTex is a web-based LaTeX project editor. It allows users to store and save full-fledged projects, containing various file types and resources. Users can collaborate in real time, allowing teams to work together to produce clean and proffesional documentation. 
 
 # Software Design
@@ -13,6 +15,8 @@ Projects-Service is responsible for managing user's projects and files. The syst
 
 ### Projects-Service Rest-API
 ### Projects-Service Database
+
+![Projects-Service-DB ERD](https://github.com/Ameb8/sync-tex/blob/master/docs/projects-service/projects-db-erd.png)
 ### Projects-Service File Store
 
 ## Collab-Service
