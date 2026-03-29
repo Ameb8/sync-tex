@@ -1,12 +1,12 @@
 package handlers
 
 import (
-	"time"
 	"context"
 	"encoding/json"
-	"net/http"
-	"log"
 	"fmt"
+	"log"
+	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -79,7 +79,6 @@ func (h *Handler) CreateProject(c *gin.Context) {
 
 	qtx := h.queries.WithTx(tx)
 
-
 	// Create project
 	projectID := uuid.New()
 	pgProjectID, _ := stringToPgUUID(projectID.String())
@@ -107,8 +106,8 @@ func (h *Handler) CreateProject(c *gin.Context) {
 		ctx,
 		pgRootDirID,
 		pgProjectID,
-		parentID,   // NULL parent
-		req.Name,   // same as project name
+		parentID, // NULL parent
+		req.Name, // same as project name
 	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create root directory"})
@@ -233,12 +232,12 @@ func (h *Handler) DeleteProject(c *gin.Context) {
 }
 
 type File struct {
-	ID       		string `json:"id"`
-	Filename 		string `json:"filename"`
-	FileType 		string `json:"file_type"`
-	StorageKey		string `json:"storage_key"`
-	DownloadURL		string `json:"download_url"`
-	uploadURL		string `json:"upload_url"`
+	ID          string `json:"id"`
+	Filename    string `json:"filename"`
+	FileType    string `json:"file_type"`
+	StorageKey  string `json:"storage_key"`
+	DownloadURL string `json:"download_url"`
+	uploadURL   string `json:"upload_url"`
 }
 
 type RawFile struct {
@@ -246,7 +245,7 @@ type RawFile struct {
 	DirectoryID string `json:"directory_id"`
 	Filename    string `json:"filename"`
 	FileType    string `json:"file_type"`
-	StorageKey	string `json:"storage_key"`
+	StorageKey  string `json:"storage_key"`
 }
 
 type Node struct {
@@ -313,9 +312,9 @@ func buildProjectTree(
 	for _, f := range files {
 		if dir, ok := dirMap[f.DirectoryID]; ok {
 			dir.Files = append(dir.Files, File{
-				ID:       f.ID,
-				Filename: f.Filename,
-				FileType: f.FileType,
+				ID:         f.ID,
+				Filename:   f.Filename,
+				FileType:   f.FileType,
 				StorageKey: f.StorageKey,
 			})
 		}
@@ -380,12 +379,20 @@ func (h *Handler) GetProjectTree(c *gin.Context) {
 	tree := buildProjectTree(raw.Directories, raw.Files)
 	enrichTreeWithPresignedURLs(c.Request.Context(), h, tree, 1*time.Hour)
 
+	// Check if project is collaborative
+	collaborators, err := h.queries.ListProjectCollaborators(c.Request.Context(), pgUUID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check collaborators"})
+		return
+	}
+	isCollab := len(collaborators) > 0
+
 	c.JSON(http.StatusOK, gin.H{
 		"project_id": raw.ProjectID,
 		"tree":       tree,
+		"is_collab":  isCollab,
 	})
 }
-
 
 // enrichTreeWithPresignedURLs recursively adds presigned URLs to all files in the tree
 func enrichTreeWithPresignedURLs(
