@@ -125,11 +125,6 @@ const EditorView = () => {
       fileId:    file.id,
       projectId,
       token,
-      onSave: async (content) => {
-        // Save file content
-        await saveFileContent(projectId, file.id, content);
-        console.log("Saving File Content")
-      },
       onStatus: (status) => {
         setCollabStatus((prev) => ({ ...prev, [file.id]: status }));
       },
@@ -163,15 +158,18 @@ const EditorView = () => {
   // Called both from handleEditorMount (new mount) and from the activeTabId
   // effect below (tab switch to an already-open collab file).
   const bindActiveSession = useCallback((editor) => {
+    console.log('[bind] attempt', { isCollab, activeTabId, hasSession: !!collabSessions.current[activeTabId] });
     if (!isCollab || !activeTabId) return;
     const session = collabSessions.current[activeTabId];
     if (!session) return;
+    console.log('[bind] binding session to editor for', activeTabId);
     session.bindEditor(editor);
     // Switch model ownership to Yjs — value prop becomes undefined after this
     boundFiles.current.add(activeTabId);
-  }, [isCollab]);
+  }, [isCollab, activeTabId]);
 
   useEffect(() => {
+    if (!activeTabId) return; 
     if (editorRef.current) bindActiveSession(editorRef.current);
   }, [activeTabId, bindActiveSession]);
 
@@ -188,23 +186,30 @@ const EditorView = () => {
     setOpenTabs((prev) => [...prev, file]);
     setActiveTabId(file.id);
 
-    // load content into React state
-    if (!fileContents[file.id]) {
-      try {
-        const content = await fetchFileContent(file.download_url);
-        setFileContents((prev) => ({ ...prev, [file.id]: content }));
-        originalContentsRef.current[file.id] = content;
-      } catch (err) {
-        setError(`Failed to load file: ${err.message}`);
-        return;
+   if (isCollab) {
+      // Collab path: session opens WS, server sends initial state as Yjs update.
+      openCollabSession(file);
+      // Editor may already be mounted from a previous tab — try binding now.
+      // If editor isn't mounted yet, handleEditorMount will catch it.
+      if (editorRef.current) {
+          const session = collabSessions.current[file.id];
+          if (session) {
+              session.bindEditor(editorRef.current);
+              boundFiles.current.add(file.id);
+          }
+      }
+    } else {
+      // Non-collab path: fetch content from REST API
+      if (!fileContents[file.id]) {
+        try {
+          const content = await fetchFileContent(file.download_url);
+          setFileContents((prev) => ({ ...prev, [file.id]: content }));
+          originalContentsRef.current[file.id] = content;
+        } catch (err) {
+          setError(`Failed to load file: ${err.message}`);
+        }
       }
     }
-    
-    // Connect to collab-service
-    if (isCollab) {
-      openCollabSession(file);
-    }
-
   }, [openTabs, fileContents, isCollab, openCollabSession]);
 
 
@@ -381,16 +386,7 @@ const EditorView = () => {
                 key={activeTabId}
                 height="100%"
                 language={activeLanguage}
-                // Collab files: DO NOT pass value — MonacoBinding owns the model.
-                // Passing value here causes React to reset the model on every render,
-                // fighting Yjs and causing cursor jumps / doubled characters.
-                value={
-                  !isActiveCollab
-                    ? activeContent                          // non-collab: controlled normally
-                    : boundFiles.current.has(activeTabId)
-                      ? undefined                            // bound: Yjs owns the model
-                      : (fileContents[activeTabId] ?? '')   // pre-bind: seed Monaco with fetched content
-                }
+                value={isActiveCollab ? undefined : activeContent}
                 onChange={handleEditorChange}
                 onMount={handleEditorMount}
                 theme={isDarkMode ? 'vs-dark' : 'vs'}

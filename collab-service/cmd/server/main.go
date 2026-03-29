@@ -9,7 +9,6 @@ import (
 	"github.com/ameb8/sync-tex/collab-service/internal/handler"
 	"github.com/ameb8/sync-tex/collab-service/internal/hub"
 	"github.com/ameb8/sync-tex/collab-service/internal/persist"
-	"github.com/ameb8/sync-tex/collab-service/internal/save"
 )
 
 func main() {
@@ -20,16 +19,14 @@ func main() {
 
 	// Factory functions let the hub create per-document dependencies without
 	// importing the hub package from those packages (avoids circular imports).
-
-	saveCoordFactory := func(docID string) *save.Coordinator {
-		return save.NewCoordinator(docID, cfg.SaveDebounceDelay, cfg.SaveACKTimeout, cfg.SaveMaxRetries)
-	}
-
 	seederFactory := func(docID string) *persist.Seeder {
 		return persist.NewSeeder(docID, cfg.ProjectsServiceURL, cfg.InternalSecret)
 	}
+	uploaderFactory := func(docID string) *persist.Uploader {
+		return persist.NewUploader(docID, cfg.ProjectsServiceURL, cfg.InternalSecret)
+	}
 
-	h := hub.New(saveCoordFactory, seederFactory)
+	h := hub.New(seederFactory, uploaderFactory, cfg.SaveDebounceDelay)
 
 	wsHandler := handler.NewWSHandler(h, checker)
 

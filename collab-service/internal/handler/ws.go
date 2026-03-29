@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gorilla/websocket"
 	"github.com/ameb8/sync-tex/collab-service/internal/auth"
 	"github.com/ameb8/sync-tex/collab-service/internal/client"
 	"github.com/ameb8/sync-tex/collab-service/internal/hub"
+	"github.com/gorilla/websocket"
 )
 
 var upgrader = websocket.Upgrader{

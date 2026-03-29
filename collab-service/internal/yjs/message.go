@@ -15,17 +15,12 @@ package yjs
 // blobs. Only the type bytes matter for routing and persistence decisions.
 
 const (
-	MsgSync      	byte = 0
-	MsgAwareness	byte = 1
+	MsgSync      byte = 0
+	MsgAwareness byte = 1
 
-	SyncStep1 		byte = 0
-	SyncStep2 		byte = 1
-	SyncUpdate 		byte = 2
-
-	// SigSave is a custom signal byte the relay prepends to out-of-band
-	// messages directed at a specific client. Not part of the Yjs protocol.
-	// Format: [SigSave, ...asciiPayload]
-	SigSave 		byte = 0xFF
+	SyncStep1  byte = 0
+	SyncStep2  byte = 1
+	SyncUpdate byte = 2
 )
 
 // Message is the parsed envelope of a Yjs WebSocket frame.

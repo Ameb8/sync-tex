@@ -24,8 +24,6 @@ func SetupRoutes(r *gin.Engine, h *handlers.Handler, authMiddleware *middleware.
 	api.GET("/projects/:projectID", h.GetProject)
 	api.PATCH("/projects/:projectID", h.UpdateProject)
 	api.DELETE("/projects/:projectID", h.DeleteProject)
-
-	// Project tree
 	api.GET("/projects/:projectID/tree", h.GetProjectTree)
 
 	// Directories
@@ -46,4 +44,11 @@ func SetupRoutes(r *gin.Engine, h *handlers.Handler, authMiddleware *middleware.
 	api.GET("/projects/:projectID/collaborators", h.ListCollaborators)
 	api.GET("/invites/join")
 	api.DELETE("/projects/:projectID/collaborators/:userID", h.RemoveCollaborator)
+
+	// Internal Endpoints (no JWT authentication)
+	internal := r.Group("/projects/internal/v1")
+
+	// Internal
+	internal.GET("/file/:fileID/download", h.InternalDownloadFile)
+	internal.GET("/file/:fileID/upload", h.InternalUploadFile)
 }

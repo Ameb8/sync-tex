@@ -293,7 +293,7 @@ func (h *Handler) CreateFile(c *gin.Context) {
 	}
 
 	// Generate presigned upload URL
-	uploadURL, err := h.generateUploadURL(c.Request.Context(), "uploads", storageKey, 15*time.Minute)
+	uploadURL, err := h.generateUploadURL(c.Request.Context(), "uploads", storageKey, 15*time.Minute, false)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate upload URL"})
 		return
@@ -392,7 +392,7 @@ func (h *Handler) GetUploadURL(c *gin.Context) {
 	storageKey := fmt.Sprintf("%s/%s", projectIDStr, fileIDStr)
 	
 	// Generate presigned upload URL (15 min expiry)
-	uploadURL, err := h.generateUploadURL(c.Request.Context(), "uploads", storageKey, 15*time.Minute)
+	uploadURL, err := h.generateUploadURL(c.Request.Context(), "uploads", storageKey, 15*time.Minute, false)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate upload URL"})
 		return

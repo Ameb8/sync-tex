@@ -1,121 +1,170 @@
 import * as Y from 'yjs';
-import { WebsocketProvider } from 'y-websocket';
 import { MonacoBinding } from 'y-monaco';
 
-const SIG_BYTE = 0xFF;
 
-export function createCollabSession({ fileId, projectId, token, onSave, onStatus }) {
-  // Create Yjs CRDT document
-  const ydoc  = new Y.Doc();
+
+function getWsBase() {
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${protocol}//${window.location.host}`;
+}
+
+// How long to wait before attempting a reconnect after a dropped connection.
+const RECONNECT_DELAY_MS = 2000;
+const MAX_RECONNECT_ATTEMPTS = 5;
+
+/**
+ * Create a collaborative editing session for one file.
+ *
+ * @param {object} opts
+ * @param {string}   opts.fileId    - Used as the doc_id path parameter
+ * @param {string}   opts.projectId - Unused by the WS server but kept for
+ *                                    potential future auth/routing use
+ * @param {string}   opts.token     - JWT passed as a query param for auth
+ * @param {function} opts.onStatus  - Called with 'connecting'|'connected'|'disconnected'
+ *
+ * @returns {{ bindEditor, getContent, destroy }}
+ */
+export function createCollabSession({ fileId, projectId, token, onStatus }) {
+  // Each file gets its own Y.Doc — they must not be shared across files.
+  const ydoc = new Y.Doc();
   const ytext = ydoc.getText('content');
 
-  // Build full URL with auth params
-  const WS_BASE = import.meta.env.VITE_COLLAB_WS_URL
-    || `ws://${window.location.host}/ws`;
+  let ws = null;
+  let binding = null;        // MonacoBinding instance, set in bindEditor()
+  let destroyed = false;
+  let reconnectAttempts = 0;
+  let reconnectTimer = null;
 
-  const url = `${WS_BASE}/${fileId}?projectId=${encodeURIComponent(projectId)}&token=${encodeURIComponent(token)}`;
+  // Connect (or reconnect) to the collab-service WebSocket.
+  function connect() {
+    if (destroyed) return;
 
-  console.log('[collab] connecting to', url);
+    onStatus('connecting');
+    const url = `${getWsBase()}/ws/${fileId}?projectId=${projectId}&token=${encodeURIComponent(token)}`;
+    ws = new WebSocket(url);
+    ws.binaryType = 'arraybuffer'; // Yjs works with ArrayBuffer, not Blob
 
-  const provider = new WebsocketProvider(url, '', ydoc, {
-    connect: true,
-    // Slow down reconnect attempts so a rejection loop doesn't spam the server.
-    WebSocketPolyfill: undefined,
-    resyncInterval: -1, // disable periodic resync — not needed without server-side state
-  });
+    ws.onopen = () => {
+      reconnectAttempts = 0;
+      onStatus('connected');
+      // No handshake needed — the server sends the current document state
+      // as a Yjs binary update immediately on connect. We just wait for it.
+    };
 
-  let binding  = null;
-  let isSaving = false;
+    ws.onmessage = (event) => {
+      // Every message from the server is a raw Yjs binary update.
+      // Y.applyUpdate merges it into the local Y.Doc, which automatically
+      // updates the Monaco model via MonacoBinding.
+      const update = new Uint8Array(event.data);
+      Y.applyUpdate(ydoc, update, 'remote');
+    };
 
-  // Debug: log every status change and close event
-  provider.on('status', ({ status }) => {
-    console.log(`[collab] ${fileId} status:`, status);
-    if (onStatus) onStatus(status);
-  });
+    ws.onclose = () => {
+      onStatus('disconnected');
+      scheduleReconnect();
+    };
 
-  // get y-websocket close codes
-  const origConnect = provider._connect?.bind(provider)
-    || provider.connect?.bind(provider);
-
-  provider.on('connection-close', (event) => {
-    console.warn(`[collab] connection closed — code: ${event.code}, reason: "${event.reason}", wasClean: ${event.wasClean}`);
-    // Common close codes:
-    //   1000 = normal closure
-    //   1006 = abnormal (server dropped without close frame — auth rejected before upgrade)
-    //   1008 = policy violation (our 403 case, but browsers often show 1006)
-    // If code is 1006 repeatedly, the server is rejecting before WS upgrade —
-  });
-
-  provider.on('connection-error', (event) => {
-    console.error('[collab] connection error:', event);
-  });
-
-  // ── Save signal + ACK ───────────────────────────────────────────────────
-  function sendACK() {
-    const ws = provider.ws;
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
-    ws.send(new Uint8Array([SIG_BYTE, 0x61, 0x63, 0x6B]));
+    ws.onerror = (err) => {
+      console.error(`[collab:${fileId}] WebSocket error`, err);
+      // onclose fires right after onerror, which handles reconnect.
+    };
   }
 
-  async function handleSaveSignal() {
-    if (isSaving) { sendACK(); return; }
-    isSaving = true;
-    try {
-      await onSave(ytext.toString());
-      sendACK();
-    } catch (err) {
-      console.error('[collab] save failed, withholding ACK:', err);
-    } finally {
-      isSaving = false;
+  function scheduleReconnect() {
+    if (destroyed) return;
+    if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+      console.warn(`[collab:${fileId}] Max reconnect attempts reached`);
+      return;
     }
+    reconnectAttempts++;
+    console.log(`[collab:${fileId}] reconnect attempt ${reconnectAttempts}`);
+    reconnectTimer = setTimeout(connect, RECONNECT_DELAY_MS);
   }
 
-  function attachSignalListener(ws) {
-    if (!ws) return;
-    ws.addEventListener('message', (event) => {
-      if (!(event.data instanceof ArrayBuffer)) return;
-      const bytes = new Uint8Array(event.data);
-      if (bytes[0] !== SIG_BYTE) return;
-      const payload = new TextDecoder().decode(bytes.slice(1));
-      if (payload === 'save') handleSaveSignal();
+  // Observe local Y.Doc changes and forward them to the server.
+  // This fires whenever the local user edits (via MonacoBinding) or when
+  // a remote update is applied — but Y.js marks remote-origin updates with
+  // a transaction origin so we can skip re-broadcasting them.
+  ydoc.on('update', (update, origin) => {
+    console.log('[update] origin:', origin, 'readyState:', ws?.readyState);
+    if (origin === 'remote') {
+      console.log('[update] skipping remote origin');
+      return;
+    }
+
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      console.warn('[update observer] WebSocket not open — update dropped');
+      return;
+    }
+    
+    // Collab-service expects Yjs wire format: [MsgSync=0x00, SyncUpdate=0x02, ...payload]
+    // Raw Y.Doc update bytes alone won't parse correctly on the server.
+    const msg = new Uint8Array(2 + update.length);
+    msg[0] = 0;  // MsgSync
+    msg[1] = 2;  // SyncUpdate
+    msg.set(update, 2);
+    console.log('[update] SENDING to server, bytes:', msg.length, 'first bytes:', msg[0], msg[1]);
+    ws.send(msg);
+  });
+
+
+  ytext.observe(() => {
+    console.log('YTEXT CHANGE');
+  });
+
+  /**
+   * Attach MonacoBinding to a Monaco editor instance.
+   * Call this from the editor's onMount callback.
+   * Safe to call multiple times — rebinds if the editor is remounted.
+   */
+  function bindEditor(editor) {
+    // Tear down any previous binding (e.g. editor remount after tab switch).
+    if (binding) {
+      binding.destroy();
+      binding = null;
+    }
+
+    const model = editor.getModel();
+    if (!model) {
+      console.warn(`[collab:${fileId}] Editor has no model yet`);
+      return;
+    }
+
+    console.log('Binding to model', model.id);
+
+    // MonacoBinding keeps the Monaco model in sync with ytext bidirectionally.
+    // It replaces the model's content with the current Y.Doc state on attach,
+    // so whatever the server sent us on connect is immediately reflected.
+    console.log('[collab] creating MonacoBinding for', fileId);
+    binding = new MonacoBinding(ytext, model, new Set([editor]), null);
+
+    editor.onDidChangeModelContent(() => {
+      console.log('MONACO CHANGE DETECTED');
     });
   }
 
-  provider.on('status', ({ status }) => {
-    if (status === 'connected') attachSignalListener(provider.ws);
-  });
-  attachSignalListener(provider.ws);
+  /**
+   * Return the current plain-text content of the document.
+   * Reads directly from the Y.Doc, not from the Monaco model.
+   */
+  function getContent() {
+    return ytext.toString();
+  }
 
-  // Public API
-  return {
-    ydoc,
-    provider,
-    ytext,
+  /**
+   * Tear down the session — close WebSocket, destroy Yjs doc and binding.
+   * Called on tab close and component unmount.
+   */
+  function destroy() {
+    destroyed = true;
+    clearTimeout(reconnectTimer);
+    if (binding) { binding.destroy(); binding = null; }
+    if (ws) { ws.close(); ws = null; }
+    ydoc.destroy();
+  }
 
-    bindEditor(monacoEditor) {
-      if (binding) { binding.destroy(); binding = null; }
-      const model = monacoEditor.getModel();
-      if (!model) return;
+  // Kick off the initial connection.
+  connect();
 
-      // Seed Y.Doc from Monaco model content if Y.Doc is empty.
-      // This covers the case where fetchFileContent ran before the WS
-      // connected, so the model has content but Y.Doc doesn't yet.
-      if (ytext.toString() === '' && model.getValue() !== '') {
-        ydoc.transact(() => {
-          ytext.insert(0, model.getValue());
-        });
-      }
-
-      binding = new MonacoBinding(ytext, model, new Set([monacoEditor]), provider.awareness);
-    },
-
-    getContent() { return ytext.toString(); },
-
-    destroy() {
-      binding?.destroy();
-      provider.disconnect();
-      provider.destroy();
-      ydoc.destroy();
-    },
-  };
+  return { bindEditor, getContent, destroy };
 }

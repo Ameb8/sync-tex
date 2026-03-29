@@ -1,6 +1,7 @@
 package persist
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -8,9 +9,10 @@ import (
 	"sync"
 )
 
-// Seeder fetches the persisted Yjs state for a document from projects-service.
-// sync.Once ensures the fetch runs at most once per document lifetime in the relay,
-// even if multiple clients connect simultaneously.
+type presignedResponse struct {
+	URL string `json:"url"`
+}
+
 type Seeder struct {
 	docID          string
 	serviceURL     string
@@ -18,7 +20,7 @@ type Seeder struct {
 	httpClient     *http.Client
 
 	once  sync.Once
-	state []byte // raw Yjs state bytes, nil if new file or fetch failed
+	state []byte
 }
 
 func NewSeeder(docID, serviceURL, internalSecret string) *Seeder {
@@ -30,17 +32,15 @@ func NewSeeder(docID, serviceURL, internalSecret string) *Seeder {
 	}
 }
 
-// Load fetches the Yjs state on first call; subsequent calls return the cached
-// result. Returns nil for new files (404 from projects-service is expected).
-//
-// projects-service endpoint:
-//   GET /internal/files/:docId/yjs-state
-//   X-Internal-Secret: <secret>
-//   → 200  body: raw Y.encodeStateAsUpdate(ydoc) bytes
-//   → 404  new file, no state yet
+// Load fetches the document state on first call, caches result.
+// Returns nil for new files.
+// The state bytes are whatever is in the file store — either plain UTF-8
+// text (never been collaborative) or binary Yjs state (previously collab).
+// The distinction is handled by the frontend on first connect.
 func (s *Seeder) Load() []byte {
 	s.once.Do(func() {
-		url := fmt.Sprintf("%s/internal/files/%s/yjs-state", s.serviceURL, s.docID)
+		// Get presigned download URL from projects-service
+		url := fmt.Sprintf("%s/file/%s/download", s.serviceURL, s.docID)
 		req, err := http.NewRequest(http.MethodGet, url, nil)
 		if err != nil {
 			log.Printf("[%s] seed request build error: %v\n", s.docID, err)
@@ -56,15 +56,34 @@ func (s *Seeder) Load() []byte {
 		defer resp.Body.Close()
 
 		if resp.StatusCode == http.StatusNotFound {
-			log.Printf("[%s] no persisted Yjs state (new file)\n", s.docID)
+			log.Printf("[%s] no persisted state (new file)\n", s.docID)
 			return
 		}
 		if resp.StatusCode != http.StatusOK {
-			log.Printf("[%s] seed fetch returned %d\n", s.docID, resp.StatusCode)
+			log.Printf("[%s] presigned URL fetch returned %d\n", s.docID, resp.StatusCode)
 			return
 		}
 
-		state, err := io.ReadAll(resp.Body)
+		var presigned presignedResponse
+		if err := json.NewDecoder(resp.Body).Decode(&presigned); err != nil {
+			log.Printf("[%s] presigned URL decode error: %v\n", s.docID, err)
+			return
+		}
+
+		// Download raw bytes from file store
+		dlResp, err := s.httpClient.Get(presigned.URL)
+		if err != nil {
+			log.Printf("[%s] file store download error: %v\n", s.docID, err)
+			return
+		}
+		defer dlResp.Body.Close()
+
+		if dlResp.StatusCode != http.StatusOK {
+			log.Printf("[%s] file store returned %d\n", s.docID, dlResp.StatusCode)
+			return
+		}
+
+		state, err := io.ReadAll(dlResp.Body)
 		if err != nil {
 			log.Printf("[%s] seed read error: %v\n", s.docID, err)
 			return

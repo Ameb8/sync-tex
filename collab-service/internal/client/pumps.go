@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/ameb8/sync-tex/collab-service/internal/yjs"
 )
 
 const (
@@ -38,7 +37,9 @@ func (c *Client) ReadPump(handler MessageHandler) {
 	for {
 		mt, msg, err := c.Conn.ReadMessage()
 		if err != nil {
-			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+			if websocket.IsUnexpectedCloseError(err,
+				websocket.CloseGoingAway,
+				websocket.CloseAbnormalClosure) {
 				log.Printf("[%s] unexpected close from %s: %v\n", c.DocID, c.UserID, err)
 			}
 			return
@@ -46,21 +47,6 @@ func (c *Client) ReadPump(handler MessageHandler) {
 		if mt != websocket.BinaryMessage || len(msg) == 0 {
 			continue
 		}
-
-		// Handle out-of-band relay signals before passing to the hub.
-		// The only signal a client sends back is the save ACK.
-		if yjs.IsSignal(msg) {
-			if yjs.ParseSignal(msg) == "ack" {
-				// Non-blocking send — if no one is waiting on SaveACK
-				// (e.g. we retried and moved on) just discard it.
-				select {
-				case c.SaveACK <- struct{}{}:
-				default:
-				}
-			}
-			continue // signals are never forwarded to other peers
-		}
-
 		handler.HandleMessage(c, msg)
 	}
 }

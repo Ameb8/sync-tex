@@ -21,8 +21,6 @@ func Load() *Config {
 		ProjectsServiceURL: getEnv("PROJECTS_SERVICE_URL", "http://projects-service:8000"),
 		InternalSecret:     getEnv("INTERNAL_SECRET", "dev-secret"),
 		SaveDebounceDelay:  getDuration("SAVE_DEBOUNCE_MS", 5000),
-		SaveACKTimeout:     getDuration("SAVE_ACK_TIMEOUT_MS", 3000),
-		SaveMaxRetries:     getInt("SAVE_MAX_RETRIES", 3),
 	}
 }
 
@@ -40,13 +38,4 @@ func getDuration(key string, fallbackMs int) time.Duration {
 		}
 	}
 	return time.Duration(fallbackMs) * time.Millisecond
-}
-
-func getInt(key string, fallback int) int {
-	if v := os.Getenv(key); v != "" {
-		if i, err := strconv.Atoi(v); err == nil {
-			return i
-		}
-	}
-	return fallback
 }
