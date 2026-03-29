@@ -127,15 +127,29 @@ func (h *Hub) seedClient(doc *Document, c *client.Client) {
 		return
 	}
 
-	// Send persisted snapshot as a sync step 2 message if present
-	if len(seed) > 0 {
-		c.Send <- seed
-		log.Printf("[%s] sent seed (%d bytes) to %s\n", doc.ID, len(seed), c.UserID)
+	// Split length-prefixed seed blob into individual payloads and send each
+	// as a separate WebSocket message. Y.applyUpdate handles one update at a
+	// time — sending a concatenated blob causes it to apply only the first entry.
+	seedCount := 0
+	remaining := seed
+	for len(remaining) >= 4 {
+		length := uint32(remaining[0])<<24 | uint32(remaining[1])<<16 |
+			uint32(remaining[2])<<8 | uint32(remaining[3])
+		remaining = remaining[4:]
+		if int(length) > len(remaining) {
+			log.Printf("[%s] seed blob corrupted at entry %d\n", doc.ID, seedCount)
+			break
+		}
+		payload := remaining[:length]
+		remaining = remaining[length:]
+		c.Send <- payload
+		seedCount++
 	}
+	log.Printf("[%s] sent %d seed entries to %s\n", doc.ID, seedCount, c.UserID)
 
-	// Replay all in-memory updates since last persist
+	// Send in-memory updates (already individual payloads)
 	for i, payload := range updates {
-		c.Send <- yjs.WrapSyncStep2(payload)
+		c.Send <- payload
 		log.Printf("[%s] replayed update %d/%d (%d bytes) to %s\n",
 			doc.ID, i+1, len(updates), len(payload), c.UserID)
 	}
@@ -282,26 +296,27 @@ func (doc *Document) upload() {
 		return
 	}
 
-	// Concatenate seed + all updates into one blob.
-	// A Yjs client applies them in sequence — concatenation is valid
-	// because each entry is a self-contained Yjs message.
-	var totalBytes int
-	for _, u := range updates {
-		totalBytes += len(u)
-	}
-	blob := make([]byte, 0, len(seed)+totalBytes)
-	blob = append(blob, seed...)
-	for _, u := range updates {
-		blob = append(blob, u...)
+	// Build blob: each entry is [4-byte big-endian length][payload bytes]
+	// This allows seedClient to split entries on next load.
+	var buf []byte
+
+	// Re-emit existing seed entries (already length-prefixed from previous upload)
+	buf = append(buf, seed...)
+
+	// Append new update entries with length prefix
+	for _, payload := range updates {
+		length := uint32(len(payload))
+		buf = append(buf, byte(length>>24), byte(length>>16), byte(length>>8), byte(length))
+		buf = append(buf, payload...)
 	}
 
-	log.Printf("[%s] uploading %d bytes (%d seed + %d update bytes across %d entries)\n",
-		doc.ID, len(blob), len(seed), totalBytes, len(updates))
+	log.Printf("[%s] uploading %d bytes (%d seed + %d updates)\n",
+		doc.ID, len(buf), len(seed), len(updates))
 
-	if err := doc.uploader.Upload(blob); err != nil {
+	if err := doc.uploader.Upload(buf); err != nil {
 		log.Printf("[%s] upload failed: %v\n", doc.ID, err)
 		return
 	}
-
 	log.Printf("[%s] upload succeeded\n", doc.ID)
+
 }
