@@ -2,7 +2,7 @@
 
 ![SyncTex Logo](https://github.com/Ameb8/sync-tex/blob/master/docs/SyncTex.png)
 
-SyncTex is a web-based LaTeX project editor. It allows users to store and save full-fledged projects, containing various file types and resources. Users can collaborate in real time, allowing teams to work together to produce clean and proffesional documentation. 
+SyncTex is a web-based LaTeX project editor. It allows users to store and save full-fledged projects, containing various file types and resources. Users can collaborate in real time, allowing teams to work together to produce clean and professional documentation. 
 
 # Software Design
 
@@ -16,6 +16,10 @@ Projects-Service is responsible for managing user's projects and files. The syst
 
 
 ### Projects-Service Rest-API
+
+Projects-Service provides a set of CRUD operations allowing for easy access and management of project-centric resources by both clients and other backend services. Project-Service's API schema can be [found here](https://ameb8.github.io/sync-tex/projects-service-api.html). 
+
+
 ### Projects-Service Database
 
 ![Projects-Service-DB ERD](https://github.com/Ameb8/sync-tex/blob/master/docs/projects-service/projects-db-erd.png)
@@ -33,6 +37,8 @@ Collab-Service primarily uses the websocket protocol to enable collaborative edi
 In order to ensure consistent states between users, Collab-Service provides an initial seed state for connecting users. When the first user connects to a document, Collab-Service fetches the Yjs-formatted state of a document. This is done by fetching a presigned download URL from Projects-Service, then downloading the file. It is the responsibility of Projects-Service to ensure the download URL links to the Yjs binary version of the document. This document is sent as-is to the first connecting user. However, as new users join, the initial document state no longer suffices, as it has been edited. To handle this, Collab-Service keeps a log of all edits applied to the document. These updates can then be sent to connecting users, ensuring they have the most up-to-date version. When all users disconnect on a given document, these changes will be uploaded to filestore and evicted from Collab-Service memory. 
 
 In order to avoid saving collisions and mismatching document states, clients do not save documents when editing collaboratively. Instead, Collab-Service is responsible for document persistence. Collab-Service utilizes configurable debounce saving, as well as ensuring a final upload when all users disconnect from a given document. The saved document will be in Yjs-binary form. It may be compacted into a more memory-efficient format, but this is not Collab-Service's responsibility. 
+
+Collab-Service ensures users have write access to a document before joining. This is done by first collecting their authentication token from query parameters. Next, a http request is made to projects-service, specifying whether the given user is allowed to edit the document. If write-access is not allowed, the websocket connection is dropped. 
 
 
 ## Users-Service
