@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import Editor from '@monaco-editor/react';
 import { loader } from '@monaco-editor/react';
 import { activateTextmate, registerLatexLanguage } from '../monaco/textmateHighlighter';
+import darkTheme from '../monaco/themes/monokai.json';
+import lightTheme from '../monaco/themes/github-light.json';
 
 import FileTree from '../components/Editor/FileTree';
 import TabBar from '../components/Editor/TabBar';
@@ -23,14 +25,18 @@ import './EditorView.css';
 
 // Pre-register latex so Monaco accepts it as a valid language ID
 // before any editor instance mounts
-loader.init().then(monaco => registerLatexLanguage(monaco));
+loader.init().then(monaco => {
+  registerLatexLanguage(monaco);
+  monaco.editor.defineTheme('app-dark', darkTheme);
+  monaco.editor.defineTheme('app-light', lightTheme);
+});
 
 // Constants
 const getLanguage = (fileType) => ({
   tex: 'latex', bib: 'bibtex', pdf: 'text', txt: 'text',
   md: 'markdown', json: 'json', xml: 'xml', py: 'python',
-  js: 'javascript', ts: 'typescript', html: 'html', css: 'css',
-}[fileType] || 'text');
+  other: 'latex', js: 'javascript', ts: 'typescript', html: 'html', css: 'css',
+}[fileType] || 'latex');
  
 const EditorView = () => {
   const navigate = useNavigate();
@@ -46,6 +52,8 @@ const EditorView = () => {
   // Tab state
   const [openTabs, setOpenTabs]           = useState([]);
   const [activeTabId, setActiveTabId]     = useState(null);
+  const activeLanguageRef = useRef('latex');
+
 
   // File content (non-collab files only) 
   // For collab files, content lives in the Y.Doc — we don't track it in React
@@ -163,6 +171,7 @@ const EditorView = () => {
     };
   }, [closeCollabSession]);
 
+  
   // Bind collab session to Monaco when editor mounts / tab changes
   // Called both from handleEditorMount (new mount) and from the activeTabId
   // effect below (tab switch to an already-open collab file).
@@ -176,6 +185,7 @@ const EditorView = () => {
     // Switch model ownership to Yjs — value prop becomes undefined after this
     boundFiles.current.add(activeTabId);
   }, [isCollab, activeTabId]);
+
 
   useEffect(() => {
     if (!activeTabId) return; 
@@ -257,16 +267,33 @@ const EditorView = () => {
     }
   }, [activeTabId, fileContents, projectId, isSaving]);
 
-  // Editor mount 
   const handleEditorMount = useCallback((editor, monaco) => {
     editorRef.current = editor;
 
-    if (!textmateActivated.current) {
-      textmateActivated.current = true;
-      activateTextmate(monaco).catch(console.warn);
+    bindActiveSession(editor);
+
+    // After MonacoBinding attaches its model, explicitly set the correct language.
+    // MonacoBinding creates models as plaintext — we must override this.
+    const model = editor.getModel();
+    if (model && activeLanguageRef.current && activeLanguageRef.current !== 'plaintext') {
+      monaco.editor.setModelLanguage(model, activeLanguageRef.current);
+      console.log('[textmate] set model language to:', activeLanguageRef.current, 'model:', model.id);
     }
 
-    bindActiveSession(editor);
+    if (!textmateActivated.current) {
+      textmateActivated.current = true;
+      activateTextmate(monaco).then(() => {
+        // Re-apply language after textmate activates to trigger tokenization
+        const m = editor.getModel();
+        if (m) {
+          const lang = m.getLanguageId();
+          if (lang !== 'plaintext') {
+            monaco.editor.setModelLanguage(m, 'plaintext');
+            monaco.editor.setModelLanguage(m, lang);
+          }
+        }
+      }).catch(console.warn);
+    }
   }, [bindActiveSession]);
 
   // Editor change (non-collab only) 
@@ -361,8 +388,11 @@ const EditorView = () => {
   const isActiveCollab     = activeTabId && !!collabSessions.current[activeTabId];
   const activeCollabStatus = activeTabId ? (collabStatus[activeTabId] ?? null) : null;
   const activeContent      = activeTab && !isActiveCollab ? (fileContents[activeTabId] ?? '') : '';
-  const activeLanguage     = activeTab ? getLanguage(activeTab.file_type) : 'text';
+  const activeLanguage     = activeTab ? getLanguage(activeTab.file_type) : 'latex';
   const isActiveFileDirty  = !isActiveCollab && activeTabId && unsavedFiles.has(activeTabId);
+  activeLanguageRef.current = activeLanguage;
+
+  console.log(`Active Language: ${activeLanguage}\n\t(REF): ${activeLanguageRef}`);
 
   // Render 
 
@@ -404,7 +434,7 @@ const EditorView = () => {
                 value={isActiveCollab ? undefined : activeContent}
                 onChange={handleEditorChange}
                 onMount={handleEditorMount}
-                theme={isDarkMode ? 'vs-dark' : 'vs'}
+                theme={isDarkMode ? 'app-dark' : 'app-light'}
                 options={{
                   minimap:              { enabled: false },
                   fontSize:             13,
