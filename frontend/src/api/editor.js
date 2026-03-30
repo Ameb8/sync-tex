@@ -12,7 +12,7 @@ export const fetchProjectTree = async (projectId) => {
 
 
 export const fetchFileContent = async (downloadUrl) => {
-  console.log(`Downloadinf File Content From:\t${downloadUrl}`)
+  console.log(`Downloading File Content From:\t${downloadUrl}`)
   // Use the presigned URL directly from tree data
   const response = await fetch(downloadUrl);
   return response.text();
