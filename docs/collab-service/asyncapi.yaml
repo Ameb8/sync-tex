@@ -1,0 +1,155 @@
+asyncapi: 2.6.0
+
+info:
+  title: Collab Service WebSocket API
+  version: 1.0.0
+  description: |
+    Real-time collaborative editing service using Yjs over WebSockets.
+
+    Binary protocol:
+      - msg[0] = outer type
+        0 = sync
+        1 = awareness
+
+      - msg[1] = inner type (if sync)
+        0 = sync step 1 (request state)
+        1 = sync step 2 (state response)
+        2 = update (incremental change)
+
+servers:
+  production:
+    url: ws://localhost:8080/ws/{docId}
+    protocol: ws
+    description: WebSocket endpoint
+    variables:
+      docId:
+        description: Document ID
+        default: example-doc
+    bindings:
+      ws:
+        query:
+          type: object
+          properties:
+            projectId:
+              type: string
+            token:
+              type: string
+
+channels:
+  document:
+    address: /ws/{docId}
+    description: |
+      WebSocket channel per document.
+      Clients connect with:
+        /ws/{docId}?projectId=<id>&token=<jwt>
+
+    parameters:
+      docId:
+        description: Document identifier
+        schema:
+          type: string
+
+    messages:
+      yjsMessage:
+        $ref: '#/components/messages/YjsMessage'
+
+    publish:
+      operationId: sendYjsMessage
+      summary: Client sends Yjs updates and awareness
+      tags:
+        - name: sync
+        - name: awareness
+      message:
+        $ref: '#/components/messages/YjsMessage'
+
+    subscribe:
+      operationId: receiveYjsMessage
+      summary: Server broadcasts Yjs updates and awareness
+      tags:
+        - name: sync
+        - name: awareness
+      message:
+        $ref: '#/components/messages/YjsMessage'
+
+components:
+  messages:
+    YjsMessage:
+      name: YjsBinaryMessage
+      title: Yjs Binary Message
+      summary: Raw Yjs update or awareness message
+      description: |
+        Binary format:
+
+        - msg[0] = outer type
+          - 0 = sync
+          - 1 = awareness
+
+        - msg[1] = inner type (if sync)
+          - 0 = sync step 1
+          - 1 = sync step 2
+          - 2 = update
+      contentType: application/octet-stream
+
+      x-message-structure:
+        description: |
+          First byte = outer type
+          Second byte = inner type (if outer=0)
+        mapping:
+          awareness:
+            outer: 1
+          sync-step-1:
+            outer: 0
+            inner: 0
+          sync-step-2:
+            outer: 0
+            inner: 1
+          update:
+            outer: 0
+            inner: 2
+
+      payload:
+        type: string
+        format: binary
+
+      examples:
+        - name: Awareness
+          summary: Cursor / presence update
+          payload: !!binary |
+            AQIDBA==
+        - name: SyncStep1
+          summary: Client requests document state
+          payload: !!binary |
+            AA==
+        - name: SyncUpdate
+          summary: Incremental document update
+          payload: !!binary |
+            AAI=
+
+  schemas:
+    ConnectionQuery:
+      type: object
+      properties:
+        projectId:
+          type: string
+        token:
+          type: string
+      required:
+        - projectId
+        - token
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT is passed via:
+          - Query param: ?token=
+          - OR Authorization header (if supported)
+
+tags:
+  - name: sync
+    description: Document synchronization messages
+  - name: awareness
+    description: Presence/cursor updates
+
