@@ -1,6 +1,9 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Editor from '@monaco-editor/react';
+import { loader } from '@monaco-editor/react';
+import { activateTextmate, registerLatexLanguage } from '../monaco/textmateHighlighter';
+
 import FileTree from '../components/Editor/FileTree';
 import TabBar from '../components/Editor/TabBar';
 import CollaboratorsPanel from '../components/Editor/CollaboratorsPanel';
@@ -17,6 +20,10 @@ import {
 } from '../api/editor';
 import './EditorView.css';
 
+
+// Pre-register latex so Monaco accepts it as a valid language ID
+// before any editor instance mounts
+loader.init().then(monaco => registerLatexLanguage(monaco));
 
 // Constants
 const getLanguage = (fileType) => ({
@@ -60,6 +67,7 @@ const EditorView = () => {
   // Editor ref 
   const editorRef                         = useRef(null);
   const boundFiles                        = useRef(new Set());
+  const textmateActivated                 = useRef(false);
 
   // UI state 
   const [sidebarTab, setSidebarTab]       = useState('info');
@@ -250,8 +258,14 @@ const EditorView = () => {
   }, [activeTabId, fileContents, projectId, isSaving]);
 
   // Editor mount 
-  const handleEditorMount = useCallback((editor) => {
+  const handleEditorMount = useCallback((editor, monaco) => {
     editorRef.current = editor;
+
+    if (!textmateActivated.current) {
+      textmateActivated.current = true;
+      activateTextmate(monaco).catch(console.warn);
+    }
+
     bindActiveSession(editor);
   }, [bindActiveSession]);
 
