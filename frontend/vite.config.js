@@ -21,6 +21,13 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5173,
+    // Tell Vite its HMR websocket is reachable via the nginx port (80)
+    hmr: {
+      clientPort: 80,
+      protocol: 'ws',
+    },
+    // Allow requests proxied from nginx (the Docker gateway IP)
+    allowedHosts: ['all'],
   },
   build: {
     outDir: 'dist',
