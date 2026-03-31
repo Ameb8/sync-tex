@@ -66,12 +66,12 @@ func (h *Handler) InternalUploadFile(c *gin.Context) {
 		return
 	}
 
-	// Get query param: ?type=snapshot or ?type=uploads
+	// Get query param: ?type=snapshot, ?type=uploads, or ?type=text
 	fileType := c.DefaultQuery("type", "uploads")
 
 	// Validate allowed values
-	if fileType != "snapshot" && fileType != "uploads" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid type, must be 'compact' or 'updates'"})
+	if fileType != "snapshot" && fileType != "uploads" && fileType != "text" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid type, must be 'compact', 'updates', or 'text'"})
 		return
 	}
 
@@ -86,6 +86,8 @@ func (h *Handler) InternalUploadFile(c *gin.Context) {
 	storageBucket := "uploads"
 	if fileType == "snapshot" {
 		storageBucket = "snapshot"
+	} else if fileType == "text" {
+		storageBucket = "text"
 	}
 
 	// Generate presigned upload URL
