@@ -9,13 +9,10 @@
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
-    "monaco-editor-textmate": "^4.0.0",
-    "monaco-textmate": "^3.0.1",
     "monaco-themes": "^0.4.8",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^7.13.1",
-    "vscode-oniguruma": "^2.0.1",
     "y-indexeddb": "^9.0.7",
     "y-monaco": "^0.1.6",
     "y-websocket": "^1.4.1",
