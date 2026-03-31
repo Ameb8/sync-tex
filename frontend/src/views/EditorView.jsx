@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Editor from '@monaco-editor/react';
 import { loader } from '@monaco-editor/react';
-import { activateTextmate, registerLatexLanguage } from '../monaco/textmateHighlighter';
+import { registerLatexLanguage } from '../monaco/textmateHighlighter';
 import darkTheme from '../monaco/themes/monokai.json';
 import lightTheme from '../monaco/themes/github-light.json';
 
@@ -269,31 +269,7 @@ const EditorView = () => {
 
   const handleEditorMount = useCallback((editor, monaco) => {
     editorRef.current = editor;
-
     bindActiveSession(editor);
-
-    // After MonacoBinding attaches its model, explicitly set the correct language.
-    // MonacoBinding creates models as plaintext — we must override this.
-    const model = editor.getModel();
-    if (model && activeLanguageRef.current && activeLanguageRef.current !== 'plaintext') {
-      monaco.editor.setModelLanguage(model, activeLanguageRef.current);
-      console.log('[textmate] set model language to:', activeLanguageRef.current, 'model:', model.id);
-    }
-
-    if (!textmateActivated.current) {
-      textmateActivated.current = true;
-      activateTextmate(monaco).then(() => {
-        // Re-apply language after textmate activates to trigger tokenization
-        const m = editor.getModel();
-        if (m) {
-          const lang = m.getLanguageId();
-          if (lang !== 'plaintext') {
-            monaco.editor.setModelLanguage(m, 'plaintext');
-            monaco.editor.setModelLanguage(m, lang);
-          }
-        }
-      }).catch(console.warn);
-    }
   }, [bindActiveSession]);
 
   // Editor change (non-collab only) 
