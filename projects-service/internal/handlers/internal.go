@@ -11,10 +11,11 @@ import (
 // GET /internal/file/:fileID/download
 //
 // Returns:
-// {
-//   "url": "<presigned_download_url>"
-// }
-func (h* Handler) InternalDownloadFile(c *gin.Context) {
+//
+//	{
+//	  "url": "<presigned_download_url>"
+//	}
+func (h *Handler) InternalDownloadFile(c *gin.Context) {
 	// Parse file ID
 	fileIDStr := c.Param("fileID")
 	fileID, err := stringToPgUUID(fileIDStr)
@@ -48,15 +49,15 @@ func (h* Handler) InternalDownloadFile(c *gin.Context) {
 	})
 }
 
-
 // UploadFileInternal handles:
 // GET /internal/file/:fileID/upload
 //
 // Returns:
-// {
-//   "url": "<presigned_upload_url>"
-// }
-func (h* Handler) InternalUploadFile(c *gin.Context) {
+//
+//	{
+//	  "url": "<presigned_upload_url>"
+//	}
+func (h *Handler) InternalUploadFile(c *gin.Context) {
 	// Parse file ID
 	fileIDStr := c.Param("fileID")
 	fileID, err := stringToPgUUID(fileIDStr)
@@ -65,17 +66,32 @@ func (h* Handler) InternalUploadFile(c *gin.Context) {
 		return
 	}
 
+	// Get query param: ?type=snapshot or ?type=uploads
+	fileType := c.DefaultQuery("type", "uploads")
+
+	// Validate allowed values
+	if fileType != "snapshot" && fileType != "uploads" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid type, must be 'compact' or 'updates'"})
+		return
+	}
+
 	// Fetch file from DB
 	file, err := h.queries.GetFile(c.Request.Context(), fileID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "File not found"})
-		return 
+		return
+	}
+
+	// Determine storage bucket
+	storageBucket := "uploads"
+	if fileType == "snapshot" {
+		storageBucket = "snapshot"
 	}
 
 	// Generate presigned upload URL
 	uploadURL, err := h.generateUploadURL(
 		c.Request.Context(),
-		"uploads",
+		storageBucket,
 		file.StorageKey,
 		15*time.Minute,
 		true,
