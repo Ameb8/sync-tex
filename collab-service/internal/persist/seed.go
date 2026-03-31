@@ -10,7 +10,8 @@ import (
 )
 
 type presignedResponse struct {
-	URL string `json:"url"`
+	UploadsURL  string `json:"uploads"`
+	SnapshotURL string `json:"snapshot"`
 }
 
 type Seeder struct {
@@ -71,9 +72,9 @@ func (s *Seeder) Load() []byte {
 		}
 
 		// Download raw bytes from file store
-		dlResp, err := s.httpClient.Get(presigned.URL)
+		dlResp, err := s.httpClient.Get(presigned.UploadsURL)
 		if err != nil {
-			log.Printf("[%s] file store download error: %v\n", s.docID, err)
+			log.Printf("[%s] file store download error (uploads): %v\n", s.docID, err)
 			return
 		}
 		defer dlResp.Body.Close()
