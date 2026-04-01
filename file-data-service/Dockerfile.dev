@@ -1,0 +1,32 @@
+FROM rust:1.94-slim-bookworm
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    protobuf-compiler \
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# cargo-watch watches for file changes and re-runs cargo commands automatically.
+RUN cargo install cargo-watch
+
+WORKDIR /app
+
+# Pre-fetch dependencies by copying manifests + dummy src first
+# This layer is cached as long as Cargo.toml/Cargo.lock don't change.
+COPY Cargo.toml Cargo.lock* ./
+COPY build.rs ./
+COPY proto ./proto 
+RUN mkdir src && echo 'fn main() {}' > src/main.rs
+RUN cargo build # debug build — much faster than --release
+RUN rm -rf src
+
+# Expose server (overridable with docker-compose)
+EXPOSE 50051
+ENV GRPC_ADDR="[::]:50051"
+
+# Log level (overridable with docker-compose)
+ENV RUST_LOG="debug"
+
+# Source is mounted as a volume at runtime
+CMD ["cargo", "watch", "-x", "run"]
