@@ -12,6 +12,7 @@ import (
 type presignedResponse struct {
 	UploadsURL  string `json:"uploads"`
 	SnapshotURL string `json:"snapshot"`
+	URL         string `json:"url"`
 }
 
 type Seeder struct {
@@ -65,11 +66,24 @@ func (s *Seeder) Load() []byte {
 			return
 		}
 
+		// Read response body
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			log.Printf("[%s] read body error: %v\n", s.docID, err)
+			return
+		}
+
+		// Debug Logs (raw JSON)
+		log.Printf("[%s] presigned raw response: %s\n", s.docID, string(body))
+
+		// Initialize presignedResponse instance
 		var presigned presignedResponse
-		if err := json.NewDecoder(resp.Body).Decode(&presigned); err != nil {
+		if err := json.Unmarshal(body, &presigned); err != nil {
 			log.Printf("[%s] presigned URL decode error: %v\n", s.docID, err)
 			return
 		}
+
+		log.Printf("[%s] presigned struct: %+v\n", s.docID, presigned)
 
 		// Download raw bytes from file store
 		dlResp, err := s.httpClient.Get(presigned.UploadsURL)

@@ -183,6 +183,7 @@ func (h *Hub) Unregister(c *client.Client) {
 	if remaining == 0 {
 		// Run as a goroutine so Unregister returns promptly to the pump.
 		go func() {
+			doc.close()
 			doc.upload()
 			h.removeIfEmpty(doc)
 		}()
@@ -318,5 +319,8 @@ func (doc *Document) upload() {
 		return
 	}
 	log.Printf("[%s] upload succeeded\n", doc.ID)
+}
 
+func (doc *Document) close() {
+	doc.uploader.FileRoomEmpty()
 }

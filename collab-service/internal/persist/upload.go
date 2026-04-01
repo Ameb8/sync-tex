@@ -80,3 +80,31 @@ func (u *Uploader) Upload(data []byte) error {
 	log.Printf("[%s] uploaded %d bytes to file store\n", u.docID, len(data))
 	return nil
 }
+
+// Calls projects-service to inform last editor is disconnected
+func (u *Uploader) FileRoomEmpty() error {
+	// Get presigned upload URL
+	log.Println("Document Final Disconnect Triggered...")
+	url := fmt.Sprintf("%s/file/%s/compact", u.serviceURL, u.docID)
+
+	// Construct http request
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return fmt.Errorf("File Compact Request: %w", err)
+	}
+	req.Header.Set("X-Internal-Secret", u.internalSecret)
+
+	resp, err := u.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("File Compact Request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("File Compact Request returned %d: %s", resp.StatusCode, body)
+	}
+
+	fmt.Printf("File Compact Request Returned: %d", resp.StatusCode)
+	return nil
+}
