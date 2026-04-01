@@ -16,16 +16,18 @@ import (
 
 	db "projects-service/db/sqlc"
 	"projects-service/internal/auth"
+	"projects-service/internal/compaction"
 	"projects-service/internal/storage"
 )
 
 // Handlers contains all HTTP handlers
 // Stores database and auth dependencies
 type Handler struct {
-	db          *pgxpool.Pool
-	queries     *db.Queries
-	authorizer  *auth.Authorizer
-	minioClient *minio.Client
+	db             *pgxpool.Pool
+	queries        *db.Queries
+	authorizer     *auth.Authorizer
+	minioClient    *minio.Client
+	fileDataClient *compaction.Client
 }
 
 // NewHandler initializes a new Handler object
@@ -39,11 +41,20 @@ func NewHandler(pool *pgxpool.Pool, queries *db.Queries) (*Handler, error) {
 		log.Println("MinIO Client initialized")
 	}
 
+	// Initialize File Data client
+	fileDataClient, err := compaction.NewClient("file-data-service:50051")
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize File Data client: %w", err)
+	} else {
+		log.Println("File Data Client initialized")
+	}
+
 	return &Handler{ // Initialize handler
-		db:          pool,
-		queries:     queries,
-		authorizer:  auth.NewAuthorizer(queries),
-		minioClient: minioClient,
+		db:             pool,
+		queries:        queries,
+		authorizer:     auth.NewAuthorizer(queries),
+		minioClient:    minioClient,
+		fileDataClient: fileDataClient,
 	}, nil
 }
 

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -125,6 +126,73 @@ func (h *Handler) InternalUploadFile(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate upload URL"})
 		return
 	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"url": uploadURL,
+	})
+}
+
+// InternalCompactFile handles:
+// GET /internal/file/:fileID/compact
+func (h *Handler) InternalCompactFile(c *gin.Context) {
+	// Parse file ID
+	fileIDStr := c.Param("fileID")
+	fileID, err := stringToPgUUID(fileIDStr)
+	if err != nil {
+		log.Printf("Invalid file ID '%s': %v", fileIDStr, err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid file ID"})
+		return
+	}
+
+	// Fetch file from DB
+	file, err := h.queries.GetFile(c.Request.Context(), fileID)
+	if err != nil {
+		log.Printf("File not found with ID '%s': %v", fileID, err)
+		c.JSON(http.StatusNotFound, gin.H{"error": "File not found"})
+		return
+	}
+
+	// Generate upload URL for snapshot file
+	uploadURL, err := h.generateUploadURL(
+		c.Request.Context(),
+		"snapshot",
+		file.StorageKey,
+		3*time.Minute,
+		true,
+	)
+	if err != nil {
+		log.Printf("Failed to generate snapshot upload URL for '%s': %v", file.StorageKey, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate snapshots upload URL"})
+		return
+	}
+
+	// Generate download URL for uploads file
+	downloadURL, err := h.generateDownloadURL(
+		c.Request.Context(),
+		"uploads",
+		file.StorageKey,
+		3*time.Minute,
+		true,
+	)
+	if err != nil {
+		log.Printf("Failed to generate uploads download URL for '%s': %v", file.StorageKey, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate upload files download URL"})
+		return
+	}
+
+	// Make gRPC request to file-data-service
+	if err := h.fileDataClient.CompactDocument(c.Request.Context(), downloadURL, uploadURL); err != nil {
+		log.Printf("Compaction service failed for file '%s': %v", file.StorageKey, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to invoke compaction service"})
+		return
+	}
+
+	// Delete old uploads file if successful
+	h.deleteObject(
+		c.Request.Context(),
+		"uploads",
+		file.StorageKey,
+	)
 
 	c.JSON(http.StatusOK, gin.H{
 		"url": uploadURL,
