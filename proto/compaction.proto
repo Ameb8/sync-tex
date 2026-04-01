@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package compaction;
+option go_package = "projects-service/proto;proto";
+
+service CompactionService {
+  rpc CompactDocument(CompactRequest) returns (CompactResponse);
+}
+
+message CompactRequest {
+  string download_url = 1;
+  string upload_url = 2;
+}
+
+message CompactResponse {
+  bool   success              = 1;
+  string error_message        = 2;
+  uint32 updates_merged       = 3;
+  uint64 compacted_size_bytes = 4;
+}
