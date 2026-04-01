@@ -1,0 +1,48 @@
+[package]
+name = "compaction-service"
+version = "0.1.0"
+edition = "2021"
+
+# ── Build-time dependencies ────────────────────────────────────────────────────
+[build-dependencies]
+# tonic-build drives protoc and generates Rust gRPC/prost code at build time.
+tonic-build = "0.12"
+
+# ── Runtime dependencies ───────────────────────────────────────────────────────
+[dependencies]
+# gRPC server/client framework for Rust, built on top of hyper + tokio.
+tonic = "0.12"
+
+# prost is the protobuf runtime; tonic re-exports most of what we need but
+# we depend on it directly for the `Message` trait and generated types.
+prost = "0.13"
+
+# Async runtime — tonic requires tokio with the "full" feature set.
+tokio = { version = "1", features = ["full"] }
+
+# yrs is the official Rust port of the Yjs CRDT library.
+# `Doc`, `Update`, and `ReadTxn`/`WriteTxn` are our primary entry points.
+yrs = "0.21"
+
+# reqwest is an ergonomic async HTTP client used to download from and upload
+# to the pre-signed MinIO/S3 URLs.
+reqwest = { version = "0.12", features = ["stream"] }
+
+# bytes provides the `Bytes` type used throughout reqwest and tonic.
+bytes = "1"
+
+# Structured, levelled logging facade.
+tracing = "0.1"
+
+# Tracing subscriber that formats logs to stdout — wired up in main.rs.
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Convenience error handling: `anyhow::Error` wraps any `std::error::Error`.
+anyhow = "1"
+
+# tokio-util bridges `futures::Stream` with `tokio::io` traits, needed to
+# stream the HTTP response body into our byte buffer efficiently.
+tokio-util = { version = "0.7", features = ["io"] }
+
+# futures is used for `StreamExt` when consuming the reqwest response stream.
+futures = "0.3"
