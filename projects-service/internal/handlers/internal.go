@@ -193,6 +193,11 @@ func (h *Handler) InternalCompactFile(c *gin.Context) {
 		"uploads",
 		file.StorageKey,
 	)
+	if err != nil { // log failure
+		log.Printf("failed to delete object %s from bucket %s: %v", file.StorageKey, "uploads", err)
+	} else { // log success
+		log.Printf("successfully deleted object %s from bucket %s", file.StorageKey, "uploads")
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"url": uploadURL,
