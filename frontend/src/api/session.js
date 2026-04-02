@@ -52,11 +52,34 @@ export function createCollabSession({ fileId, projectId, token, onStatus }) {
     };
 
     ws.onmessage = (event) => {
-      // Every message from the server is a raw Yjs binary update.
-      // Y.applyUpdate merges it into the local Y.Doc, which automatically
-      // updates the Monaco model via MonacoBinding.
-      const update = new Uint8Array(event.data);
-      Y.applyUpdate(ydoc, update, 'remote');
+      const msg = new Uint8Array(event.data);
+
+      if (msg.length < 1) return;
+
+      const outerType = msg[0];
+
+      if (outerType === 0) {
+        // MsgSync — check inner type
+        if (msg.length < 2) return;
+        const innerType = msg[1];
+        const payload = msg.slice(2);
+
+        if (innerType === 1) {
+          // SyncStep2 — this is the compact snapshot, strip envelope and apply
+          console.log(`[collab:${fileId}] applying snapshot (${payload.length} bytes)`);
+          Y.applyUpdate(ydoc, payload, 'remote');
+        } else if (innerType === 2) {
+          // SyncUpdate — incremental update, payload only
+          console.log(`[collab:${fileId}] applying update (${payload.length} bytes)`);
+          Y.applyUpdate(ydoc, payload, 'remote');
+        }
+        // SyncStep1 (innerType === 0) — server would never send this to us, ignore
+
+      } else {
+        // No envelope — raw update payload (existing update log entries)
+        console.log(`[collab:${fileId}] applying raw payload (${msg.length} bytes)`);
+        Y.applyUpdate(ydoc, msg, 'remote');
+      }
     };
 
     ws.onclose = () => {
