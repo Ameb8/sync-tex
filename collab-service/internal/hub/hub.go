@@ -16,6 +16,9 @@ type Document struct {
 	mu      sync.RWMutex
 	clients map[*client.Client]bool
 
+	// snapshot is a Yjs binary snapshot of document in compressed form
+	snapshot []byte
+
 	// updateLog accumulates binary Yjs updates since last compaction.
 	// New clients receive all of these in sequence to reach current state.
 	updateLog [][]byte
@@ -111,7 +114,7 @@ func (h *Hub) Register(c *client.Client) {
 // to bring a new client to the current document state.
 func (h *Hub) seedClient(doc *Document, c *client.Client) {
 	// Load persisted state (sync.Once — only downloads on first connect)
-	seed := doc.seeder.Load()
+	snapshot, seed := doc.seeder.Load()
 
 	doc.mu.RLock()
 	// Copy update log under read lock to avoid holding it during sends
@@ -122,9 +125,16 @@ func (h *Hub) seedClient(doc *Document, c *client.Client) {
 	log.Printf("[%s] seeding %s — seed=%d bytes, %d in-memory updates\n",
 		doc.ID, c.UserID, len(seed), len(updates))
 
-	if len(seed) == 0 && len(updates) == 0 {
+	if len(snapshot) == 0 && len(seed) == 0 && len(updates) == 0 {
 		log.Printf("[%s] no state to seed for %s\n", doc.ID, c.UserID)
 		return
+	}
+
+	// Send snapshot first — the frontend applies this in one shot.
+	// WrapSyncStep2 adds the [MsgSync, SyncStep2] envelope.
+	if len(snapshot) > 0 {
+		c.Send <- yjs.WrapSyncStep2(snapshot)
+		log.Printf("[%s] sent snapshot (%d bytes) to %s\n", doc.ID, len(snapshot), c.UserID)
 	}
 
 	// Split length-prefixed seed blob into individual payloads and send each
@@ -183,8 +193,8 @@ func (h *Hub) Unregister(c *client.Client) {
 	if remaining == 0 {
 		// Run as a goroutine so Unregister returns promptly to the pump.
 		go func() {
-			doc.close()
 			doc.upload()
+			doc.close()
 			h.removeIfEmpty(doc)
 		}()
 	}
@@ -285,7 +295,7 @@ func (doc *Document) scheduleUpload() {
 // blob and PUTs it to the file store. Errors are logged but not fatal —
 // the next debounce cycle will retry.
 func (doc *Document) upload() {
-	seed := doc.seeder.Load()
+	_, seed := doc.seeder.Load()
 
 	doc.mu.RLock()
 	updates := make([][]byte, len(doc.updateLog))

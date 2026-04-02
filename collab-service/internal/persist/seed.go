@@ -21,8 +21,9 @@ type Seeder struct {
 	internalSecret string
 	httpClient     *http.Client
 
-	once  sync.Once
-	state []byte
+	once     sync.Once
+	snapshot []byte // raw Yjs snapshot binary (single apply on frontend)
+	updates  []byte // length-prefixed update log blob
 }
 
 func NewSeeder(docID, serviceURL, internalSecret string) *Seeder {
@@ -39,7 +40,7 @@ func NewSeeder(docID, serviceURL, internalSecret string) *Seeder {
 // The state bytes are whatever is in the file store — either plain UTF-8
 // text (never been collaborative) or binary Yjs state (previously collab).
 // The distinction is handled by the frontend on first connect.
-func (s *Seeder) Load() []byte {
+func (s *Seeder) Load() (snapshot []byte, updates []byte) {
 	s.once.Do(func() {
 		// Get presigned download URL from projects-service
 		url := fmt.Sprintf("%s/file/%s/download", s.serviceURL, s.docID)
@@ -85,26 +86,52 @@ func (s *Seeder) Load() []byte {
 
 		log.Printf("[%s] presigned struct: %+v\n", s.docID, presigned)
 
-		// Download raw bytes from file store
-		dlResp, err := s.httpClient.Get(presigned.UploadsURL)
-		if err != nil {
-			log.Printf("[%s] file store download error (uploads): %v\n", s.docID, err)
-			return
+		// Download snapshot (may be empty for small/new documents)
+		if presigned.SnapshotURL != "" {
+			snap, err := s.download("snapshot", presigned.SnapshotURL)
+			if err != nil {
+				log.Printf("[%s] snapshot download error: %v\n", s.docID, err)
+				// non-fatal — fall through to updates
+			} else {
+				s.snapshot = snap
+				log.Printf("[%s] snapshot: %d bytes\n", s.docID, len(snap))
+			}
 		}
-		defer dlResp.Body.Close()
 
-		if dlResp.StatusCode != http.StatusOK {
-			log.Printf("[%s] file store returned %d\n", s.docID, dlResp.StatusCode)
-			return
+		// Download update log
+		if presigned.UploadsURL != "" {
+			upd, err := s.download("updates", presigned.UploadsURL)
+			if err != nil {
+				log.Printf("[%s] updates download error: %v\n", s.docID, err)
+			} else {
+				s.updates = upd
+				log.Printf("[%s] updates: %d bytes\n", s.docID, len(upd))
+			}
 		}
-
-		state, err := io.ReadAll(dlResp.Body)
-		if err != nil {
-			log.Printf("[%s] seed read error: %v\n", s.docID, err)
-			return
-		}
-		s.state = state
-		log.Printf("[%s] seeded %d bytes\n", s.docID, len(state))
 	})
-	return s.state
+	return s.snapshot, s.updates
+}
+
+// download fetches a presigned URL and returns the raw body bytes.
+// A 404 is treated as empty (not an error) since the snapshot may not exist yet.
+func (s *Seeder) download(label, url string) ([]byte, error) {
+	resp, err := s.httpClient.Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("%s GET: %w", label, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		log.Printf("[%s] %s not found (empty)\n", s.docID, label)
+		return nil, nil
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("%s store returned %d", label, resp.StatusCode)
+	}
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("%s read: %w", label, err)
+	}
+	return data, nil
 }
