@@ -1,4 +1,8 @@
+# Make commands
 .PHONY: sqlc migrate-up migrate-down migrate-create db-start db-stop
+
+# Directory containing .proto definitions
+PROTO_DIR := ../proto
 
 # Generate sqlc code
 sqlc:
@@ -35,3 +39,12 @@ dev: db-start
 	@sleep 3
 	@$(MAKE) migrate-up
 	go run cmd/server/main.go
+
+# Generate Go code with Protocol Buffers compiler
+proto:
+	protoc \
+		--proto_path=$(PROTO_DIR) \
+		--go_out=./proto \
+		--go-grpc_out=./proto \
+		$(PROTO_DIR)/compaction.proto
+
