@@ -15,7 +15,7 @@
 //     └───────────────────────────────────────────────────────┘
 //
 //   This matches the framing used by the Go collab-service when persisting
-//   CRDT state to MinIO.
+//   CRDT state to MinIO. 
 //
 // ── Compaction strategy ───────────────────────────────────────────────────────
 //
@@ -51,14 +51,14 @@ pub struct CompactionResult {
 /// - The byte stream is truncated (a length prefix claims more bytes than remain).
 /// - Any individual update fails to decode (corrupt data).
 /// - The final state encoding fails (should not happen in practice).
-pub fn compact_update_log(raw: &[u8]) -> Result<CompactionResult> {
+pub fn compact_update_log(raw: &[u8], base_snapshot: Option<&[u8]>) -> Result<CompactionResult> {
     // Parse the length-prefixed stream into individual update blobs.
     let updates = decode_length_prefixed(raw).context("Failed to decode update log framing")?;
 
     let update_count = updates.len() as u32;
     debug!(count = update_count, "Decoded updates from log");
 
-    if update_count == 0 {
+    if update_count == 0 && base_snapshot.is_none() {
         // A document with no updates is valid (empty doc); encode its empty state.
         warn!("Update log contained zero updates — producing empty document snapshot");
     }
@@ -72,6 +72,16 @@ pub fn compact_update_log(raw: &[u8]) -> Result<CompactionResult> {
     // update and produces the same result because Yjs updates are commutative.
     {
         let mut txn = doc.transact_mut();
+
+        // If a base snapshot was provided, apply it first to seed the document
+        // state before folding in the new updates
+        if let Some(snapshot_bytes) = base_snapshot {
+            let base = Update::decode_v1(snapshot_bytes)
+                .context("Failed to decode base snapshot")?;
+            txn.apply_update(base)
+                .context("Failed to apply base snapshot")?;
+            debug!(bytes = snapshot_bytes.len(), "Applied base snapshot");
+        }
 
         for (i, update_bytes) in updates.iter().enumerate() {
             // Decode the raw bytes into a structured `yrs::Update`.

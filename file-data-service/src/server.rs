@@ -76,10 +76,16 @@ impl CompactionService for CompactionServiceImpl {
             "Received CompactDocument request"
         );
 
+        let base_url = if req.base_snapshot_url.is_empty() {
+            None
+        } else {
+            Some(req.base_snapshot_url.as_str())
+        };
+
         // Delegate to the internal helper; map any error into a CompactResponse
         // rather than a gRPC Status error so the caller always gets structured
         // information back.
-        match run_compaction(&self.http, &req.download_url, &req.upload_url).await {
+        match run_compaction(&self.http, &req.download_url, &req.upload_url, base_url).await {
             Ok((updates_merged, compacted_size_bytes)) => {
                 info!(
                     updates_merged,
@@ -116,13 +122,24 @@ async fn run_compaction(
     http: &reqwest::Client,
     download_url: &str,
     upload_url: &str,
+    snapshot_url: Option <&str>
 ) -> anyhow::Result<(u32, u64)> {
+    // Download the base snapshot first if one was supplied.
+    let base_snapshot = if let Some(url) = snapshot_url {
+        info!(bytes = ?url, "Downloading base snapshot");
+        let bytes = download_bytes(http, url).await?;
+        Some(bytes)
+    } else {
+        None
+    };
+
     // Download the raw update log
     let raw = download_bytes(http, download_url).await?;
     info!(bytes = raw.len(), "Downloaded update log");
 
     // Compact the update log 
-    let result = compact_update_log(&raw)?;
+    let base_ref = base_snapshot.as_deref();
+    let result = compact_update_log(&raw, base_ref)?;
     let compacted_size = result.compacted_bytes.len() as u64;
     info!(
         updates_merged    = result.updates_merged,
