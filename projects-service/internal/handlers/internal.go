@@ -166,6 +166,20 @@ func (h *Handler) InternalCompactFile(c *gin.Context) {
 		return
 	}
 
+	// Generate download URL for existing snapshot file
+	downloadSnapshotURL, err := h.generateDownloadURL(
+		c.Request.Context(),
+		"snapshot",
+		file.StorageKey,
+		3*time.Minute,
+		true,
+	)
+	if err != nil {
+		log.Printf("Failed to generate snapshot download URL for '%s': %v", file.StorageKey, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate snapshots download URL"})
+		return
+	}
+
 	// Generate download URL for uploads file
 	downloadURL, err := h.generateDownloadURL(
 		c.Request.Context(),
@@ -181,7 +195,7 @@ func (h *Handler) InternalCompactFile(c *gin.Context) {
 	}
 
 	// Make gRPC request to file-data-service
-	if err := h.fileDataClient.CompactDocument(c.Request.Context(), downloadURL, uploadURL); err != nil {
+	if err := h.fileDataClient.CompactDocument(c.Request.Context(), downloadURL, uploadURL, downloadSnapshotURL); err != nil {
 		log.Printf("Compaction service failed for file '%s': %v", file.StorageKey, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to invoke compaction service"})
 		return
