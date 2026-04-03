@@ -77,9 +77,6 @@ services:
     volumes:
       # Bind-mount source so cargo-watch sees edits without rebuild
       - ./collab-service:/app
-      # Named volume for compiled artifacts — prevents recompiling deps
-      # every time the container restarts (cargo's incremental cache)
-      - collab_cargo_cache:/usr/local/cargo/registry
       - collab_build_cache:/app/target
     depends_on:
       projects-service:
@@ -142,9 +139,9 @@ services:
     volumes:
       # Mount source so cargo-watch sees your edits instantly.
       - ./file-data-service/src:/app/src
-      # Mount proto in case you change the service definition.
-      - ./file-data-service/proto:/app/proto
-      # Persist the build cache between container restarts — huge time saver.
+      # Mount proto for changing service definition
+      - ./proto:/app/proto
+      # Persist the build cache between container restarts
       - file_data_target:/app/target
     ports:
       - "50051:50051"
