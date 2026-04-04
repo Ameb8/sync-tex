@@ -69,3 +69,27 @@ pub async fn upload_bytes(client: &Client, url: &str, data: Bytes) -> Result<()>
     info!(bytes = len, "Upload complete");
     Ok(())
 }
+
+/// Upload UTF-8 text to a pre-signed PUT URL.
+pub async fn upload_text(client: &Client, url: &str, data: Bytes) -> Result<()> {
+    let len = data.len();
+    debug!(url = %url, bytes = len, "Starting text upload to pre-signed URL");
+
+    let response = client
+        .put(url)
+        .header("Content-Type", "text/plain; charset=utf-8")
+        .header("Content-Length", len.to_string())
+        .body(data)
+        .send()
+        .await
+        .context("HTTP PUT request to text upload URL failed")?;
+
+    let status = response.status();
+    if !status.is_success() {
+        let body = response.text().await.unwrap_or_default();
+        bail!("Text upload failed with HTTP {}: {}", status, body);
+    }
+
+    info!(bytes = len, "Text upload complete");
+    Ok(())
+}
