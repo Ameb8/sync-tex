@@ -17,11 +17,14 @@ use tonic::{Request, Response, Status};
 use tracing::{error, info, instrument};
 
 use crate::compaction::compact_update_log;
-use crate::http::{download_bytes, upload_bytes};
+use crate::export::extract_text_bytes;
+use crate::http::{download_bytes, upload_bytes, upload_text};
 use crate::proto::compaction::{
     compaction_service_server::CompactionService,
     CompactRequest,
     CompactResponse,
+    ExportRequest,
+    ExportResponse
 };
 
 
@@ -112,7 +115,78 @@ impl CompactionService for CompactionServiceImpl {
             }
         }
     }
+
+    #[instrument(skip(self, request), fields(snapshot_url, upload_url))]
+    async fn export_document(
+        &self,
+        request: Request<ExportRequest>,
+    ) -> Result<Response<ExportResponse>, Status> {
+        let req = request.into_inner();
+
+        if req.snapshot_url.is_empty() {
+            return Err(Status::invalid_argument("snapshot_url must not be empty"));
+        }
+        if req.upload_url.is_empty() {
+            return Err(Status::invalid_argument("upload_url must not be empty"));
+        }
+
+        info!(
+            snapshot_url  = %req.snapshot_url,
+            has_pending   = !req.pending_updates_url.is_empty(),
+            "Received ExportDocument request"
+        );
+
+        match run_export(&self.http, &req).await {
+            Ok(exported_bytes) => {
+                info!(exported_bytes, "ExportDocument succeeded");
+                Ok(Response::new(ExportResponse {
+                    success: true,
+                    error_message: String::new(),
+                    exported_bytes,
+                }))
+            }
+            Err(e) => {
+                error!(error = %e, "ExportDocument failed");
+                Ok(Response::new(ExportResponse {
+                    success: false,
+                    error_message: format!("{:#}", e),
+                    exported_bytes: 0,
+                }))
+            }
+        }
+    }
 }
+
+async fn run_export(
+    http: &reqwest::Client,
+    req: &ExportRequest,
+) -> anyhow::Result<u64> {
+    // Download the compacted snapshot (always required).
+    let snapshot = download_bytes(http, &req.snapshot_url).await?;
+    info!(bytes = snapshot.len(), "Downloaded snapshot");
+
+    // Download pending updates only if a URL was provided.
+    let pending: Option<bytes::Bytes> = if req.pending_updates_url.is_empty() {
+        None
+    } else {
+        let p = download_bytes(http, &req.pending_updates_url).await?;
+        info!(bytes = p.len(), "Downloaded pending updates");
+        Some(p)
+    };
+
+    // Extract text content from the reconstructed document.
+    let pending_ref = pending.as_deref(); // Option<&[u8]>
+    let text_bytes = extract_text_bytes(&snapshot, pending_ref)?;
+
+    let exported_bytes = text_bytes.len() as u64;
+    info!(exported_bytes, "Text extraction complete");
+
+    // Upload the text file to the caller-supplied pre-signed PUT URL.
+    upload_text(http, &req.upload_url, text_bytes).await?;
+
+    Ok(exported_bytes)
+}
+
 
 /// Execute the full (download, compact, upload)
 ///

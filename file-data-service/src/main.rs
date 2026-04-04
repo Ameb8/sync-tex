@@ -1,5 +1,16 @@
+// src/main.rs
+//
+// Entry point for the compaction-service gRPC server.
+//
+// Responsibilities:
+//   1. Initialise structured logging via `tracing-subscriber`.
+//   2. Load runtime configuration from environment variables.
+//   3. Construct the gRPC service implementation.
+//   4. Start the tonic server and block until shutdown.
+
 mod compaction;
 mod config;
+mod export;
 mod http;
 mod proto;
 mod server;
