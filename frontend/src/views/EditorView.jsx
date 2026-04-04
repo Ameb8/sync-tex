@@ -10,6 +10,7 @@ import FileTree from '../components/Editor/FileTree';
 import TabBar from '../components/Editor/TabBar';
 import CollaboratorsPanel from '../components/Editor/CollaboratorsPanel';
 import { createCollabSession } from '../api/session';
+import { uploadImageFile } from '../api/editor';
 import { useAuth } from '../contexts/AuthContext';
 import {
   fetchProjectTree,
@@ -38,6 +39,10 @@ const getLanguage = (fileType) => ({
   other: 'latex', js: 'javascript', ts: 'typescript', html: 'html', css: 'css',
 }[fileType] || 'latex');
  
+// Image file types
+const IMAGE_TYPES = new Set(['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'image']);
+const isImageType = (fileType) => IMAGE_TYPES.has(fileType?.toLowerCase());
+
 const EditorView = () => {
   const navigate = useNavigate();
   const { projectId }  = useParams();
@@ -186,12 +191,25 @@ const EditorView = () => {
     boundFiles.current.add(activeTabId);
   }, [isCollab, activeTabId]);
 
-/*
-  useEffect(() => {
-    if (!activeTabId) return; 
-    if (editorRef.current) bindActiveSession(editorRef.current);
-  }, [activeTabId, bindActiveSession]);
-*/
+
+
+  const handleImageUpload = useCallback(async (parentFolderId, file) => {
+    try {
+      // Upload image to server
+      const response = await uploadImageFile(projectId, parentFolderId, file);
+      const updated = await fetchProjectTree(projectId);
+      setTreeData(updated.tree);
+      
+      if (response.file) { // Auto-open the uploaded image
+        const f = response.file;
+        setOpenTabs((prev) => [...prev, f]);
+        setActiveTabId(f.id);
+        setFileContents((prev) => ({ ...prev, [f.id]: f.download_url }));
+      }
+    } catch (err) {
+      setError(`Error uploading image: ${err.message}`);
+    }
+  }, [projectId]);
 
   // File select handling
   const handleFileSelect = useCallback(async (file) => {
@@ -202,8 +220,15 @@ const EditorView = () => {
       return; // Content already loaded
     }
 
+    // Open clicked tab
     setOpenTabs((prev) => [...prev, file]);
     setActiveTabId(file.id);
+
+    // Store download URL as file content for images
+    if (isImageType(file.file_type)) {
+      setFileContents((prev) => ({ ...prev, [file.id]: file.download_url }));
+      return; // No collab session or text fetch
+    }
 
    if (isCollab) {
       // Collab path: session opens WS, server sends initial state as Yjs update.
@@ -353,7 +378,8 @@ const EditorView = () => {
   // Derived state 
 
   const activeTab          = openTabs.find((t) => t.id === activeTabId);
-  const isActiveCollab     = activeTabId && !!collabSessions.current[activeTabId];
+  const isActiveImage = activeTab ? isImageType(activeTab.file_type) : false;
+  const isActiveCollab = activeTabId && !isActiveImage && !!collabSessions.current[activeTabId];
   const activeCollabStatus = activeTabId ? (collabStatus[activeTabId] ?? null) : null;
   const activeContent      = activeTab && !isActiveCollab ? (fileContents[activeTabId] ?? '') : '';
   const activeLanguage     = activeTab ? getLanguage(activeTab.file_type) : 'latex';
@@ -380,6 +406,7 @@ const EditorView = () => {
         onDeleteItem={handleDeleteItem}
         onRenameItem={handleRenameItem}
         onTabClose={handleTabClose}
+        onImageUpload={handleImageUpload}
       />
 
       {/* Main editor area */}
@@ -395,26 +422,36 @@ const EditorView = () => {
         <div className="editor-content">
           {activeTab ? (
             <>
-              <Editor
-                key={activeTabId}
-                height="100%"
-                language={activeLanguage}
-                value={isActiveCollab ? undefined : activeContent}
-                onChange={handleEditorChange}
-                onMount={handleEditorMount}
-                theme={isDarkMode ? 'app-dark' : 'app-light'}
-                options={{
-                  minimap:              { enabled: false },
-                  fontSize:             13,
-                  lineHeight:           1.6,
-                  tabSize:              2,
-                  wordWrap:             'on',
-                  automaticLayout:      true,
-                  scrollBeyondLastLine: false,
-                  fontFamily:           "'Menlo', 'Monaco', 'Courier New', monospace",
-                }}
-              />
-
+              {isActiveImage ? (
+                <div className="image-preview-container">
+                  <img
+                    src={fileContents[activeTabId]}
+                    alt={activeTab.filename}
+                    className="image-preview"
+                  />
+                  <div className="image-filename">{activeTab.filename}</div>
+                </div>
+              ) : (
+                <Editor
+                  key={activeTabId}
+                  height="100%"
+                  language={activeLanguage}
+                  value={isActiveCollab ? undefined : activeContent}
+                  onChange={handleEditorChange}
+                  onMount={handleEditorMount}
+                  theme={isDarkMode ? 'app-dark' : 'app-light'}
+                  options={{
+                    minimap:              { enabled: false },
+                    fontSize:             13,
+                    lineHeight:           1.6,
+                    tabSize:              2,
+                    wordWrap:             'on',
+                    automaticLayout:      true,
+                    scrollBeyondLastLine: false,
+                    fontFamily:           "'Menlo', 'Monaco', 'Courier New', monospace",
+                  }}
+                />
+              )}
               {/* Collab connection status bar */}
               {isActiveCollab && (
                 <div className={`collab-indicator collab-${activeCollabStatus}`}>
