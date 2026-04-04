@@ -116,3 +116,35 @@ export const renameItem = async (projectId, itemId, itemType, newName) => {
 };
 
 
+
+export const uploadImageFile = async (projectId, parentFolderId, file) => {
+  // Register the file, get back a presigned upload URL
+  const response = await authFetch(`/projects/v1/projects/${projectId}/files`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      filename: file.name,
+      directory_id: parentFolderId,
+      file_type: "image",
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to register image: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+
+  // Upload raw image bytes directly to object storage via presigned URL
+  const uploadResponse = await fetch(data.upload_url, {
+    method: 'PUT',
+    headers: { 'Content-Type': file.type },
+    body: file, 
+  });
+
+  if (!uploadResponse.ok) {
+    throw new Error(`Failed to upload image: ${uploadResponse.statusText}`);
+  }
+
+  return data; // { file: { id, filename, file_type, download_url, ... }, upload_url }
+};

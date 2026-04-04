@@ -5,7 +5,13 @@ import CreateItemModal from './CreateItemModal';
 import DeleteConfirmModal from './DeleteConfirmModal';
 import RenameModal from './RenameModal';
 
-const FileTree = ({ treeData, onFileSelect, activeFileId, onCreateFile, onCreateFolder, onDeleteItem, onRenameItem, onTabClose }) => {
+const FileTree = ({
+  treeData, onFileSelect, activeFileId,
+  onCreateFile, onCreateFolder, onDeleteItem, 
+  onRenameItem, onTabClose, onImageUpload,
+}) => {
+  const imageInputRef = useRef(null);
+  const [uploadTargetFolderId, setUploadTargetFolderId] = useState(null);
   const [expanded, setExpanded] = useState(new Set());
   const [contextMenu, setContextMenu] = useState(null);
   const [selectedNodeId, setSelectedNodeId] = useState(null);
@@ -138,6 +144,21 @@ const FileTree = ({ treeData, onFileSelect, activeFileId, onCreateFile, onCreate
     }
   };
 
+  const handleImageMenuClick = () => {
+    // Upload into selected folder, or root (first node) as fallback
+    const targetId = selectedNodeId ?? treeData[0]?.id ?? null;
+    setUploadTargetFolderId(targetId);
+    imageInputRef.current?.click();
+    setContextMenu(null);
+  };
+
+  const handleImageFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !uploadTargetFolderId) return;
+    await onImageUpload(uploadTargetFolderId, file);
+    e.target.value = '';
+  };
+
   const renderTreeNode = (node, level = 0) => {
     const isFolder = node.children && node.children.length > 0;
     const hasFiles = node.files && node.files.length > 0;
@@ -214,6 +235,12 @@ const FileTree = ({ treeData, onFileSelect, activeFileId, onCreateFile, onCreate
               >
                 New Folder
               </button>
+              <button 
+                className="context-menu-item" 
+                onClick={handleImageMenuClick}
+              >
+                Upload Image
+              </button>
               <div className="context-menu-divider"></div>
             </>
           )}
@@ -270,6 +297,14 @@ const FileTree = ({ treeData, onFileSelect, activeFileId, onCreateFile, onCreate
           onCancel={() => setShowRenameModal(false)}
         />
       )}
+
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml"
+        style={{ display: 'none' }}
+        onChange={handleImageFileChange}
+      />
     </div>
   );
 };
