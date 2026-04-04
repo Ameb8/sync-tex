@@ -126,7 +126,7 @@ pub fn compact_update_log(raw: &[u8], base_snapshot: Option<&[u8]>) -> Result<Co
 /// This mirrors the framing written by the Go collab-service:
 ///   binary.Write(buf, binary.BigEndian, uint32(len(update)))
 ///   buf.Write(update)
-fn decode_length_prefixed(mut buf: &[u8]) -> Result<Vec<Vec<u8>>> {
+pub(crate) fn decode_length_prefixed(mut buf: &[u8]) -> Result<Vec<Vec<u8>>> {
     let mut updates: Vec<Vec<u8>> = Vec::new();
 
     while !buf.is_empty() {
