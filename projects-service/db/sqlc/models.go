@@ -63,12 +63,13 @@ type Directory struct {
 }
 
 type File struct {
-	ID          pgtype.UUID `json:"id"`
-	DirectoryID pgtype.UUID `json:"directory_id"`
-	ProjectID   pgtype.UUID `json:"project_id"`
-	Filename    string      `json:"filename"`
-	StorageKey  string      `json:"storage_key"`
-	FileType    FileType    `json:"file_type"`
+	ID             pgtype.UUID `json:"id"`
+	DirectoryID    pgtype.UUID `json:"directory_id"`
+	ProjectID      pgtype.UUID `json:"project_id"`
+	Filename       string      `json:"filename"`
+	StorageKey     string      `json:"storage_key"`
+	FileType       FileType    `json:"file_type"`
+	TextSourceEtag pgtype.Text `json:"text_source_etag"`
 }
 
 type Project struct {

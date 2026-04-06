@@ -37,6 +37,7 @@ type Querier interface {
 	RemoveProjectCollaborator(ctx context.Context, projectID pgtype.UUID, userID string) error
 	UpdateDirectory(ctx context.Context, iD pgtype.UUID, name string) (Directory, error)
 	UpdateFile(ctx context.Context, iD pgtype.UUID, filename string) (File, error)
+	UpdateFileTextEtag(ctx context.Context, iD pgtype.UUID, textSourceEtag pgtype.Text) error
 	UpdateProjectName(ctx context.Context, iD pgtype.UUID, name pgtype.Text) (Project, error)
 }
 

@@ -37,7 +37,7 @@ func (q *Queries) CreateDirectory(ctx context.Context, iD pgtype.UUID, projectID
 const createFile = `-- name: CreateFile :one
 INSERT INTO files (id, directory_id, project_id, filename, storage_key, file_type)
 VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, directory_id, project_id, filename, storage_key, file_type
+RETURNING id, directory_id, project_id, filename, storage_key, file_type, text_source_etag
 `
 
 type CreateFileParams struct {
@@ -66,6 +66,7 @@ func (q *Queries) CreateFile(ctx context.Context, arg CreateFileParams) (File, e
 		&i.Filename,
 		&i.StorageKey,
 		&i.FileType,
+		&i.TextSourceEtag,
 	)
 	return i, err
 }
@@ -128,7 +129,7 @@ func (q *Queries) GetDirectory(ctx context.Context, id pgtype.UUID) (Directory, 
 }
 
 const getFile = `-- name: GetFile :one
-SELECT id, directory_id, project_id, filename, storage_key, file_type FROM files
+SELECT id, directory_id, project_id, filename, storage_key, file_type, text_source_etag FROM files
 WHERE id = $1
 `
 
@@ -142,6 +143,7 @@ func (q *Queries) GetFile(ctx context.Context, id pgtype.UUID) (File, error) {
 		&i.Filename,
 		&i.StorageKey,
 		&i.FileType,
+		&i.TextSourceEtag,
 	)
 	return i, err
 }
@@ -209,7 +211,7 @@ func (q *Queries) ListDirectoriesByProject(ctx context.Context, projectID pgtype
 }
 
 const listFilesByDirectory = `-- name: ListFilesByDirectory :many
-SELECT id, directory_id, project_id, filename, storage_key, file_type FROM files
+SELECT id, directory_id, project_id, filename, storage_key, file_type, text_source_etag FROM files
 WHERE directory_id = $1
 ORDER BY filename ASC
 `
@@ -230,6 +232,7 @@ func (q *Queries) ListFilesByDirectory(ctx context.Context, directoryID pgtype.U
 			&i.Filename,
 			&i.StorageKey,
 			&i.FileType,
+			&i.TextSourceEtag,
 		); err != nil {
 			return nil, err
 		}
@@ -242,7 +245,7 @@ func (q *Queries) ListFilesByDirectory(ctx context.Context, directoryID pgtype.U
 }
 
 const listFilesByProject = `-- name: ListFilesByProject :many
-SELECT id, directory_id, project_id, filename, storage_key, file_type FROM files
+SELECT id, directory_id, project_id, filename, storage_key, file_type, text_source_etag FROM files
 WHERE project_id = $1
 ORDER BY filename ASC
 `
@@ -263,6 +266,7 @@ func (q *Queries) ListFilesByProject(ctx context.Context, projectID pgtype.UUID)
 			&i.Filename,
 			&i.StorageKey,
 			&i.FileType,
+			&i.TextSourceEtag,
 		); err != nil {
 			return nil, err
 		}
@@ -297,7 +301,7 @@ const updateFile = `-- name: UpdateFile :one
 UPDATE files
 SET filename = $2
 WHERE id = $1
-RETURNING id, directory_id, project_id, filename, storage_key, file_type
+RETURNING id, directory_id, project_id, filename, storage_key, file_type, text_source_etag
 `
 
 func (q *Queries) UpdateFile(ctx context.Context, iD pgtype.UUID, filename string) (File, error) {
@@ -310,6 +314,18 @@ func (q *Queries) UpdateFile(ctx context.Context, iD pgtype.UUID, filename strin
 		&i.Filename,
 		&i.StorageKey,
 		&i.FileType,
+		&i.TextSourceEtag,
 	)
 	return i, err
+}
+
+const updateFileTextEtag = `-- name: UpdateFileTextEtag :exec
+UPDATE files
+SET text_source_etag = $2
+WHERE id = $1
+`
+
+func (q *Queries) UpdateFileTextEtag(ctx context.Context, iD pgtype.UUID, textSourceEtag pgtype.Text) error {
+	_, err := q.db.Exec(ctx, updateFileTextEtag, iD, textSourceEtag)
+	return err
 }
