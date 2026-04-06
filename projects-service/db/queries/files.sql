@@ -42,6 +42,11 @@ SET filename = $2
 WHERE id = $1
 RETURNING *;
 
+-- name: UpdateFileTextEtag :exec
+UPDATE files
+SET text_source_etag = $2
+WHERE id = $1;
+
 -- name: DeleteFile :exec
 DELETE FROM files
 WHERE id = $1;
@@ -63,3 +68,4 @@ WHERE project_id = $1;
 -- name: DeleteProjectDirectories :exec
 DELETE FROM directories
 WHERE project_id = $1;
+
