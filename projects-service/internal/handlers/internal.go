@@ -1,12 +1,19 @@
 package handlers
 
 import (
+	"context"
+	"fmt"
 	"log"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/minio/minio-go/v7"
+
+	db "projects-service/db/sqlc"
 )
 
 // DownloadFileInternal handles:
@@ -48,6 +55,14 @@ func (h *Handler) InternalDownloadFile(c *gin.Context) {
 	for _, t := range typesToReturn {
 		if !validTypes[t] {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid type, must be 'uploads', 'snapshot', or 'text'"})
+			return
+		}
+	}
+
+	// If text was requested, check if it needs regenerating before producing URLs
+	if slices.Contains(typesToReturn, "text") {
+		if err := h.ensureTextUpToDate(c.Request.Context(), file); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to ensure text version is up to date"})
 			return
 		}
 	}
@@ -216,4 +231,59 @@ func (h *Handler) InternalCompactFile(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"url": uploadURL,
 	})
+}
+
+func (h *Handler) ensureTextUpToDate(ctx context.Context, file db.File) error {
+	// StatObject on the binary (uploads bucket) — fetches only metadata, no body
+	objInfo, err := h.minioClient.StatObject(ctx, "uploads", file.StorageKey, minio.StatObjectOptions{})
+	if err != nil {
+		return fmt.Errorf("stat binary object: %w", err)
+	}
+
+	currentETag := objInfo.ETag
+
+	// If DB etag matches current binary etag, text version is fresh — nothing to do
+	if file.TextSourceEtag.Valid && file.TextSourceEtag.String == currentETag {
+		return nil
+	}
+
+	// Generate download URL for snapshot file
+	downloadSnapshotURL, err := h.generateDownloadURL(
+		ctx,
+		"snapshot",
+		file.StorageKey,
+		3*time.Minute,
+		true,
+	)
+
+	// Generate download URL for uploads file
+	downloadUpdatesURL, err := h.generateDownloadURL(
+		ctx,
+		"uploads",
+		file.StorageKey,
+		3*time.Minute,
+		true,
+	)
+
+	// Generate upload URL for text file
+	uploadTextURL, err := h.generateUploadURL(
+		ctx,
+		"text",
+		file.StorageKey,
+		3*time.Minute,
+		true,
+	)
+
+	// Make gRPC request to file-data-service
+	if err := h.fileDataClient.ExtractText(ctx, downloadSnapshotURL, downloadUpdatesURL, uploadTextURL); err != nil {
+		log.Printf("Extraction service failed for file '%s': %v", file.StorageKey, err)
+		return fmt.Errorf("invoke extract text service: %w", err)
+	}
+
+	// Update the stored etag in DB so next request skips regeneration
+	if err := h.queries.UpdateFileTextEtag(ctx, file.ID, pgtype.Text{String: currentETag, Valid: true}); err != nil {
+		return fmt.Errorf("update text etag: %w", err)
+	}
+
+	return nil
 }

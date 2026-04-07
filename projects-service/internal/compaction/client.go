@@ -38,10 +38,10 @@ func (c *Client) Close() error {
 
 // CompactDocument downloads the update log from downloadURL, compacts it,
 // and uploads the result to uploadURL. Both should be presigned URLs.
-func (c *Client) CompactDocument(ctx context.Context, downloadURL, uploadURL, downloadSnapshotURL string) error {
+func (c *Client) CompactDocument(ctx context.Context, downloadUpdatesURL, uploadSnapshotURL, downloadSnapshotURL string) error {
 	resp, err := c.client.CompactDocument(ctx, &pb.CompactRequest{
-		DownloadUrl:     downloadURL,
-		UploadUrl:       uploadURL,
+		DownloadUrl:     downloadUpdatesURL,
+		UploadUrl:       uploadSnapshotURL,
 		BaseSnapshotUrl: downloadSnapshotURL,
 	})
 	if err != nil {
@@ -49,6 +49,21 @@ func (c *Client) CompactDocument(ctx context.Context, downloadURL, uploadURL, do
 	}
 	if !resp.Success {
 		return fmt.Errorf("compaction failed: %s", resp.ErrorMessage)
+	}
+	return nil
+}
+
+func (c *Client) ExtractText(ctx context.Context, downloadSnapshotURL, downloadUpdatesURL, uploadTextURL string) error {
+	resp, err := c.client.ExportDocument(ctx, &pb.ExportRequest{
+		SnapshotUrl:       downloadSnapshotURL,
+		PendingUpdatesUrl: downloadUpdatesURL,
+		UploadUrl:         uploadTextURL,
+	})
+	if err != nil {
+		return fmt.Errorf("Export RPC failed: %w", err)
+	}
+	if !resp.Success {
+		return fmt.Errorf("Export failed: %s", resp.ErrorMessage)
 	}
 	return nil
 }

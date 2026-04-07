@@ -286,7 +286,7 @@ func (h *Handler) CreateFile(c *gin.Context) {
 		FileType:    db.FileType(req.FileType),
 	})
 
-	// Error creting file in database
+	// Error creating file in database
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create file"})
 		return
@@ -348,6 +348,7 @@ func (h *Handler) GetFile(c *gin.Context) {
 
 	c.JSON(http.StatusOK, file)
 }
+
 // GetUploadURL handles:
 // POST /projects/v1/projects/:projectID/files/:fileID/upload
 //
@@ -390,7 +391,7 @@ func (h *Handler) GetUploadURL(c *gin.Context) {
 
 	// storage_key format: projectID/fileID
 	storageKey := fmt.Sprintf("%s/%s", projectIDStr, fileIDStr)
-	
+
 	// Generate presigned upload URL (15 min expiry)
 	uploadURL, err := h.generateUploadURL(c.Request.Context(), "uploads", storageKey, 15*time.Minute, false)
 	if err != nil {
@@ -399,11 +400,10 @@ func (h *Handler) GetUploadURL(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"upload_url": uploadURL,
+		"upload_url":  uploadURL,
 		"storage_key": storageKey,
 	})
 }
-
 
 // UpdateFile handles:
 // PATCH /projects/v1/projects/:projectID/files/:fileID
