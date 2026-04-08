@@ -151,6 +151,46 @@ services:
     networks:
       - gateway-network
 
+  assistant-service:
+    build:
+      context: ./assistant-service
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./assistant-service:/app
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: ${ASSISTANT_DB_URL}
+    depends_on:
+      postgres-assistant:
+        condition: service_healthy
+    networks:
+      - gateway-network
+    command: >
+      uvicorn app.main:app
+      --host 0.0.0.0
+      --port 8000
+      --reload
+
+  postgres-assistant:
+    image: postgres:16-alpine
+    container_name: postgres-assistant-db
+    environment:
+      POSTGRES_USER: ${ASSISTANT_DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${ASSISTANT_DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${ASSISTANT_DB:-assistant_db}
+    volumes:
+      - postgres_assistant_data:/var/lib/postgresql/data
+    ports:
+      - "5435:5432"   # optional, for host access
+    networks:
+      - gateway-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   minio:
     image: minio/minio:latest
     container_name: minio
@@ -176,6 +216,7 @@ services:
 volumes:
   postgres_users_data:
   postgres_projects_data: 
+  postgres_assistant_data:
   minio_data:
   collab_cargo_cache:
   collab_build_cache:
