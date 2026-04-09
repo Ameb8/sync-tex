@@ -4,18 +4,19 @@ from sqlalchemy.orm import Session
 from . import models, schemas, crud
 from .database import get_db, engine
 from .auth import get_current_user_id
+from .services.llm_service import get_llm_client
 
 
 app = FastAPI(title="SyncTeX Assistant Service")
 
 
-# Health
+# Health check
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
 
-# LLM API Key management
+# Upload user LLM key
 @app.put("/keys", response_model=schemas.LLMKeyResponse, status_code=status.HTTP_200_OK)
 def upsert_key(
     body: schemas.LLMKeyUpsert,
@@ -32,6 +33,7 @@ def upsert_key(
     )
 
 
+# List user's LLM providers
 @app.get("/keys", response_model=schemas.LLMKeyListResponse)
 def list_keys(
     user_id: str = Depends(get_current_user_id),
@@ -52,6 +54,7 @@ def list_keys(
     )
 
 
+# Delete user LLM keys
 @app.delete("/keys/{provider}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_key(
     provider: str,
@@ -64,7 +67,7 @@ def delete_key(
         raise HTTPException(status_code=404, detail=f"No key found for provider '{provider}'")
 
 
-# LLM Settings
+# Get LLM settings
 @app.get("/settings", response_model=schemas.LLMSettingsResponse)
 def get_settings(
     user_id: str = Depends(get_current_user_id),
@@ -75,6 +78,7 @@ def get_settings(
     return row
 
 
+# Update LLM settings
 @app.patch("/settings", response_model=schemas.LLMSettingsResponse)
 def update_settings(
     body: schemas.LLMSettingsUpdate,
@@ -99,3 +103,111 @@ def get_usage(
 ):
     """Return the 50 most recent LLM calls for this user."""
     return crud.get_usage_logs(db, user_id)
+
+
+# Non-streaming LLM chat
+@app.post("/chat")
+async def chat(
+    body: schemas.ChatRequest,
+    user_id: str = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+    ctx = Depends(get_llm_client),
+):
+    """
+    Single-turn chat. Returns the full response once complete.
+    Use /chat/stream for streaming.
+    """
+    client, settings, provider = get_llm_client(user_id, db)
+ 
+    estimated = sum(len(m.content) for m in body.messages) // 4
+    try:
+        crud.check_token_budget(db, user_id, estimated)
+    except ValueError as e:
+        raise HTTPException(status_code=429, detail=str(e))
+ 
+    messages = [m.model_dump() for m in body.messages]
+    response = await client.chat(messages, max_tokens=body.max_tokens)
+ 
+    crud.record_token_usage(
+        db,
+        user_id=user_id,
+        project_id=body.project_id or "",
+        operation="query",
+        model=response.model,
+        tokens_in=response.tokens_in,
+        tokens_out=response.tokens_out,
+    )
+ 
+    return {
+        "text": response.text,
+        "model": response.model,
+        "usage": {
+            "tokens_in": response.tokens_in,
+            "tokens_out": response.tokens_out,
+        },
+    }
+
+
+# Streaming LLM chat
+@app.post("/chat/stream")
+async def chat_stream(
+    body: schemas.ChatRequest,
+    user_id: str = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
+    """
+    Streaming chat via SSE.
+    Each event:  data: {"chunk": "..."}\n\n
+    Final event: data: {"done": true, "model": "...", "usage": {...}}\n\n
+    Error event: data: {"error": "..."}\n\n
+    """
+    client, settings, provider = get_llm_client(user_id, db)
+ 
+    estimated = sum(len(m.content) for m in body.messages) // 4
+    try:
+        crud.check_token_budget(db, user_id, estimated)
+    except ValueError as e:
+        raise HTTPException(status_code=429, detail=str(e))
+ 
+    messages = [m.model_dump() for m in body.messages]
+ 
+    async def event_generator():
+        full_text = ""
+        try:
+            async for chunk in client.stream(messages, max_tokens=body.max_tokens):
+                full_text += chunk
+                yield f"data: {json.dumps({'chunk': chunk})}\n\n"
+ 
+            # Estimate mid-stream token count
+            tokens_out_est = len(full_text) // 4
+            crud.record_token_usage(
+                db,
+                user_id=user_id,
+                project_id=body.project_id or "",
+                operation="query",
+                model=provider,
+                tokens_in=estimated,
+                tokens_out=tokens_out_est,
+            )
+ 
+            yield f"data: {json.dumps({'done': True, 'model': provider, 'usage': {'tokens_in': estimated, 'tokens_out': tokens_out_est}})}\n\n"
+ 
+        except Exception as e:
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+ 
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",  # tells nginx not to buffer SSE
+        },
+    )
+ 
+
+# Get list of supported LLM providers
+@app.get("/providers")
+def list_providers():
+    """Return which LLM providers this service supports."""
+    return {"providers": supported_providers()}
+
