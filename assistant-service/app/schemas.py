@@ -1,5 +1,5 @@
 from pydantic import BaseModel, field_validator
-from typing import Optional
+from typing import Optional, Literal
 from datetime import date, datetime
 
 
@@ -12,7 +12,7 @@ SUPPORTED_PROVIDERS = {"anthropic", "openai", "gemini"}
 class LLMKeyUpsert(BaseModel):
     """Request body for storing/updating an LLM API key."""
     provider: str
-    api_key: str                        # plaintext — encrypted before storage
+    api_key: str # plaintext — encrypted before storage
 
     @field_validator("provider")
     @classmethod
@@ -44,7 +44,44 @@ class LLMKeyListResponse(BaseModel):
     keys: list[LLMKeyResponse]
 
 
-# Settings schemas
+# LLM chat schemas
+class ChatMessage(BaseModel):
+    role: Literal["user", "assistant", "system"]
+    content: str
+
+    @field_validator("content")
+    @classmethod
+    def content_not_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("content must not be empty")
+        return v
+
+
+class ChatRequest(BaseModel):
+    """Request body for LLM assistant chat"""
+
+    messages: list[ChatMessage]
+    max_tokens: Optional[int] = 1000
+    project_id: Optional[str] = None
+
+    @field_validator("messages")
+    @classmethod
+    def messages_not_empty(cls, v: list[ChatMessage]) -> list[ChatMessage]:
+        if not v:
+            raise ValueError("messages must not be empty")
+        return v
+
+    @field_validator("max_tokens")
+    @classmethod
+    def max_tokens_positive(cls, v: Optional[int]) -> Optional[int]:
+        if v is not None and v <= 0:
+            raise ValueError("max_tokens must be > 0")
+        return v
+
+
+
+
+# LLM Settings schemas
 
 class LLMSettingsUpdate(BaseModel):
     monthly_token_limit:  Optional[int] = None
@@ -77,3 +114,4 @@ class UsageLogResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
