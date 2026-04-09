@@ -161,6 +161,10 @@ services:
       - "8000:8000"
     environment:
       DATABASE_URL: ${ASSISTANT_DB_URL}
+      ASSISTANT_ENCRYPTION_KEY: ${ASSISTANT_ENCRYPTION_KEY}
+      JWT_SECRET: ${USERS_SECRET_KEY}
+      JWT_ALGORITHM: HS256
+
     depends_on:
       postgres-assistant:
         condition: service_healthy
