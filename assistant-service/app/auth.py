@@ -65,7 +65,7 @@ def get_current_user_id(
     )
     try:
         payload = _decode(credentials.credentials)
-        user_id: str = payload.get("sub", "")
+        user_id: str = payload.get("sub", "") or payload.get("user_id", "")
         if not user_id:
             raise credentials_exception
         return user_id
