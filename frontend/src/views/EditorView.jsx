@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Editor from '@monaco-editor/react';
 import { loader } from '@monaco-editor/react';
-import { registerLatexLanguage } from '../monaco/textmateHighlighter';
+import { registerLatexLanguage } from '../monaco/monarchLatex';
 import darkTheme from '../monaco/themes/monokai.json';
 import lightTheme from '../monaco/themes/github-light.json';
 
