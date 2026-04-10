@@ -1,10 +1,14 @@
 from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
+
+import json
 
 from . import models, schemas, crud
 from .database import get_db, engine
 from .auth import get_current_user_id
 from .services.llm_service import get_llm_client
+from .providers import supported_providers
 
 
 app = FastAPI(title="SyncTeX Assistant Service")
