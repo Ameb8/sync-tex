@@ -1,3 +1,4 @@
+# Server Core Packages
 fastapi
 uvicorn[standard]
 sqlalchemy
@@ -5,5 +6,10 @@ psycopg2-binary
 alembic
 pydantic
 python-dotenv
+
+# Safe user LLM Key storage
 python-jose[cryptography]
 cryptography
+
+# LLM Clients
+google-genai
