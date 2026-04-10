@@ -129,7 +129,19 @@
     {
       "foreground": "e6db74",
       "token": "entity.name.filename.find-in-files"
-    }
+    },
+
+    { "token": "keyword.command", "foreground": "f92672" },
+    { "token": "keyword.environment", "foreground": "fd971f" },
+
+    { "token": "string.argument", "foreground": "e6db74" },
+    { "token": "string.optional", "foreground": "a6e22e" },
+
+    { "token": "string.math", "foreground": "66d9ef" },
+    { "token": "delimiter.math", "foreground": "f92672" },
+
+    { "token": "operator", "foreground": "f8f8f2" },
+    { "token": "string.escape", "foreground": "ae81ff" }
   ],
   "colors": {
     "editor.foreground": "#F8F8F2",
