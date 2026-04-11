@@ -1,4 +1,3 @@
-/* src/components/Editor/FileTree.css - Professional context menu styling */
 .file-tree {
   width: 260px;
   border-right: 0.5px solid var(--border-color, #e0e0e0);
@@ -7,6 +6,7 @@
   background: var(--bg-sidebar, #f9f9f9);
   height: 100%;
   font-size: 13px;
+  z-index: 20;
 }
 
 .tree-header {
