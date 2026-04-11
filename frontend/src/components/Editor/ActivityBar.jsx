@@ -4,20 +4,27 @@ import './ActivityBar.css';
  * ActivityBar
  *
  * The narrow icon strip on the far left
- * Each button corresponds to a named panel in the left sidebar.
  *
- * Clicking the active panel's button toggles the sidebar closed.
- * Clicking an inactive panel's button opens that panel.
+ * Each panel entry has a `type` field that controls where it renders:
+ *
+ *   type: 'sidebar'  — slides open to the left of the editor (file tree, search…)
+ *                      Toggling the active sidebar panel closes it.
+ *
+ *   type: 'main'     — replaces the Monaco editor area entirely, filling the
+ *                      full space between the activity bar and the right sidebar.
+ *                      Toggling the active main panel returns to the editor.
  *
  * Props:
- *   activePanel   — string | null: which panel is currently open
- *   onPanelToggle — (panelId: string) => void
- *                   EditorView calls this to toggle sidebarOpen and set activePanel
+ *   activeSidebarPanel — string | null: which sidebar panel is open
+ *   activeMainPanel    — string | null: which main panel is open (or null = editor)
+ *   onPanelToggle      — (panelId: string, type: 'sidebar' | 'main') => void
+ *
  */
 
 const PANELS = [
   {
     id: 'files',
+    type: 'sidebar',
     title: 'Explorer',
     icon: (
       <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
@@ -28,16 +35,20 @@ const PANELS = [
   },
 ];
 
-const ActivityBar = ({ activePanel, onPanelToggle }) => {
+const ActivityBar = ({ activeSidebarPanel, activeMainPanel, onPanelToggle }) => {
   return (
     <div className="activity-bar" role="navigation" aria-label="Side panels">
-      {PANELS.map(({ id, title, icon }) => {
-        const isActive = activePanel === id;
+      {PANELS.map(({ id, type, title, icon }) => {
+        const isActive =
+          type === 'sidebar' ? activeSidebarPanel === id :
+          type === 'main'    ? activeMainPanel    === id :
+          false;
+
         return (
           <button
             key={id}
             className={`activity-bar-btn ${isActive ? 'active' : ''}`}
-            onClick={() => onPanelToggle(id)}
+            onClick={() => onPanelToggle(id, type)}
             title={title}
             aria-label={title}
             aria-pressed={isActive}

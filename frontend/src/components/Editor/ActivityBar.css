@@ -26,12 +26,12 @@
   align-items: center;
   justify-content: center;
   border: none;
+  border-left: 2px solid transparent;
   background: transparent;
   color: var(--text-secondary, #888);
   border-radius: 6px;
   cursor: pointer;
   transition: color 0.15s ease, background 0.15s ease;
-  position: relative;
 }
 
 .activity-bar-btn:hover {
@@ -42,6 +42,8 @@
 /* Active panel: bright colour + left-border accent (VSCode style) */
 .activity-bar-btn.active {
   color: var(--text-primary, #fff);
+  border-left-color: var(--text-info, #1f80dd);
+
 }
 
 .activity-bar-btn.active::before {

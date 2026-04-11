@@ -70,17 +70,22 @@ const EditorView = () => {
   }, []);
 
   // Activity bar
-  const [activePanel, setActivePanel] = useState('files'); // Which panel is shown
+  const [sidebarPanel, setSidebarPanel] = useState('files'); // Which panel is shown
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [mainPanel, setMainPanel] = useState(null); // Show editor when null
 
   // Toggle/switch sidebar panels
-  const handlePanelToggle = useCallback((panelId) => {
-    setSidebarOpen((open) => {
-      if (activePanel === panelId) return !open; // Toggle if same panel
-      return true;                                // Open if different file
-    });
-    setActivePanel(panelId);
-  }, [activePanel]);
+    const handlePanelToggle = useCallback((panelId, type) => {
+    if (type === 'sidebar') {
+      setSidebarOpen((open) => {
+        if (sidebarPanel === panelId) return !open; // Toggle if same panel
+        return true; // Open if different panel
+      });
+      setSidebarPanel(panelId);
+    } else if (type === 'main') { // Return to editor clicking active main panel
+      setMainPanel((current) => current === panelId ? null : panelId);
+    }
+  }, [sidebarPanel]);
 
   // Editor ref so bindActiveSession can receive it
   const editorRef = useRef(null);
@@ -235,10 +240,14 @@ const EditorView = () => {
     <div className="editor-container">
 
       {/* Far-left icon strip */}
-      <ActivityBar activePanel={sidebarOpen ? activePanel : null} onPanelToggle={handlePanelToggle} />
+      <ActivityBar
+        activeSidebarPanel={sidebarOpen ? sidebarPanel : null}
+        activeMainPanel={mainPanel}
+        onPanelToggle={handlePanelToggle}
+      />
       <div
         className="side-panel"
-        style={{ display: sidebarOpen && activePanel === 'files' ? 'flex' : 'none' }}
+        style={{ display: sidebarOpen && sidebarPanel === 'files' ? 'flex' : 'none' }}
       >
         <FileTree
           treeData={treeData}
@@ -253,31 +262,50 @@ const EditorView = () => {
         />
       </div>
 
-      {/* Main editor column */}
+      {/* Main editor column — or a full-area main panel if one is active */}
       <div className="editor-main">
-        <TabBar
-          tabs={openTabs}
-          activeTabId={activeTabId}
-          onTabSelect={handleTabSelect}
-          onTabClose={handleTabClose}
-          unsavedFiles={unsavedFiles}
-        />
-        <div className="editor-content">
-          <EditorPane
-            activeTab={activeTab}
-            isActiveImage={isActiveImage}
-            isActiveCollab={isActiveCollab}
-            activeContent={activeContent}
-            activeLanguage={activeLanguage}
-            isDarkMode={isDarkMode}
-            activeCollabStatus={activeCollabStatus}
-            isActiveFileDirty={isActiveFileDirty}
-            isSaving={isSaving}
-            imageUrl={imageUrl}
-            onMount={handleEditorMount}
-            onChange={(value) => handleEditorChange(value, activeTabId)}
-          />
-        </div>
+        {mainPanel ? (
+          /*
+            Main panel slot — renders instead of the editor, filling the full
+            space between the activity bar and the right sidebar.
+            To add a new main panel: add a branch here + entry in ActivityBar PANELS.
+ 
+            Example:
+            mainPanel === 'ai' && <AIAssistantPanel projectId={projectId} activeTab={activeTab} />
+          */
+          <div className="main-panel-content">
+            {/* {mainPanel === 'ai' && <AIAssistantPanel projectId={projectId} activeTab={activeTab} />} */}
+            <div style={{ padding: '2rem', color: 'var(--text-secondary)' }}>
+              No panel registered for: {mainPanel}
+            </div>
+          </div>
+        ) : (
+          <>
+            <TabBar
+              tabs={openTabs}
+              activeTabId={activeTabId}
+              onTabSelect={handleTabSelect}
+              onTabClose={handleTabClose}
+              unsavedFiles={unsavedFiles}
+            />
+            <div className="editor-content">
+              <EditorPane
+                activeTab={activeTab}
+                isActiveImage={isActiveImage}
+                isActiveCollab={isActiveCollab}
+                activeContent={activeContent}
+                activeLanguage={activeLanguage}
+                isDarkMode={isDarkMode}
+                activeCollabStatus={activeCollabStatus}
+                isActiveFileDirty={isActiveFileDirty}
+                isSaving={isSaving}
+                imageUrl={imageUrl}
+                onMount={handleEditorMount}
+                onChange={(value) => handleEditorChange(value, activeTabId)}
+              />
+            </div>
+          </>
+        )}
       </div>
 
       {/* Right sidebar */}
