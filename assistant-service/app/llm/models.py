@@ -1,4 +1,6 @@
-from sqlalchemy import Column, String, Integer, LargeBinary, Date, DateTime, func, text
+from sqlalchemy import Column, String, Integer, LargeBinary, Date, DateTime, func, text, ForeignKey, Text
+from sqlalchemy.orm import relationship
+
 from app.core.database import Base
 
 
@@ -53,3 +55,30 @@ class LLMUsageLog(Base):
     tokens_in  = Column(Integer, nullable=False)
     tokens_out = Column(Integer, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+class Chat(Base):
+    __tablename__ = "chats"
+
+    id         = Column(String, primary_key=True)          # UUID
+    user_id    = Column(String, nullable=False, index=True)
+    project_id = Column(String, nullable=False, index=True)
+    title      = Column(String, nullable=True)             # nullable; auto-set on first message
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(),
+                        onupdate=func.now(), nullable=False)
+
+    messages = relationship("ChatMessage", back_populates="chat",
+                            order_by="ChatMessage.created_at", cascade="all, delete-orphan")
+
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+
+    id         = Column(String, primary_key=True)          # UUID
+    chat_id    = Column(String, ForeignKey("chats.id", ondelete="CASCADE"),
+                        nullable=False, index=True)
+    role       = Column(String, nullable=False)            # 'user' | 'assistant' | 'system'
+    content    = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    chat = relationship("Chat", back_populates="messages")
