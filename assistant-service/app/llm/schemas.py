@@ -45,40 +45,37 @@ class LLMKeyListResponse(BaseModel):
 
 
 # LLM chat schemas
-class ChatMessage(BaseModel):
-    role: Literal["user", "assistant", "system"]
+
+class CreateChatRequest(BaseModel):
+    project_id: str
+    title: Optional[str] = None
+
+
+class ChatSummary(BaseModel):
+    id: str
+    project_id: str
+    title: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+    class Config:
+        from_attributes = True
+
+
+class ChatMessageResponse(BaseModel):
+    id: str
+    chat_id: str
+    role: str
     content: str
-
-    @field_validator("content")
-    @classmethod
-    def content_not_empty(cls, v: str) -> str:
-        if not v.strip():
-            raise ValueError("content must not be empty")
-        return v
+    created_at: datetime
+    class Config:
+        from_attributes = True
 
 
-class ChatRequest(BaseModel):
-    """Request body for LLM assistant chat"""
-
-    messages: list[ChatMessage]
+class ChatStreamRequest(BaseModel):
+    chat_id: str
+    message: str 
     max_tokens: Optional[int] = 1000
-    project_id: Optional[str] = None
-
-    @field_validator("messages")
-    @classmethod
-    def messages_not_empty(cls, v: list[ChatMessage]) -> list[ChatMessage]:
-        if not v:
-            raise ValueError("messages must not be empty")
-        return v
-
-    @field_validator("max_tokens")
-    @classmethod
-    def max_tokens_positive(cls, v: Optional[int]) -> Optional[int]:
-        if v is not None and v <= 0:
-            raise ValueError("max_tokens must be > 0")
-        return v
-
-
+    system_prompt: Optional[str] = None
 
 
 # LLM Settings schemas
