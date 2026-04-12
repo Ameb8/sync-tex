@@ -1,5 +1,5 @@
 from sqlalchemy import Column, String, Integer, LargeBinary, Date, DateTime, func, text
-from .database import Base
+from app.core.database import Base
 
 
 class UserLLMKey(Base):

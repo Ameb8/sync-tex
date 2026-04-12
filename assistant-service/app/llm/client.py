@@ -1,11 +1,11 @@
 from fastapi import HTTPException, Depends
 from sqlalchemy.orm import Session
 
-from app import models
-from app.providers import get_client
-from app.crypto import decrypt_api_key
-from app.auth import get_current_user_id
-from app.database import get_db
+from . import models
+from .providers import get_client
+from app.core.crypto import decrypt_api_key
+from app.core.auth import get_current_user_id
+from app.core.database import get_db
 
 def get_llm_client(
     user_id: str = Depends(get_current_user_id),
