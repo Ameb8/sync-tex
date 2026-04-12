@@ -7,8 +7,8 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 # Import models
-from app.database import Base
-from app.models import UserLLMKey, UserLLMSettings, LLMUsageLog
+from app.core.database import Base
+from app.llm.models import UserLLMKey, UserLLMSettings, LLMUsageLog
 
 config = context.config
 fileConfig(config.config_file_name)
