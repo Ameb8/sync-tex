@@ -33,6 +33,28 @@ const PANELS = [
       </svg>
     ),
   },
+  {
+    id: 'ai',
+    type: 'main',
+    title: 'AI Assistant',
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        {/* Chat bubble with a spark */}
+        <path
+          d="M3 4a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2H7l-4 3V4z"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M10 6v1m0 3v1M8 8h1m3 0h1"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+        />
+      </svg>
+    ),
+  },
 ];
 
 const ActivityBar = ({ activeSidebarPanel, activeMainPanel, onPanelToggle }) => {
