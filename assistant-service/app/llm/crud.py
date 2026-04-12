@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime, timedelta
 from sqlalchemy.orm import Session
 from . import models
-from .crypto import encrypt_api_key, decrypt_api_key   # noqa: F401 (decrypt exported for worker use)
+from app.core.crypto import encrypt_api_key, decrypt_api_key   # noqa: F401 (decrypt exported for worker use)
 
 
 # LLM Keys
