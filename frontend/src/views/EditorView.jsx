@@ -16,6 +16,7 @@ import FileTree from '../components/Editor/FileTree';
 import TabBar from '../components/Editor/TabBar';
 import EditorPane from '../components/Editor/EditorPane';
 import RightSidebar from '../components/Editor/RightSidebar';
+import AIPanel from '../components/Editor/AIPanel/AIPanel';
 
 import './EditorView.css';
 
@@ -264,17 +265,10 @@ const EditorView = () => {
 
       {/* Main editor column — or a full-area main panel if one is active */}
       <div className="editor-main">
-        {mainPanel ? (
-          /*
-            Main panel slot — renders instead of the editor, filling the full
-            space between the activity bar and the right sidebar.
-            To add a new main panel: add a branch here + entry in ActivityBar PANELS.
- 
-            Example:
-            mainPanel === 'ai' && <AIAssistantPanel projectId={projectId} activeTab={activeTab} />
-          */
+        {mainPanel === 'ai' ? (
+          <AIPanel projectId={projectId} activeTab={activeTab} />
+        ) : mainPanel ? (
           <div className="main-panel-content">
-            {/* {mainPanel === 'ai' && <AIAssistantPanel projectId={projectId} activeTab={activeTab} />} */}
             <div style={{ padding: '2rem', color: 'var(--text-secondary)' }}>
               No panel registered for: {mainPanel}
             </div>

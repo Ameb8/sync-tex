@@ -186,7 +186,7 @@ services:
     volumes:
       - postgres_assistant_data:/var/lib/postgresql/data
     ports:
-      - "5435:5432"   # optional, for host access
+      - "5435:5432"
     networks:
       - gateway-network
     healthcheck:
