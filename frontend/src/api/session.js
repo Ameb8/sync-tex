@@ -150,7 +150,7 @@ export function createCollabSession({ fileId, projectId, token, onStatus }) {
     const model = editor.getModel();
     if (!model) {
       console.warn(`[collab:${fileId}] Editor has no model yet`);
-      return;
+      return false;
     }
 
     console.log('Binding to model', model.id);
@@ -160,7 +160,7 @@ export function createCollabSession({ fileId, projectId, token, onStatus }) {
     // so whatever the server sent us on connect is immediately reflected.
     console.log('[collab] creating MonacoBinding for', fileId);
     binding = new MonacoBinding(ytext, model, new Set([editor]), null);
-
+    return true;
     editor.onDidChangeModelContent(() => {
       console.log('MONACO CHANGE DETECTED');
     });
