@@ -14,7 +14,7 @@
 use std::sync::Arc;
 
 use tonic::{Request, Response, Status};
-use tracing::{error, info, instrument};
+use tracing::{error, info, warn, instrument};
 
 use crate::compaction::compact_update_log;
 use crate::export::extract_text_bytes;
@@ -201,13 +201,19 @@ async fn run_compaction(
     // Download the base snapshot first if one was supplied.
     let base_snapshot = if let Some(url) = snapshot_url {
         info!(bytes = ?url, "Downloading base snapshot");
-        let bytes = download_bytes(http, url).await?;
-        Some(bytes)
+        match download_bytes(http, url).await {
+        Ok(bytes) => Some(bytes),
+        Err(err) => {
+            warn!(error = %err, "Failed to download base snapshot, continuing without it");
+            None
+        }
+    }
     } else {
         None
     };
 
     // Download the raw update log
+    info!("Downloading Update log...");
     let raw = download_bytes(http, download_url).await?;
     info!(bytes = raw.len(), "Downloaded update log");
 
