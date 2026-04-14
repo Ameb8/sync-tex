@@ -1,6 +1,8 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
 import { createCollabSession } from '../api/session';
 
+
+
 /**
  * Manages collab-service WebSocket sessions for open files.
  *
@@ -14,6 +16,10 @@ export function useCollabSessions({ projectId, getToken }) {
   // Ref (not state) because mutations don't need re-renders.
   const collabSessions = useRef({});
 
+  // Track which *session instance* is bound, not just the file ID.
+  // This ensures a new session (after close+reopen) always triggers bindEditor.
+  const boundSessions = useRef(new Map()); // fileId -> session object
+
   // fileId statuses: 'connecting' | 'connected' | 'disconnected'
   const [collabStatus, setCollabStatus] = useState({});
 
@@ -21,7 +27,11 @@ export function useCollabSessions({ projectId, getToken }) {
   const boundFiles = useRef(new Set());
 
   const openCollabSession = useCallback((file) => {
-    if (collabSessions.current[file.id]) return; // Handle already open
+    //if (collabSessions.current[file.id]) return; // Handle already open
+    if (collabSessions.current[file.id]) {
+      console.warn('[collab] session already exists for', file.id, '— skipping open');
+      return;
+    }
 
     const token = getToken();
     if (!token) {
@@ -46,7 +56,8 @@ export function useCollabSessions({ projectId, getToken }) {
     if (!session) return;
 
     session.destroy();
-    boundFiles.current.delete(fileId);
+    boundSessions.current.delete(fileId);
+    //boundFiles.current.delete(fileId);
     delete collabSessions.current[fileId];
 
     setCollabStatus((prev) => {
@@ -61,18 +72,31 @@ export function useCollabSessions({ projectId, getToken }) {
    * Safe to call on every editor mount and every tab switch
    * it's a no-op if already bound or if there's no session.
    */
-  const bindActiveSession = useCallback((editor, activeTabId, isCollab) => {
-    if (!isCollab || !activeTabId) return;
+const bindActiveSession = useCallback((editor, activeTabId, isCollab, _attempt = 0) => {
+  if (!isCollab || !activeTabId) return;
 
-    const session = collabSessions.current[activeTabId];
-    if (!session) return;
+  const session = collabSessions.current[activeTabId];
+  if (!session) return;
 
-    if (boundFiles.current.has(activeTabId)) return; // already bound
+  // Skip only if this exact session instance is already bound
+  if (boundSessions.current.get(activeTabId) === session) return;
 
-    console.log('[collab] binding session to editor for', activeTabId);
-    session.bindEditor(editor);
-    boundFiles.current.add(activeTabId);
-  }, []);
+  const ok = session.bindEditor(editor);
+  if (ok) {
+    console.log('[collab] bound session to editor for', activeTabId);
+    boundSessions.current.set(activeTabId, session);
+  } else if (_attempt < 10) {
+    // Model not ready yet — retry, but only if this session is still active
+    setTimeout(() => {
+      if (collabSessions.current[activeTabId] === session) {
+        bindActiveSession(editor, activeTabId, isCollab, _attempt + 1);
+      }
+    }, 50);
+  } else {
+    console.error('[collab] bindEditor failed after 10 attempts for', activeTabId);
+  }
+}, []);
+
 
   // Tear down all sessions on unmount
   useEffect(() => {
