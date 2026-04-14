@@ -38,7 +38,7 @@ const AIPanel = ({ projectId, activeTab }) => {
     setActiveChatId(null);
     setMessages([]);
 
-    listChats(getToken, projectId)
+    listChats(projectId)
       .then((list) => { if (!cancelled) setChats(list); })
       .catch(() => {})
       .finally(() => { if (!cancelled) setChatsLoading(false); });
@@ -52,7 +52,7 @@ const AIPanel = ({ projectId, activeTab }) => {
     let cancelled = false;
     setMessagesLoading(true);
 
-    getChatMessages(getToken, activeChatId)
+    getChatMessages(activeChatId)
       .then((msgs) => { if (!cancelled) setMessages(msgs); })
       .catch(() => {})
       .finally(() => { if (!cancelled) setMessagesLoading(false); });
@@ -75,7 +75,7 @@ const AIPanel = ({ projectId, activeTab }) => {
   // delete a chat
   const handleDeleteChat = useCallback(async (chatId) => {
     try {
-      await deleteChat(getToken, chatId);
+      await deleteChat(chatId);
       setChats((prev) => prev.filter((c) => c.id !== chatId));
       if (activeChatId === chatId) {
         setActiveChatId(null);
