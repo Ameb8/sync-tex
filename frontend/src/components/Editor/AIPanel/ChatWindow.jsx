@@ -132,7 +132,6 @@ const ChatWindow = ({
     setStreamBuffer('');
 
     abortRef.current = streamChat(
-      getToken,
       {
         chatId: chat.id,
         message: text,

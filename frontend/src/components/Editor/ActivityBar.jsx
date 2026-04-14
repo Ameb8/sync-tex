@@ -55,6 +55,18 @@ const PANELS = [
       </svg>
     ),
   },
+  {
+    id: 'llm',
+    type: 'main',
+    title: 'API Keys',
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden>
+        <circle cx="8" cy="9" r="4" stroke="currentColor" strokeWidth="1.5"/>
+        <path d="M11.5 11.5L17 17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+        <path d="M15 15.5V17h1.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    ),
+  },
 ];
 
 const ActivityBar = ({ activeSidebarPanel, activeMainPanel, onPanelToggle }) => {

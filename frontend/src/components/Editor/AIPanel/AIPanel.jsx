@@ -63,7 +63,7 @@ const AIPanel = ({ projectId, activeTab }) => {
   // create a new chat and switch to it
   const handleNewChat = useCallback(async () => {
     try {
-      const chat = await createChat(getToken, projectId);
+      const chat = await createChat(projectId);
       setChats((prev) => [chat, ...prev]);
       setActiveChatId(chat.id);
       setMessages([]);
