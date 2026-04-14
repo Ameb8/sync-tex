@@ -17,6 +17,7 @@ import TabBar from '../components/Editor/TabBar';
 import EditorPane from '../components/Editor/EditorPane';
 import RightSidebar from '../components/Editor/RightSidebar';
 import AIPanel from '../components/Editor/AIPanel/AIPanel';
+import LLMPanel from '../components/Editor/LLMPanel/LLMPanel';
 
 import './EditorView.css';
 
@@ -265,7 +266,9 @@ const EditorView = () => {
 
       {/* Main editor column — or a full-area main panel if one is active */}
       <div className="editor-main">
-        {mainPanel === 'ai' ? (
+        {mainPanel === 'llm' ? (
+          <LLMPanel />
+        ) : mainPanel === 'ai' ? (
           <AIPanel projectId={projectId} activeTab={activeTab} />
         ) : mainPanel ? (
           <div className="main-panel-content">
