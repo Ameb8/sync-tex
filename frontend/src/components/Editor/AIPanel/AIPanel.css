@@ -275,13 +275,13 @@
 }
 
 .ai-message.user .ai-message-bubble {
-  background: var(--accent-dim, #0e3a5e);
+  background: var(--accent-dim, #7cbdf2);
   color: var(--text-primary, #d4d4d4);
   border-bottom-right-radius: 2px;
 }
 
 .ai-message.assistant .ai-message-bubble {
-  background: var(--bg-tertiary, #2d2d2d);
+  background: var(--bg-tertiary, #dddddd);
   color: var(--text-primary, #d4d4d4);
   border-bottom-left-radius: 2px;
 }
@@ -370,7 +370,7 @@
 .ai-input-area {
   padding: 10px 14px 12px;
   border-top: 1px solid var(--border, #2d2d2d);
-  background: var(--bg-secondary, #252526);
+  background: var(--bg-secondary, #ddddde);
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -385,7 +385,7 @@
 .ai-input-textarea {
   flex: 1;
   resize: none;
-  background: var(--bg-input, #3c3c3c);
+  background: var(--bg-input, #f4efef);
   border: 1px solid var(--border, #555);
   border-radius: 4px;
   color: var(--text-primary, #d4d4d4);
