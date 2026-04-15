@@ -152,14 +152,14 @@ func (h *Hub) seedClient(doc *Document, c *client.Client) {
 		}
 		payload := remaining[:length]
 		remaining = remaining[length:]
-		c.Send <- payload
+		c.Send <- yjs.WrapSyncStep2(payload)
 		seedCount++
 	}
 	log.Printf("[%s] sent %d seed entries to %s\n", doc.ID, seedCount, c.UserID)
 
 	// Send in-memory updates (already individual payloads)
 	for i, payload := range updates {
-		c.Send <- payload
+		c.Send <- yjs.WrapSyncUpdate(payload)
 		log.Printf("[%s] replayed update %d/%d (%d bytes) to %s\n",
 			doc.ID, i+1, len(updates), len(payload), c.UserID)
 	}
@@ -257,8 +257,11 @@ func (h *Hub) HandleMessage(c *client.Client, msg []byte) {
 	}
 }
 
-// BroadcastPayload sends raw Yjs update bytes to every client except the sender.
+// BroadcastPayload sends wrapped Yjs update bytes to every client except the sender.
 func BroadcastPayload(doc *Document, sender *client.Client, payload []byte) {
+	// Wrap update in evnvelope
+	wrapped := yjs.WrapSyncUpdate(payload)
+
 	doc.mu.RLock()
 	defer doc.mu.RUnlock()
 
@@ -267,7 +270,7 @@ func BroadcastPayload(doc *Document, sender *client.Client, payload []byte) {
 			continue
 		}
 		select {
-		case peer.Send <- payload:
+		case peer.Send <- wrapped:
 		default:
 			log.Printf("[%s] dropped payload for slow peer %s\n", doc.ID, peer.UserID)
 		}

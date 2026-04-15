@@ -58,6 +58,8 @@ export function createCollabSession({ fileId, projectId, token, onStatus }) {
 
       const outerType = msg[0];
 
+      console.log(`[collab:${fileId}] raw msg — length=${msg.length} outer=${outerType} second=${msg[1]}`);
+
       if (outerType === 0) {
         // MsgSync — check inner type
         if (msg.length < 2) return;
@@ -66,19 +68,13 @@ export function createCollabSession({ fileId, projectId, token, onStatus }) {
 
         if (innerType === 1) {
           // SyncStep2 — this is the compact snapshot, strip envelope and apply
-          console.log(`[collab:${fileId}] applying snapshot (${payload.length} bytes)`);
+          console.log(`[collab:${fileId}] applying SyncStep2 snapshot (${payload.length} bytes)`);
           Y.applyUpdate(ydoc, payload, 'remote');
         } else if (innerType === 2) {
           // SyncUpdate — incremental update, payload only
           console.log(`[collab:${fileId}] applying update (${payload.length} bytes)`);
           Y.applyUpdate(ydoc, payload, 'remote');
         }
-        // SyncStep1 (innerType === 0) — server would never send this to us, ignore
-
-      } else {
-        // No envelope — raw update payload (existing update log entries)
-        console.log(`[collab:${fileId}] applying raw payload (${msg.length} bytes)`);
-        Y.applyUpdate(ydoc, msg, 'remote');
       }
     };
 

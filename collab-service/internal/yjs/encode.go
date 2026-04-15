@@ -9,3 +9,12 @@ func WrapSyncStep2(payload []byte) []byte {
 	copy(out[2:], payload)
 	return out
 }
+
+// WrapSyncUpdate wraps a raw Yjs update payload as a sync update message.
+func WrapSyncUpdate(payload []byte) []byte {
+	out := make([]byte, 2+len(payload))
+	out[0] = MsgSync
+	out[1] = SyncUpdate
+	copy(out[2:], payload)
+	return out
+}
