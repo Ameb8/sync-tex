@@ -497,3 +497,173 @@
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* ─── Markdown rendering in assistant messages ──────────────────────────── */
+
+.ai-message-markdown {
+  padding: 0 !important;
+  background: transparent !important;
+}
+
+.ai-message-markdown > * {
+  margin: 0;
+  padding: 9px 13px;
+}
+
+.ai-message-markdown > *:first-child {
+  padding-top: 9px;
+  border-radius: 6px 6px 0 0;
+  background: var(--bg-tertiary, #dddddd);
+  color: var(--text-primary, #d4d4d4);
+}
+
+.ai-message-markdown > *:last-child {
+  padding-bottom: 9px;
+  border-radius: 0 0 2px 6px;
+  background: var(--bg-tertiary, #dddddd);
+  color: var(--text-primary, #d4d4d4);
+}
+
+.ai-message-markdown > p,
+.ai-message-markdown > ul,
+.ai-message-markdown > ol,
+.ai-message-markdown > blockquote,
+.ai-message-markdown > table {
+  background: var(--bg-tertiary, #dddddd);
+  color: var(--text-primary, #d4d4d4);
+  padding: 9px 13px;
+  margin: 0;
+}
+
+/* Headings */
+.ai-md-h1,
+.ai-md-h2,
+.ai-md-h3,
+.ai-md-h4,
+.ai-md-h5,
+.ai-md-h6 {
+  margin: 12px 0 8px;
+  font-weight: 600;
+  color: var(--text-primary, #e8e8e8);
+  background: var(--bg-tertiary, #dddddd);
+  padding: 9px 13px;
+}
+
+.ai-md-h1 { font-size: 18px; }
+.ai-md-h2 { font-size: 16px; }
+.ai-md-h3 { font-size: 14px; }
+.ai-md-h4 { font-size: 13px; }
+.ai-md-h5 { font-size: 12px; }
+.ai-md-h6 { font-size: 11px; }
+
+/* Paragraphs */
+.ai-md-p {
+  line-height: 1.55;
+  margin: 0;
+}
+
+/* Lists */
+.ai-md-ul,
+.ai-md-ol {
+  padding-left: 22px;
+  margin: 6px 0;
+  background: var(--bg-tertiary, #dddddd);
+}
+
+.ai-md-li {
+  margin: 3px 0;
+  line-height: 1.55;
+}
+
+/* Code */
+.ai-inline-code {
+  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  font-size: 12px;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 1px 4px;
+  border-radius: 3px;
+  color: #ce9178;
+}
+
+.ai-code-block {
+  margin: 6px 0 !important;
+  border-radius: 4px;
+  font-size: 12px !important;
+  overflow-x: auto;
+}
+
+.ai-code-block pre {
+  background: var(--bg-code, #1a1a1a) !important;
+  border: 1px solid var(--border, #3c3c3c) !important;
+  padding: 10px 12px !important;
+  margin: 0 !important;
+  border-radius: 4px !important;
+}
+
+.ai-code-block code {
+  background: none !important;
+  padding: 0 !important;
+  color: inherit !important;
+}
+
+/* Blockquotes */
+.ai-md-blockquote {
+  border-left: 3px solid var(--accent, #0e639c);
+  padding-left: 12px;
+  margin: 6px 0;
+  color: var(--text-secondary, #b0b0b0);
+  font-style: italic;
+  background: var(--bg-tertiary, #dddddd);
+}
+
+/* Links */
+.ai-md-link {
+  color: var(--accent, #0e639c);
+  text-decoration: none;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.ai-md-link:hover {
+  text-decoration: underline;
+  opacity: 0.8;
+}
+
+/* Horizontal rule */
+.ai-md-hr {
+  border: none;
+  border-top: 1px solid var(--border, #3c3c3c);
+  margin: 12px 0;
+  background: var(--bg-tertiary, #dddddd);
+}
+
+/* Tables */
+.ai-md-table {
+  border-collapse: collapse;
+  margin: 12px 0;
+  width: 100%;
+  font-size: 12px;
+  background: var(--bg-tertiary, #dddddd);
+}
+
+.ai-md-thead {
+  background: rgba(0, 0, 0, 0.15);
+  font-weight: 600;
+}
+
+.ai-md-th,
+.ai-md-td {
+  border: 1px solid var(--border, #3c3c3c);
+  padding: 6px 8px;
+  text-align: left;
+}
+
+.ai-md-tr:nth-child(even) {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+/* Strikethrough */
+.ai-md-del {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
