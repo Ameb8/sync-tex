@@ -17,7 +17,9 @@ function LoginView() {
 
   // Redirect if already authenticated
   useEffect(() => {
+    console.log('[LoginView] isAuthenticated changed:', isAuthenticated);
     if (isAuthenticated) {
+      console.log('[LoginView] navigating to /');
       navigate('/');
     }
   }, [isAuthenticated, navigate]);
@@ -44,7 +46,8 @@ function LoginView() {
       }
 
       if (result.success) {
-        navigate('/');
+        console.log("Login Result Successful...")
+        //navigate('/');
       } else {
         setError(result.error);
       }
