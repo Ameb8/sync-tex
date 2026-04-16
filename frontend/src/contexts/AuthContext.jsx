@@ -139,7 +139,7 @@ export function AuthProvider({ children }) {
   const logout = async () => {
     try {
       // Optional: call backend logout endpoint if you want to invalidate the token server-side
-      await authFetch(`${API_BASE_URL}logout`, {
+      await authFetch(`${API_BASE_URL}/logout`, {
         method: 'POST'
       });
     } catch (err) {
