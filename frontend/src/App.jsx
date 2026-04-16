@@ -13,8 +13,8 @@ import './App.css';
 
 function App() {
   return (
-    <AuthProvider>
-      <Router>
+    <Router>
+      <AuthProvider>
         <div className="app">
           <Routes>
             <Route path="/login" element={<LoginView />} />
@@ -38,8 +38,8 @@ function App() {
             />
           </Routes>
         </div>
-      </Router>
-    </AuthProvider>
+      </AuthProvider>
+    </Router>
   );
 }
 
