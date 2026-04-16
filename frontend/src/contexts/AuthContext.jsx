@@ -92,8 +92,9 @@ export function AuthProvider({ children }) {
       const data = await response.json();
       
       // Store token and user data
-      setToken(data.token);
-      setUser(data.user);
+      const { token, ...userData } = data;
+      setToken(token);
+      setUser(userData);
       
       return { success: true };
     } catch (err) {
