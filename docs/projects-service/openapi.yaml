@@ -2,7 +2,7 @@ openapi: 3.0.0
 info:
   title: Projects Service API
   description: Microservice for managing user projects with collaborative filesystem structure
-  version: 1.0.0
+  version: 1.1.0
   contact:
     name: Projects Service Team
 
@@ -34,7 +34,7 @@ paths:
   /projects/v1/projects:
     get:
       summary: List projects
-      description: List all projects accessible to the authenticated user (owned + shared)
+      description: List all projects accessible to the authenticated user (owned + shared). Use `?filter=owned` to restrict to owned projects only.
       operationId: listProjects
       tags:
         - Projects
@@ -64,6 +64,7 @@ paths:
 
     post:
       summary: Create a new project
+      description: Creates a project and an associated root directory in a single transaction.
       operationId: createProject
       tags:
         - Projects
@@ -106,13 +107,7 @@ paths:
       security:
         - BearerAuth: []
       parameters:
-        - name: projectID
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-          example: 550e8400-e29b-41d4-a716-446655440000
+        - $ref: '#/components/parameters/ProjectID'
       responses:
         '200':
           description: Project details
@@ -130,20 +125,15 @@ paths:
           $ref: '#/components/responses/InternalServerError'
 
     patch:
-      summary: Update project
-      description: Update project name (write permission required)
+      summary: Update project name
+      description: Update project name. Requires write permission.
       operationId: updateProject
       tags:
         - Projects
       security:
         - BearerAuth: []
       parameters:
-        - name: projectID
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+        - $ref: '#/components/parameters/ProjectID'
       requestBody:
         required: true
         content:
@@ -178,19 +168,14 @@ paths:
 
     delete:
       summary: Delete project
-      description: Delete a project (owner only)
+      description: Delete a project. Owner only.
       operationId: deleteProject
       tags:
         - Projects
       security:
         - BearerAuth: []
       parameters:
-        - name: projectID
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+        - $ref: '#/components/parameters/ProjectID'
       responses:
         '204':
           description: Project deleted successfully
@@ -206,19 +191,17 @@ paths:
   /projects/v1/projects/{projectID}/tree:
     get:
       summary: Get project tree
-      description: Get the complete nested filesystem structure of a project with presigned download URLs
+      description: >
+        Returns the complete nested filesystem structure of a project.
+        Files in the tree include presigned download URLs (1 hour expiry) from the `uploads` bucket.
+        Also returns `is_collab` indicating whether the project has any collaborators.
       operationId: getProjectTree
       tags:
         - Projects
       security:
         - BearerAuth: []
       parameters:
-        - name: projectID
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+        - $ref: '#/components/parameters/ProjectID'
       responses:
         '200':
           description: Project tree structure
@@ -234,12 +217,71 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/TreeNode'
+                  is_collab:
+                    type: boolean
+                    description: True if the project has one or more collaborators
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /projects/v1/access:
+    get:
+      summary: Get caller's role on a project
+      description: >
+        Returns the authenticated user's permission level for a given project.
+        Used by internal services (e.g. collab-service) to gate access.
+      operationId: getRole
+      tags:
+        - Projects
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: projectId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Project UUID to check access for
+      responses:
+        '200':
+          description: Access granted
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - allowed
+                  - user_id
+                  - role
+                properties:
+                  allowed:
+                    type: boolean
+                    example: true
+                  user_id:
+                    type: string
+                  role:
+                    type: string
+                    enum: [owner, editor, viewer]
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Access denied
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  allowed:
+                    type: boolean
+                    example: false
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -252,12 +294,7 @@ paths:
       security:
         - BearerAuth: []
       parameters:
-        - name: projectID
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+        - $ref: '#/components/parameters/ProjectID'
       requestBody:
         required: true
         content:
@@ -276,7 +313,7 @@ paths:
                   type: string
                   format: uuid
                   nullable: true
-                  description: Parent directory UUID; null for root-level directory
+                  description: Parent directory UUID; omit or null for a root-level directory
       responses:
         '201':
           description: Directory created successfully
@@ -295,26 +332,16 @@ paths:
 
   /projects/v1/projects/{projectID}/directories/{dirID}:
     patch:
-      summary: Update directory
-      description: Update directory name (write permission required)
+      summary: Update directory name
+      description: Requires write permission.
       operationId: updateDirectory
       tags:
         - Directories
       security:
         - BearerAuth: []
       parameters:
-        - name: projectID
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-        - name: dirID
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+        - $ref: '#/components/parameters/ProjectID'
+        - $ref: '#/components/parameters/DirID'
       requestBody:
         required: true
         content:
@@ -348,25 +375,15 @@ paths:
 
     delete:
       summary: Delete directory
-      description: Delete a directory (write permission required)
+      description: Requires write permission.
       operationId: deleteDirectory
       tags:
         - Directories
       security:
         - BearerAuth: []
       parameters:
-        - name: projectID
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-        - name: dirID
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+        - $ref: '#/components/parameters/ProjectID'
+        - $ref: '#/components/parameters/DirID'
       responses:
         '204':
           description: Directory deleted successfully
@@ -382,19 +399,16 @@ paths:
   /projects/v1/projects/{projectID}/files:
     post:
       summary: Create file
-      description: Create a new file and get presigned upload URL
+      description: >
+        Creates a file record in the database and returns a presigned upload URL (15 min expiry)
+        for direct upload to the `uploads` MinIO bucket.
       operationId: createFile
       tags:
         - Files
       security:
         - BearerAuth: []
       parameters:
-        - name: projectID
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+        - $ref: '#/components/parameters/ProjectID'
       requestBody:
         required: true
         content:
@@ -418,14 +432,13 @@ paths:
                   type: string
                   enum: [image, tex, pdf, other]
                   default: other
-                  description: File type classification
       responses:
         '201':
           description: File created successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/File'
+                $ref: '#/components/schemas/FileWithUploadURL'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -444,18 +457,8 @@ paths:
       security:
         - BearerAuth: []
       parameters:
-        - name: projectID
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-        - name: fileID
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+        - $ref: '#/components/parameters/ProjectID'
+        - $ref: '#/components/parameters/FileID'
       responses:
         '200':
           description: File metadata
@@ -473,26 +476,16 @@ paths:
           $ref: '#/components/responses/InternalServerError'
 
     patch:
-      summary: Update file
-      description: Update file metadata (e.g., filename)
+      summary: Update file metadata
+      description: Update the filename. Requires write permission.
       operationId: updateFile
       tags:
         - Files
       security:
         - BearerAuth: []
       parameters:
-        - name: projectID
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-        - name: fileID
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+        - $ref: '#/components/parameters/ProjectID'
+        - $ref: '#/components/parameters/FileID'
       requestBody:
         required: true
         content:
@@ -532,18 +525,8 @@ paths:
       security:
         - BearerAuth: []
       parameters:
-        - name: projectID
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-        - name: fileID
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+        - $ref: '#/components/parameters/ProjectID'
+        - $ref: '#/components/parameters/FileID'
       responses:
         '204':
           description: File deleted successfully
@@ -558,26 +541,18 @@ paths:
 
   /projects/v1/projects/{projectID}/files/{fileID}/upload:
     post:
-      summary: Get upload URL
-      description: Get presigned URL for direct file upload to storage
+      summary: Get presigned upload URL
+      description: >
+        Returns a presigned PUT URL (15 min expiry) for direct upload to the `uploads` MinIO bucket.
+        Storage key format: `projectID/fileID`.
       operationId: getUploadURL
       tags:
         - Files
       security:
         - BearerAuth: []
       parameters:
-        - name: projectID
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-        - name: fileID
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+        - $ref: '#/components/parameters/ProjectID'
+        - $ref: '#/components/parameters/FileID'
       responses:
         '200':
           description: Presigned upload URL
@@ -589,10 +564,10 @@ paths:
                   upload_url:
                     type: string
                     format: uri
-                    description: Presigned URL valid for 15 minutes
+                    description: Presigned PUT URL valid for 15 minutes
                   storage_key:
                     type: string
-                    description: Storage key in format projectID/fileID
+                    description: Storage key in format `projectID/fileID`
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -605,19 +580,13 @@ paths:
   /projects/v1/projects/{projectID}/collaborators:
     get:
       summary: List project collaborators
-      description: List all collaborators on a project
       operationId: listCollaborators
       tags:
         - Collaborators
       security:
         - BearerAuth: []
       parameters:
-        - name: projectID
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+        - $ref: '#/components/parameters/ProjectID'
       responses:
         '200':
           description: List of collaborators
@@ -636,22 +605,52 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /projects/v1/projects/{projectID}/collaborators/{userID}:
+    delete:
+      summary: Remove collaborator
+      description: Remove a collaborator from a project. Owner only. Cannot remove yourself.
+      operationId: removeCollaborator
+      tags:
+        - Collaborators
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectID'
+        - name: userID
+          in: path
+          required: true
+          schema:
+            type: string
+          description: User ID of the collaborator to remove
+      responses:
+        '204':
+          description: Collaborator removed successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /projects/v1/projects/{projectID}/invites:
     post:
       summary: Create collaboration invite
-      description: Invite a user to collaborate on a project
+      description: >
+        Generates a secure invite token and shareable join link for a project.
+        Owner only. The link expires after 30 days.
+        Note: invites are token-based and not tied to a specific user_id at creation time —
+        anyone with the token can join via the accept endpoint.
       operationId: createInvite
       tags:
         - Collaborators
       security:
         - BearerAuth: []
       parameters:
-        - name: projectID
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+        - $ref: '#/components/parameters/ProjectID'
       requestBody:
         required: true
         content:
@@ -659,23 +658,19 @@ paths:
             schema:
               type: object
               required:
-                - user_id
                 - role
               properties:
-                user_id:
-                  type: string
-                  description: User ID of the invitee
                 role:
                   type: string
                   enum: [editor, viewer]
-                  description: Collaboration role
+                  description: Role granted to the user who accepts this invite
       responses:
         '201':
           description: Invite created successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Invite'
+                $ref: '#/components/schemas/InviteCreated'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -688,7 +683,9 @@ paths:
   /projects/v1/invites/accept:
     post:
       summary: Accept collaboration invite
-      description: Accept a pending collaboration invite
+      description: >
+        Accepts a token-based invite, adding the authenticated user as a collaborator.
+        Returns an error if the token is expired or the user is already a collaborator.
       operationId: acceptInvite
       tags:
         - Collaborators
@@ -701,14 +698,14 @@ paths:
             schema:
               type: object
               required:
-                - invite_id
+                - token
               properties:
-                invite_id:
+                token:
                   type: string
-                  format: uuid
+                  description: Invite token from the shareable link
       responses:
         '200':
-          description: Invite accepted successfully
+          description: Invite accepted — collaborator record returned
           content:
             application/json:
               schema:
@@ -718,39 +715,162 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
+          description: Invalid or expired token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /projects/v1/invites/join:
+    get:
+      summary: Join via invite link (redirect)
+      description: >
+        Validates the invite token and redirects (302) the caller to the frontend
+        join page with the token preserved as a query parameter.
+        This is the landing endpoint for shareable invite links.
+      operationId: joinViaInvite
+      tags:
+        - Collaborators
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Invite token
+      responses:
+        '302':
+          description: Redirect to frontend join page
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri
+              description: Frontend URL with token query param
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: Invalid or expired token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ---------------------------------------------------------------------------
+  # Internal endpoints (service-to-service, no user auth required)
+  # ---------------------------------------------------------------------------
+
+  /internal/file/{fileID}/download:
+    get:
+      summary: Get presigned download URL(s) for a file
+      description: >
+        Internal endpoint used by other services. Returns presigned download URLs
+        for one or more storage buckets (`uploads`, `snapshot`, `text`).
+        If `type=text` is requested and the text cache is stale (ETag mismatch),
+        the file-data-service is called to regenerate the text export before
+        producing the URL.
+      operationId: internalDownloadFile
+      tags:
+        - Internal
+      parameters:
+        - $ref: '#/components/parameters/FileID'
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+          description: >
+            Comma-separated list of bucket types to return URLs for.
+            Allowed values: `uploads`, `snapshot`, `text`.
+            Defaults to all three if omitted.
+          example: uploads,text
+      responses:
+        '200':
+          description: Map of bucket type → presigned download URL
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: string
+                  format: uri
+                example:
+                  uploads: "https://minio.example.com/uploads/..."
+                  text: "https://minio.example.com/text/..."
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /projects/v1/projects/{projectID}/collaborators/{userID}:
-    delete:
-      summary: Remove collaborator
-      description: Remove a user from a project
-      operationId: removeCollaborator
+  /internal/file/{fileID}/upload:
+    get:
+      summary: Get presigned upload URL for a file
+      description: >
+        Internal endpoint used by other services. Returns a presigned PUT URL (15 min expiry)
+        for the specified storage bucket.
+      operationId: internalUploadFile
       tags:
-        - Collaborators
-      security:
-        - BearerAuth: []
+        - Internal
       parameters:
-        - name: projectID
-          in: path
-          required: true
+        - $ref: '#/components/parameters/FileID'
+        - name: type
+          in: query
+          required: false
           schema:
             type: string
-            format: uuid
-        - name: userID
-          in: path
-          required: true
-          schema:
-            type: string
-            description: User ID of the collaborator to remove
+            enum: [uploads, snapshot, text]
+            default: uploads
+          description: Target storage bucket
       responses:
-        '204':
-          description: Collaborator removed successfully
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+        '200':
+          description: Presigned upload URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
+                    format: uri
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /internal/file/{fileID}/compact:
+    get:
+      summary: Trigger Yjs document compaction
+      description: >
+        Internal endpoint that orchestrates compaction for a single file.
+        Generates presigned URLs for the `uploads` and `snapshot` buckets, then
+        calls the file-data-service via gRPC (`CompactDocument`) to merge Yjs
+        update logs into a snapshot. On success, the original `uploads` object
+        is deleted. Returns the snapshot upload URL.
+      operationId: internalCompactFile
+      tags:
+        - Internal
+      parameters:
+        - $ref: '#/components/parameters/FileID'
+      responses:
+        '200':
+          description: Compaction triggered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
+                    format: uri
+                    description: Presigned URL used to upload the compacted snapshot
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -762,7 +882,33 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: JWT token obtained from authentication service
+      description: JWT token obtained from the authentication service
+
+  parameters:
+    ProjectID:
+      name: projectID
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      example: 550e8400-e29b-41d4-a716-446655440000
+
+    DirID:
+      name: dirID
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+    FileID:
+      name: fileID
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
 
   schemas:
     Project:
@@ -778,7 +924,7 @@ components:
           format: uuid
         owner_id:
           type: string
-          description: User ID of project owner
+          description: User ID of the project owner
         name:
           type: string
           maxLength: 255
@@ -832,14 +978,20 @@ components:
           maxLength: 255
         storage_key:
           type: string
-          description: Storage location in format projectID/fileID
+          description: Storage location key in format `projectID/fileID`
         file_type:
           type: string
           enum: [image, tex, pdf, other]
-        download_url:
-          type: string
-          format: uri
-          description: Presigned download URL (included in tree endpoint, 1 hour expiry)
+
+    FileWithUploadURL:
+      allOf:
+        - $ref: '#/components/schemas/File'
+        - type: object
+          properties:
+            upload_url:
+              type: string
+              format: uri
+              description: Presigned PUT URL for direct upload to MinIO (15 min expiry)
 
     TreeNode:
       type: object
@@ -862,8 +1014,26 @@ components:
         files:
           type: array
           items:
-            $ref: '#/components/schemas/File'
-          description: Files in this directory with presigned download URLs
+            $ref: '#/components/schemas/TreeNodeFile'
+          description: Files in this directory, each with a presigned download URL
+
+    TreeNodeFile:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        filename:
+          type: string
+        file_type:
+          type: string
+          enum: [image, tex, pdf, other]
+        storage_key:
+          type: string
+        download_url:
+          type: string
+          format: uri
+          description: Presigned download URL from the `uploads` bucket (1 hour expiry)
 
     Collaborator:
       type: object
@@ -874,7 +1044,6 @@ components:
       properties:
         user_id:
           type: string
-          description: User ID
         project_id:
           type: string
           format: uuid
@@ -884,41 +1053,38 @@ components:
         invited_by:
           type: string
           nullable: true
-          description: User ID who sent the invite
+          description: User ID of the inviter
         invited_at:
           type: string
           format: date-time
           nullable: true
 
-    Invite:
+    InviteCreated:
       type: object
       required:
-        - id
-        - project_id
-        - user_id
+        - invite_id
+        - token
+        - link
         - role
+        - expires_at
       properties:
-        id:
+        invite_id:
           type: string
           format: uuid
-        project_id:
+        token:
           type: string
-          format: uuid
-        user_id:
+          description: 64-character hex token (32 random bytes)
+        link:
           type: string
+          format: uri
+          description: Shareable join URL containing the token
         role:
           type: string
           enum: [editor, viewer]
-        invited_by:
-          type: string
-          description: User ID who sent the invite
-        invited_at:
+        expires_at:
           type: string
           format: date-time
-        status:
-          type: string
-          enum: [pending, accepted, rejected]
-          default: pending
+          description: Token expiry timestamp (30 days from creation)
 
     Error:
       type: object
@@ -937,14 +1103,14 @@ components:
             $ref: '#/components/schemas/Error'
 
     Unauthorized:
-      description: Unauthorized - missing or invalid JWT token
+      description: Unauthorized — missing or invalid JWT token
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
 
     Forbidden:
-      description: Forbidden - user lacks required permissions
+      description: Forbidden — user lacks required permissions
       content:
         application/json:
           schema:
@@ -975,3 +1141,5 @@ tags:
     description: File management and storage
   - name: Collaborators
     description: Project collaboration and sharing
+  - name: Internal
+    description: Service-to-service endpoints (no user auth)
