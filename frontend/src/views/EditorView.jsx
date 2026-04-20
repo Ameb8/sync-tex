@@ -306,6 +306,7 @@ const EditorView = () => {
       </div>
 
       {/* Right sidebar */}
+      {/*
       <RightSidebar
         projectId={projectId}
         activeTab={activeTab}
@@ -315,7 +316,7 @@ const EditorView = () => {
         activeContent={activeContent}
         onSave={() => handleSaveFile(activeTabId)}
       />
-
+      */}
     </div>
   );
 };
