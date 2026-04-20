@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, Header, status, Security
+from fastapi import APIRouter, HTTPException, Depends, Header, status, Security, Query
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
@@ -9,7 +9,7 @@ import os
 from dotenv import load_dotenv
 
 from models import User, get_db
-from schemas import LoginRequest, LoginResponse, UserResponse, UserCreate, TokenData, InternalUserResponse
+from schemas import LoginRequest, LoginResponse, UserResponse, UserCreate, TokenData, InternalUsersResponse
 from security import hash_password, verify_password, generate_token, verify_token
 
 load_dotenv()
@@ -217,10 +217,20 @@ async def get_current_user(authorization: Optional[str] = Header(None), db: Sess
     
     return user
 
-@router.get("/internal/users/{user_id}", response_model=InternalUserResponse, dependencies=[Depends(verify_api_key)])
-async def get_user_by_id(user_id: int, db: Session = Depends(get_db)):
-    """Internal endpoint: fetch user by ID. Requires X-Api-Key header."""
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    return user
+@router.get("/internal/users", response_model=InternalUsersResponse, dependencies=[Depends(verify_api_key)])
+async def get_users_by_ids(
+    user_ids: list[int] = Query(..., description="One or more user IDs"),
+    db: Session = Depends(get_db)
+):
+    """Internal endpoint: fetch users by IDs. Requires X-Api-Key header.
+    Usage: /internal/users?user_ids=1&user_ids=2&user_ids=3
+    """
+    if not user_ids:
+        raise HTTPException(status_code=422, detail="At least one user_id is required")
+
+    users = db.query(User).filter(User.id.in_(user_ids)).all()
+
+    found_ids = {u.id for u in users}
+    not_found = [uid for uid in user_ids if uid not in found_ids]
+
+    return InternalUsersResponse(users=users, not_found=not_found)

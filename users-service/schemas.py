@@ -34,3 +34,7 @@ class InternalUserResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class InternalUsersResponse(BaseModel):
+    users: list[InternalUserResponse]
+    not_found: list[int]
