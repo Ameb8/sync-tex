@@ -68,6 +68,19 @@ const PANELS = [
       </svg>
     ),
   },
+  {
+    id: 'collaborators',
+    type: 'sidebar',
+    title: 'Collaborators',
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <circle cx="7" cy="7" r="3" stroke="currentColor" strokeWidth="1.5"/>
+        <circle cx="14" cy="8" r="2.5" stroke="currentColor" strokeWidth="1.5"/>
+        <path d="M1 17c0-3 2.5-5 6-5s6 2 6 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+        <path d="M14 13c2 0 4 1 4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+      </svg>
+    ),
+  },
 ];
 
 // Inline home icon

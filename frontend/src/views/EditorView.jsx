@@ -18,6 +18,7 @@ import EditorPane from '../components/Editor/EditorPane';
 import RightSidebar from '../components/Editor/RightSidebar';
 import AIPanel from '../components/Editor/AIPanel/AIPanel';
 import LLMPanel from '../components/Editor/LLMPanel/LLMPanel';
+import CollaboratorsPanel from '../components/Editor/CollaboratorsPanel';
 
 import './EditorView.css';
 
@@ -262,6 +263,12 @@ const EditorView = () => {
           onTabClose={handleTabClose}
           onImageUpload={handleImageUploadAndOpen}
         />
+      </div>
+      <div
+        className="side-panel"
+        style={{ display: sidebarOpen && sidebarPanel === 'collaborators' ? 'flex' : 'none' }}
+      >
+        <CollaboratorsPanel projectId={projectId} />
       </div>
 
       {/* Main editor column — or a full-area main panel if one is active */}
