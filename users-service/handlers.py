@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, Header, status
+from fastapi import APIRouter, HTTPException, Depends, Header, status, Security
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
@@ -9,7 +9,7 @@ import os
 from dotenv import load_dotenv
 
 from models import User, get_db
-from schemas import LoginRequest, LoginResponse, UserResponse, UserCreate, TokenData
+from schemas import LoginRequest, LoginResponse, UserResponse, UserCreate, TokenData, InternalUserResponse
 from security import hash_password, verify_password, generate_token, verify_token
 
 load_dotenv()
@@ -18,6 +18,15 @@ router = APIRouter()
 
 # OAuth2 state storage (use Redis in production)
 oauth_states = set()
+
+# API key dependency
+def verify_api_key(x_api_key: Optional[str] = Header(None)):
+    expected = os.getenv("USERS_INTERNAL_API_KEY")
+    if not expected:
+        raise HTTPException(status_code=500, detail="API key not configured")
+    if not x_api_key or not secrets.compare_digest(x_api_key, expected):
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+
 
 
 @router.post("/register", response_model=LoginResponse)
@@ -87,7 +96,7 @@ async def github_callback(code: str, state: str, db: Session = Depends(get_db)):
     
     github_client_id = os.getenv("GITHUB_CLIENT_ID")
     github_client_secret = os.getenv("GITHUB_CLIENT_SECRET")
-    redirect_uri = os.getenv("GITHUB_REDIRECT_URI", "http://localhost:8001/auth/github/callback")
+    redirect_uri = os.getenv("GITHUB_REDIRECT_URI", "https://assumed-lower-leasing-pays.trycloudflare.com/auth/github/callback")
     
     # Exchange code for GitHub access token
     async with httpx.AsyncClient() as client:
@@ -166,8 +175,8 @@ async def github_callback(code: str, state: str, db: Session = Depends(get_db)):
     # Generate JWT
     token = generate_token(user.id, user.email)
     
-    # Redirect back to frontend with jwt
-    frontend_url = f"http://192.168.1.34/oauth/callback?token={token}"
+    # Redirect back to frontend with jwt 
+    frontend_url = f"https://assumed-lower-leasing-pays.trycloudflare.com/oauth/callback?token={token}"
     return RedirectResponse(frontend_url)
 
 
@@ -206,4 +215,12 @@ async def get_current_user(authorization: Optional[str] = Header(None), db: Sess
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
+    return user
+
+@router.get("/internal/users/{user_id}", response_model=InternalUserResponse, dependencies=[Depends(verify_api_key)])
+async def get_user_by_id(user_id: int, db: Session = Depends(get_db)):
+    """Internal endpoint: fetch user by ID. Requires X-Api-Key header."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
     return user

@@ -27,3 +27,10 @@ class LoginResponse(BaseModel):
 class TokenData(BaseModel):
     user_id: int
     email: str
+
+class InternalUserResponse(BaseModel):
+    id: int
+    email: str
+
+    class Config:
+        from_attributes = True
