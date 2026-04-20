@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import './ActivityBar.css';
 
 /**
@@ -69,7 +70,22 @@ const PANELS = [
   },
 ];
 
+// Inline home icon
+const HomeIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+    <path
+      d="M3 9.5L10 3l7 6.5V17a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinejoin="round"
+    />
+    <path d="M7 18v-5h6v5" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+  </svg>
+);
+
 const ActivityBar = ({ activeSidebarPanel, activeMainPanel, onPanelToggle }) => {
+  const navigate = useNavigate();
+
   return (
     <div className="activity-bar" role="navigation" aria-label="Side panels">
       {PANELS.map(({ id, type, title, icon }) => {
@@ -91,6 +107,18 @@ const ActivityBar = ({ activeSidebarPanel, activeMainPanel, onPanelToggle }) => 
           </button>
         );
       })}
+
+      {/* Pushes home button to the bottom */}
+      <div className="activity-bar-spacer" />
+
+      <button
+        className="activity-bar-btn"
+        onClick={() => navigate('/')}
+        title="Back to dashboard"
+        aria-label="Back to dashboard"
+      >
+        <HomeIcon />
+      </button>
     </div>
   );
 };
