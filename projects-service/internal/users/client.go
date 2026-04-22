@@ -19,6 +19,12 @@ type User struct {
 	ProfilePic string `json:"profile_pic"`
 }
 
+type getUsersResponse struct {
+	Users    []User   `json:"users"`
+	NotFound []string `json:"not_found"`
+}
+
+
 type Client struct {
 	baseURL string
 	apiKey  string
@@ -36,6 +42,8 @@ func NewClient() *Client {
 // GetUsers fetches user data for a slice of user IDs.
 // Returns a map of userID -> User for easy lookup.
 func (c *Client) GetUsers(ctx context.Context, userIDs []string) (map[string]User, error) {
+	log.Printf("DEBUG: GetUsers called with %d IDs", len(userIDs))
+	
 	// No users requested
 	if len(userIDs) == 0 {
 		return map[string]User{}, nil
@@ -59,7 +67,7 @@ func (c *Client) GetUsers(ctx context.Context, userIDs []string) (map[string]Use
 	}
 
 	// Set API key
-	req.Header.Set("X-Internal-Api-Key", c.apiKey)
+	req.Header.Set("X-Api-Key", c.apiKey)
 	log.Printf("users-service request: GET %s/auth/internal/users?%s", c.baseURL, params.Encode())
 
 	// Make http request
@@ -87,10 +95,12 @@ func (c *Client) GetUsers(ctx context.Context, userIDs []string) (map[string]Use
 
 	// Unmarshel into user objects
 	var users []User
-	if err := json.Unmarshal(bodyBytes, &users); err != nil {
+	var respData getUsersResponse
+	if err := json.Unmarshal(bodyBytes, &respData); err != nil {
 		return nil, fmt.Errorf("failed to decode users response: %w", err)
 	}
 
+	users = respData.Users
 	// Index by ID for O(1) lookup when enriching collaborators
 	result := make(map[string]User, len(users))
 	for _, u := range users {
