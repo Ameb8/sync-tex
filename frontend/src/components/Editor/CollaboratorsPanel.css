@@ -176,6 +176,14 @@
   background: rgba(211, 47, 47, 0.08);
 }
 
+/* Remove button: icon-only, compact */
+.collab-btn-remove {
+  padding: 4px 7px;
+  font-size: 11px;
+  flex-shrink: 0;
+  align-self: center;
+}
+
 /* Links List */
 .collab-links-list {
   display: flex;
@@ -193,7 +201,6 @@
   border: 0.5px solid var(--border-color, #e0e0e0);
   border-radius: 4px;
   transition: all 0.15s ease;
-  /* Prevent the card itself from overflowing the panel */
   min-width: 0;
   overflow: hidden;
 }
@@ -237,7 +244,6 @@
   flex-shrink: 0;
 }
 
-/* URL: truncates properly because parent has min-width:0 + overflow:hidden */
 .collab-link-url {
   margin: 0;
   font-size: 11px;
@@ -273,6 +279,7 @@
   border: 0.5px solid var(--border-color, #e0e0e0);
   border-radius: 4px;
   transition: all 0.15s ease;
+  min-width: 0;
 }
 
 .collab-member-item:hover {
@@ -281,9 +288,9 @@
 }
 
 .collab-member-avatar {
-  width: 32px;
-  height: 32px;
-  min-width: 32px;
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
   border-radius: 50%;
   background: var(--text-info, #1f80dd);
   color: white;
@@ -292,18 +299,33 @@
   justify-content: center;
   font-size: 12px;
   font-weight: 600;
+  align-self: flex-start;
+  margin-top: 2px;
 }
 
 .collab-member-info {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .collab-member-name {
-  margin: 0 0 3px 0;
-  font-size: 13px;
-  font-weight: 500;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
   color: var(--text-primary, #333);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Email line — secondary, smaller */
+.collab-member-email {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-secondary, #888);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -314,23 +336,36 @@
   font-size: 11px;
   color: var(--text-secondary, #666);
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
+/* Role badge — editor (blue) */
 .collab-member-access {
   display: inline-block;
-  padding: 2px 6px;
-  background: rgba(31, 128, 221, 0.1);
-  color: var(--text-info, #1f80dd);
+  padding: 1px 5px;
   border-radius: 3px;
-  font-weight: 500;
+  font-weight: 600;
   font-size: 10px;
   text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.collab-member-access--editor {
+  background: rgba(31, 128, 221, 0.12);
+  color: var(--text-info, #1f80dd);
+}
+
+/* Role badge — viewer (muted green) */
+.collab-member-access--viewer {
+  background: rgba(56, 142, 60, 0.1);
+  color: #388e3c;
 }
 
 .collab-member-joined {
-  opacity: 0.7;
+  opacity: 0.65;
+  font-size: 10px;
 }
 
 /* Error */
@@ -408,5 +443,14 @@
 
   .collab-member-item:hover {
     background: var(--bg-primary, #1e1e1e);
+  }
+
+  .collab-member-email {
+    color: var(--text-secondary, #888);
+  }
+
+  .collab-member-access--viewer {
+    background: rgba(56, 142, 60, 0.15);
+    color: #66bb6a;
   }
 }

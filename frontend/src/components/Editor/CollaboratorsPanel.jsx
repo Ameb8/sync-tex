@@ -33,7 +33,8 @@ const CollaboratorsPanel = ({ projectId }) => {
         setLinks(linksData.links || []);
       } else if (activeTab === 'members') {
         const collabData = await fetchCollaborators(projectId);
-        setCollaborators(collabData.collaborators || []);
+        // API returns an array directly
+        setCollaborators(Array.isArray(collabData) ? collabData : (collabData.collaborators || []));
       }
     } catch (err) {
       setError(err.message);
@@ -83,12 +84,13 @@ const CollaboratorsPanel = ({ projectId }) => {
     }
   };
 
-  const handleRemoveCollaborator = async (collaboratorId) => {
+  const handleRemoveCollaborator = async (userId) => {
     if (window.confirm('Remove this collaborator? They will lose access to the project.')) {
       try {
         setLoading(true);
-        await removeCollaborator(projectId, collaboratorId);
-        setCollaborators((prev) => prev.filter((c) => c.id !== collaboratorId));
+        await removeCollaborator(projectId, userId);
+        // API uses user_id, not id
+        setCollaborators((prev) => prev.filter((c) => c.user_id !== userId));
         setError(null);
       } catch (err) {
         setError(err.message);
@@ -97,6 +99,13 @@ const CollaboratorsPanel = ({ projectId }) => {
         setLoading(false);
       }
     }
+  };
+
+  // Avatar initial: prefer name, fall back to email
+  const getInitial = (collab) => {
+    if (collab.name?.trim()) return collab.name.trim().charAt(0).toUpperCase();
+    if (collab.email) return collab.email.charAt(0).toUpperCase();
+    return '?';
   };
 
   return (
@@ -113,7 +122,7 @@ const CollaboratorsPanel = ({ projectId }) => {
           className={`collab-tab ${activeTab === 'members' ? 'active' : ''}`}
           onClick={() => setActiveTab('members')}
         >
-          Members ({collaborators.length})
+          Members{collaborators.length > 0 ? ` (${collaborators.length})` : ''}
         </button>
       </div>
 
@@ -207,30 +216,39 @@ const CollaboratorsPanel = ({ projectId }) => {
         <div className="collab-tab-content">
           <div className="collab-section">
             <h3 className="collab-section-title">Project Members</h3>
-            {collaborators.length === 0 ? (
+            {loading ? (
+              <p className="collab-empty">Loading...</p>
+            ) : collaborators.length === 0 ? (
               <p className="collab-empty">No collaborators yet. Share a link to invite people.</p>
             ) : (
               <div className="collab-members-list">
                 {collaborators.map((collab) => (
-                  <div key={collab.id} className="collab-member-item">
+                  <div key={collab.user_id} className="collab-member-item">
                     <div className="collab-member-avatar">
-                      {collab.name?.charAt(0).toUpperCase() || '?'}
+                      {getInitial(collab)}
                     </div>
                     <div className="collab-member-info">
+                      {/* Name on top, email below */}
                       <p className="collab-member-name">{collab.name || collab.email}</p>
+                      {collab.name && (
+                        <p className="collab-member-email">{collab.email}</p>
+                      )}
                       <p className="collab-member-meta">
-                        <span className="collab-member-access">{collab.access_level}</span>
+                        {/* role from API: "editor" | "viewer" */}
+                        <span className={`collab-member-access collab-member-access--${collab.role}`}>
+                          {collab.role}
+                        </span>
                         <span className="collab-member-joined">
-                          Joined {new Date(collab.joined_at).toLocaleDateString()}
+                          {new Date(collab.invited_at).toLocaleDateString()}
                         </span>
                       </p>
                     </div>
                     <button
-                      onClick={() => handleRemoveCollaborator(collab.id)}
-                      className="collab-btn collab-btn-danger"
+                      onClick={() => handleRemoveCollaborator(collab.user_id)}
+                      className="collab-btn collab-btn-danger collab-btn-remove"
                       title="Remove collaborator"
                     >
-                      Remove
+                      ✕
                     </button>
                   </div>
                 ))}
