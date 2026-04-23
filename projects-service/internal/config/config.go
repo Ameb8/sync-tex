@@ -10,6 +10,7 @@ type Config struct {
 	JWTSecret   	string
 	Port        	string	
 	FileDataAddr 	string
+	ExternalURL		string
 }
 
 // Load configuration from environment
@@ -30,16 +31,18 @@ func Load() *Config {
 		port = "8003"
 	}
 
-
 	fileDataAddr := os.Getenv("FILE_DATA_ADDR")
 	if fileDataAddr == "" {
 		fileDataAddr = "file-data-service:50051"
 	}
+
+	externalURL := os.Getenv("EXTERNAL_URL")
 
 	return &Config{
 		DatabaseURL: dbURL,
 		JWTSecret:   jwtSecret,
 		Port:        port,
 		FileDataAddr: fileDataAddr,
+		ExternalURL: externalURL,
 	}
 }
