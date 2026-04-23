@@ -333,6 +333,16 @@
   color: #d32f2f;
 }
 
+.collab-link-url {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px; /* adjust to fit your panel width */
+  font-family: monospace;
+}
+
 /* Dark mode */
 @media (prefers-color-scheme: dark) {
   .collab-tabs {

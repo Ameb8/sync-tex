@@ -47,7 +47,7 @@ const CollaboratorsPanel = ({ projectId }) => {
     try {
       setLoading(true);
       const response = await generateCollaboratorLink(projectId, selectedAccessLevel);
-      setLinks((prev) => [response.link, ...prev]);
+      setLinks((prev) => [response, ...prev]);
       setError(null);
     } catch (err) {
       setError(err.message);
@@ -57,11 +57,10 @@ const CollaboratorsPanel = ({ projectId }) => {
     }
   };
 
-  const handleCopyLink = async (link) => {
-    const fullLink = `${window.location.origin}/join/${link.token}`;
+  const handleCopyLink = async (item) => {
     try {
-      await navigator.clipboard.writeText(fullLink);
-      setCopiedLinkId(link.id);
+      await navigator.clipboard.writeText(item.link);
+      setCopiedLinkId(item.id);
       setTimeout(() => setCopiedLinkId(null), 2000);
     } catch (err) {
       console.error('Failed to copy link:', err);
@@ -73,7 +72,7 @@ const CollaboratorsPanel = ({ projectId }) => {
       try {
         setLoading(true);
         await revokeCollaboratorLink(projectId, linkId);
-        setLinks((prev) => prev.filter((l) => l.id !== linkId));
+        setLinks((prev) => prev.filter((l) => l.invite_id !== linkId));
         setError(null);
       } catch (err) {
         setError(err.message);
@@ -166,29 +165,30 @@ const CollaboratorsPanel = ({ projectId }) => {
               <p className="collab-empty">No active links. Generate one to get started.</p>
             ) : (
               <div className="collab-links-list">
-                {links.map((link) => (
-                  <div key={link.id} className="collab-link-item">
+                {links.map((item) => (
+                  <div key={item.invite_id} className="collab-link-item">
                     <div className="collab-link-info">
-                      <div className="collab-link-badge">{link.access_level}</div>
+                      <div className="collab-link-badge">{item.role}</div>
                       <div className="collab-link-meta">
+                        <p className="collab-link-url">{item.link}</p>
                         <p className="collab-link-created">
-                          Created {new Date(link.created_at).toLocaleDateString()}
+                          Created {new Date(item.created_at).toLocaleDateString()}
                         </p>
                         <p className="collab-link-count">
-                          {link.joined_count || 0} joined
+                          {item.joined_count || 0} joininvite_ed
                         </p>
                       </div>
                     </div>
                     <div className="collab-link-actions">
                       <button
-                        onClick={() => handleCopyLink(link)}
+                        onClick={() => handleCopyLink(item)}
                         className="collab-btn collab-btn-secondary"
                         title="Copy link to clipboard"
                       >
-                        {copiedLinkId === link.id ? '✓ Copied' : 'Copy'}
+                        {copiedLinkId === item.id ? '✓ Copied' : 'Copy'}
                       </button>
                       <button
-                        onClick={() => handleRevokeLink(link.id)}
+                        onClick={() => handleRevokeLink(item.invite_id)}
                         className="collab-btn collab-btn-danger"
                         title="Revoke this link"
                       >
