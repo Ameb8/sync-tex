@@ -7,10 +7,12 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str
+    name: Optional[str] = None
 
 class UserResponse(UserBase):
     id: int
     created_at: datetime
+    name: Optional[str] = None
     
     class Config:
         from_attributes = True  # SQLAlchemy compatibility
@@ -29,12 +31,14 @@ class TokenData(BaseModel):
     email: str
 
 class InternalUserResponse(BaseModel):
-    id: int
+    id: str
     email: str
+    name: Optional[str] = None
 
     class Config:
         from_attributes = True
 
 class InternalUsersResponse(BaseModel):
     users: list[InternalUserResponse]
-    not_found: list[int]
+    not_found: list[str]
+

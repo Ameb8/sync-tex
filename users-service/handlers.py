@@ -9,7 +9,7 @@ import os
 from dotenv import load_dotenv
 
 from models import User, get_db
-from schemas import LoginRequest, LoginResponse, UserResponse, UserCreate, TokenData, InternalUsersResponse
+from schemas import LoginRequest, LoginResponse, UserResponse, UserCreate, TokenData, InternalUsersResponse, InternalUserResponse
 from security import hash_password, verify_password, generate_token, verify_token
 
 load_dotenv()
@@ -37,7 +37,7 @@ async def register(req: UserCreate, db: Session = Depends(get_db)):
         hashed_pw = hash_password(req.password)
         
         # Create user in DB
-        user = User(email=req.email, password=hashed_pw)
+        user = User(email=req.email, password=hashed_pw, name=req.name)
         db.add(user)
         db.commit()
         db.refresh(user)
@@ -96,7 +96,7 @@ async def github_callback(code: str, state: str, db: Session = Depends(get_db)):
     
     github_client_id = os.getenv("GITHUB_CLIENT_ID")
     github_client_secret = os.getenv("GITHUB_CLIENT_SECRET")
-    redirect_uri = os.getenv("GITHUB_REDIRECT_URI", "https://assumed-lower-leasing-pays.trycloudflare.com/auth/github/callback")
+    redirect_uri = os.getenv("GITHUB_REDIRECT_URI", "https://family-size-relationship-exploration.trycloudflare.com/auth/github/callback")
     
     # Exchange code for GitHub access token
     async with httpx.AsyncClient() as client:
@@ -132,6 +132,8 @@ async def github_callback(code: str, state: str, db: Session = Depends(get_db)):
     
     github_user = user_response.json()
     github_id = str(github_user["id"])
+    username = github_user.get("login")
+    name = github_user.get("name") or username
     
     # GitHub may not always return email in user endpoint, need to fetch from emails endpoint
     email = github_user.get("email")
@@ -161,7 +163,7 @@ async def github_callback(code: str, state: str, db: Session = Depends(get_db)):
     
     if not user:
         # Create new OAuth user
-        user = User(email=email, oauth_provider="github", oauth_id=github_id)
+        user = User(email=email, name=name, oauth_provider="github", oauth_id=github_id)
         db.add(user)
         db.commit()
         db.refresh(user)
@@ -176,7 +178,7 @@ async def github_callback(code: str, state: str, db: Session = Depends(get_db)):
     token = generate_token(user.id, user.email)
     
     # Redirect back to frontend with jwt 
-    frontend_url = f"https://assumed-lower-leasing-pays.trycloudflare.com/oauth/callback?token={token}"
+    frontend_url = f"https://family-size-relationship-exploration.trycloudflare.com/oauth/callback?token={token}"
     return RedirectResponse(frontend_url)
 
 
@@ -233,4 +235,13 @@ async def get_users_by_ids(
     found_ids = {u.id for u in users}
     not_found = [uid for uid in user_ids if uid not in found_ids]
 
-    return InternalUsersResponse(users=users, not_found=not_found)
+    return InternalUsersResponse(
+        users=[to_internal_user(u) for u in users],
+        not_found=[str(uid) for uid in not_found],
+    )
+
+def to_internal_user(u: User) -> InternalUserResponse:
+    return InternalUserResponse(
+        id=str(u.id),
+        email=u.email,
+    )
