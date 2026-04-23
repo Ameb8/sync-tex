@@ -80,7 +80,7 @@ func (h *Handler) CreateInvite(c *gin.Context) {
 	}
 
 	// Generate sharable URL
-	shareableURL := fmt.Sprintf("%s/join?token=%s", cfg.ExternalURL, token)
+	shareableURL := fmt.Sprintf("%s/join?token=%s", h.externalURL, token)
 
 	c.JSON(http.StatusCreated, gin.H{
 		"invite_id":  invite.ID,

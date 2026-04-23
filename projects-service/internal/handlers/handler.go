@@ -31,6 +31,7 @@ type Handler struct {
 	minioClient    *minio.Client
 	fileDataClient *compaction.Client
 	usersClient    *users.Client
+	externalURL		string
 }
 
 // NewHandler initializes a new Handler object
@@ -59,6 +60,7 @@ func NewHandler(pool *pgxpool.Pool, queries *db.Queries, cfg *config.Config) (*H
 		minioClient:    minioClient,
 		fileDataClient: fileDataClient,
 		usersClient:    users.NewClient(),
+		externalURL:	cfg.ExternalURL,
 	}, nil
 }
 
