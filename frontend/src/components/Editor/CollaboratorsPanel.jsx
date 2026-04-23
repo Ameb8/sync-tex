@@ -167,33 +167,32 @@ const CollaboratorsPanel = ({ projectId }) => {
               <div className="collab-links-list">
                 {links.map((item) => (
                   <div key={item.invite_id} className="collab-link-item">
-                    <div className="collab-link-info">
+                    <div className="collab-link-row-top">
                       <div className="collab-link-badge">{item.role}</div>
-                      <div className="collab-link-meta">
-                        <p className="collab-link-url">{item.link}</p>
-                        <p className="collab-link-created">
-                          Created {new Date(item.created_at).toLocaleDateString()}
-                        </p>
-                        <p className="collab-link-count">
-                          {item.joined_count || 0} joininvite_ed
-                        </p>
+                      <div className="collab-link-actions">
+                        <button
+                          onClick={() => handleCopyLink(item)}
+                          className="collab-btn collab-btn-secondary"
+                          title="Copy link to clipboard"
+                        >
+                          {copiedLinkId === item.id ? '✓ Copied' : 'Copy'}
+                        </button>
+                        <button
+                          onClick={() => handleRevokeLink(item.invite_id)}
+                          className="collab-btn collab-btn-danger"
+                          title="Revoke this link"
+                        >
+                          Revoke
+                        </button>
                       </div>
                     </div>
-                    <div className="collab-link-actions">
-                      <button
-                        onClick={() => handleCopyLink(item)}
-                        className="collab-btn collab-btn-secondary"
-                        title="Copy link to clipboard"
-                      >
-                        {copiedLinkId === item.id ? '✓ Copied' : 'Copy'}
-                      </button>
-                      <button
-                        onClick={() => handleRevokeLink(item.invite_id)}
-                        className="collab-btn collab-btn-danger"
-                        title="Revoke this link"
-                      >
-                        Revoke
-                      </button>
+                    <div className="collab-link-row-bottom">
+                      <p className="collab-link-url">{item.link}</p>
+                      <p className="collab-link-meta-line">
+                        Created {new Date(item.created_at).toLocaleDateString()}
+                        {' · '}
+                        {item.joined_count || 0} joined
+                      </p>
                     </div>
                   </div>
                 ))}

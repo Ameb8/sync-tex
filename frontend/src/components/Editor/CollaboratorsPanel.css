@@ -183,16 +183,19 @@
   gap: 8px;
 }
 
+/* Link item: stacked two-row layout */
 .collab-link-item {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  flex-direction: column;
+  gap: 6px;
   padding: 10px;
   background: var(--bg-sidebar, #f9f9f9);
   border: 0.5px solid var(--border-color, #e0e0e0);
   border-radius: 4px;
   transition: all 0.15s ease;
+  /* Prevent the card itself from overflowing the panel */
+  min-width: 0;
+  overflow: hidden;
 }
 
 .collab-link-item:hover {
@@ -200,12 +203,21 @@
   border-color: var(--text-info, #1f80dd);
 }
 
-.collab-link-info {
+/* Row 1: badge on the left, buttons on the right */
+.collab-link-row-top {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
-  flex: 1;
+}
+
+/* Row 2: URL + meta, constrained so they truncate */
+.collab-link-row-bottom {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   min-width: 0;
+  overflow: hidden;
 }
 
 .collab-link-badge {
@@ -219,27 +231,30 @@
   flex-shrink: 0;
 }
 
-.collab-link-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.collab-link-created,
-.collab-link-count {
-  margin: 0;
-  font-size: 11px;
-  color: var(--text-secondary, #666);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .collab-link-actions {
   display: flex;
   gap: 4px;
   flex-shrink: 0;
+}
+
+/* URL: truncates properly because parent has min-width:0 + overflow:hidden */
+.collab-link-url {
+  margin: 0;
+  font-size: 11px;
+  font-family: monospace;
+  color: var(--text-primary, #333);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.collab-link-meta-line {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-secondary, #666);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Members List */
@@ -333,16 +348,6 @@
   color: #d32f2f;
 }
 
-.collab-link-url {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 200px; /* adjust to fit your panel width */
-  font-family: monospace;
-}
-
 /* Dark mode */
 @media (prefers-color-scheme: dark) {
   .collab-tabs {
@@ -390,6 +395,10 @@
 
   .collab-link-item:hover {
     background: var(--bg-primary, #1e1e1e);
+  }
+
+  .collab-link-url {
+    color: var(--text-primary, #e0e0e0);
   }
 
   .collab-member-item {
