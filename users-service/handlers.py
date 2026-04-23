@@ -244,4 +244,5 @@ def to_internal_user(u: User) -> InternalUserResponse:
     return InternalUserResponse(
         id=str(u.id),
         email=u.email,
+        name=u.name,
     )
