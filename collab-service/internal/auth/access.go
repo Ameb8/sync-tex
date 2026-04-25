@@ -1,8 +1,8 @@
 package auth
 
 import (
-	// "encoding/json"
-	// "fmt"
+	"encoding/json"
+	"fmt"
 	"net/http"
 )
 
@@ -28,20 +28,19 @@ func NewChecker(serviceURL, internalSecret string) *Checker {
 	}
 }
 
-/*
+
 // CheckAccess validates the JWT and confirms the user has access to the given
 // doc within the project. Called before the WebSocket upgrade — a failure here
 // returns a plain HTTP error, not a WS close frame.
 //
 // projects-service must implement:
-//   GET /projects/v1/internal/access?docId=<id>&projectId=<id> 
+// 	 GET /projects/v1/projects/:projectID/access
 //   Authorization: Bearer <jwt>
 //   X-Internal-Secret: <shared secret>
 //   → 200 { allowed: true,  user_id: "...", role: "owner"|"editor"|"viewer" }
 //   → 403 { allowed: false }
 func (c *Checker) CheckAccess(token, docID, projectID string) (AccessResponse, error) {
-	url := fmt.Sprintf("%sprojects/v1/internal/access?docId=%s&projectId=%s",
-		c.serviceURL, docID, projectID)
+	url := fmt.Sprintf("%s/v1/projects/%s/access", c.serviceURL, projectID)
 
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
@@ -65,13 +64,4 @@ func (c *Checker) CheckAccess(token, docID, projectID string) (AccessResponse, e
 
 	var out AccessResponse
 	return out, json.NewDecoder(resp.Body).Decode(&out)
-}
-	*/
-
-func (c *Checker) CheckAccess(token, docID, projectID string) (AccessResponse, error) {
-	return AccessResponse{
-		Allowed: true,
-		UserID:  "test-user",
-		Role:    "owner",
-	}, nil
 }
