@@ -10,17 +10,26 @@ WHERE id = $1;
 
 
 -- name: ListProjectsByOwner :many
-SELECT * FROM projects
-WHERE owner_id = $1
-ORDER BY created_at DESC;
+SELECT 
+    p.*,
+    'owner' AS role
+FROM projects p
+WHERE p.owner_id = $1
+ORDER BY p.created_at DESC;
 
 
 -- name: ListProjectsByUser :many
-SELECT DISTINCT p.*
+SELECT DISTINCT
+    p.*,
+    CASE
+        WHEN p.owner_id = $1 THEN 'owner'
+        ELSE pc.role
+    END AS role
 FROM projects p
-LEFT JOIN project_collaborators pc ON p.id = pc.project_id
+LEFT JOIN project_collaborators pc ON p.id = pc.project_id AND pc.user_id = $1
 WHERE p.owner_id = $1 OR pc.user_id = $1
 ORDER BY p.created_at DESC;
+
 
 
 -- name: UpdateProjectName :one
