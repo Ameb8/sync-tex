@@ -39,6 +39,7 @@ func SetupRoutes(r *gin.Engine, h *handlers.Handler, authMiddleware *middleware.
 	api.DELETE("/projects/:projectID/files/:fileID", h.DeleteFile)
 
 	// Collaborators
+	router.GET("/projects/:projectID/access", h.GetAccess)
 	api.POST("/projects/:projectID/invites", h.CreateInvite)
 	api.POST("/invites/accept", h.AcceptInvite)
 	api.GET("/projects/:projectID/collaborators", h.ListCollaborators)

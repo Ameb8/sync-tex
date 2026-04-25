@@ -17,6 +17,56 @@ import (
 	"projects-service/internal/users"
 )
 
+type AccessResponse struct {
+	Allowed bool   `json:"allowed"`
+	UserID  string `json:"user_id,omitempty"`
+	Role    string `json:"role,omitempty"`
+}
+
+// GetAccess - GET /projects/v1/projects/:projectID/access
+func (h *Handler) GetAccess(c *gin.Context) {
+	// Get user ID from JWT
+	userID, err := h.getUserID(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	// Parse project ID
+	projectIDStr := c.Param("projectID")
+	projectID, err := stringToPgUUID(projectIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid project ID"})
+		return
+	}
+
+	// Get permission
+	perm, err := h.authorizer.GetUserPermission(
+		c.Request.Context(),
+		projectID,
+		userID,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check access"})
+		return
+	}
+
+	// No access → 403
+	if perm == auth.PermissionNone {
+		c.JSON(http.StatusForbidden, AccessResponse{
+			Allowed: false,
+		})
+		return
+	}
+
+	// Has access → 200
+	c.JSON(http.StatusOK, AccessResponse{
+		Allowed: true,
+		UserID:  userID,
+		Role:    string(perm),
+	})
+}
+
 // CreateInvite - POST /projects/v1/projects/:projectID/invites
 func (h *Handler) CreateInvite(c *gin.Context) {
 	// Parse user ID
