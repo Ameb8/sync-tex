@@ -54,3 +54,30 @@
     display: none;
   }
 }
+
+.role-badge {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.role-badge--owner {
+  background-color: var(--primary-color, #6366f1);
+  color: white;
+}
+
+.role-badge--editor {
+  background-color: color-mix(in srgb, var(--primary-color, #6366f1) 20%, transparent);
+  color: var(--primary-color, #6366f1);
+  border: 1px solid color-mix(in srgb, var(--primary-color, #6366f1) 40%, transparent);
+}
+
+.role-badge--reader {
+  background-color: var(--surface);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}

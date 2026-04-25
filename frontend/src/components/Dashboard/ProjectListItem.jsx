@@ -9,6 +9,17 @@ function ProjectListItem({ project }) {
     navigate(`/project/${project.id}`);
   };
 
+  const getRoleBadge = (role) => {
+    const roleConfig = {
+      owner:  { label: 'Owner',  className: 'role-badge--owner' },
+      editor: { label: 'Editor', className: 'role-badge--editor' },
+      reader: { label: 'Reader', className: 'role-badge--reader' },
+    };
+    return roleConfig[role] ?? { label: role, className: '' };
+  };
+
+  const { label, className } = getRoleBadge(project.role)
+
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -29,6 +40,7 @@ function ProjectListItem({ project }) {
       <div className="project-list-icon">📄</div>
       <div className="project-list-content">
         <span className="project-list-name">{project.name}</span>
+        <span className={`role-badge ${className}`}>{label}</span>
         <span className="project-list-separator">-</span>
         <span className="project-list-date">{formatDate(project.created_at)}</span>
       </div>
