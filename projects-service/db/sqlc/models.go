@@ -96,3 +96,7 @@ type ProjectInvite struct {
 	CreatedAt pgtype.Timestamp `json:"created_at"`
 	ExpiresAt pgtype.Timestamp `json:"expires_at"`
 }
+
+type ShowcaseProject struct {
+	ProjectID pgtype.UUID `json:"project_id"`
+}
