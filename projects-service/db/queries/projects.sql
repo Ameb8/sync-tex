@@ -84,3 +84,7 @@ SELECT jsonb_build_object(
 ) as structure
 FROM dir_tree dt
 LEFT JOIN files f ON dt.id = f.directory_id;
+
+
+-- name: GetShowcaseProjectIDs :many
+SELECT project_id FROM showcase_projects;
