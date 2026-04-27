@@ -432,6 +432,17 @@ func (h *Handler) GetProjectTree(c *gin.Context) {
 	tree := buildProjectTree(raw.Directories, raw.Files)
 	enrichTreeWithPresignedURLs(c.Request.Context(), h, tree, 1*time.Hour)
 
+	// Resolve the calling user's role on this project
+	role, err := h.queries.GetUserRoleOnProject(
+		c.Request.Context(),
+		pgUUID,
+		userID,
+	)
+	if err != nil { // Error fetching role
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to resolve role"})
+		return
+	}
+
 	// Check if project is collaborative
 	collaborators, err := h.queries.ListProjectCollaborators(c.Request.Context(), pgUUID)
 	if err != nil {
@@ -444,6 +455,7 @@ func (h *Handler) GetProjectTree(c *gin.Context) {
 		"project_id": raw.ProjectID,
 		"tree":       tree,
 		"is_collab":  isCollab,
+		"role": 	  role,
 	})
 }
 
