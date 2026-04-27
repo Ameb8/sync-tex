@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { FaEye, FaEyeSlash } from "react-icons/fa";
+import FaEye from 'react-icons/fa/FaEye'
+import FaEyeSlash from 'react-icons/fa/FaEyeSlash'
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import './LoginView.css';
