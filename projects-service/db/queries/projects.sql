@@ -88,3 +88,14 @@ LEFT JOIN files f ON dt.id = f.directory_id;
 
 -- name: GetShowcaseProjectIDs :many
 SELECT project_id FROM showcase_projects;
+
+-- name: GetUserRoleOnProject :one
+SELECT
+    CASE
+        WHEN p.owner_id = $2 THEN 'owner'
+        ELSE pc.role
+    END AS role
+FROM projects p
+LEFT JOIN project_collaborators pc ON p.id = pc.project_id AND pc.user_id = $2
+WHERE p.id = $1
+  AND (p.owner_id = $2 OR pc.user_id = $2);
