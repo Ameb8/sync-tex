@@ -61,6 +61,9 @@ const EditorView = () => {
   const [isCollab, setIsCollab] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // User role
+  const [userRole, setUserRole] = useState(null);
+
   // Dark mode
   const [isDarkMode, setIsDarkMode] = useState(
     window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -144,7 +147,8 @@ const EditorView = () => {
     const load = async () => {
       try {
         setLoading(true);
-        await refreshTree();
+        const data = await refreshTree();
+        setUserRole(data.role);
         setIsCollab(true);
       } catch (err) {
         setError(err.message);
@@ -154,6 +158,8 @@ const EditorView = () => {
     };
     load();
   }, [projectId]);
+
+  const isReadOnly = userRole === 'viewer';
 
   // Handle save
   useEffect(() => {
@@ -306,10 +312,11 @@ const EditorView = () => {
                 imageUrl={imageUrl}
                 onMount={handleEditorMount}
                 onChange={(value) => handleEditorChange(value, activeTabId)}
+                readOnly={isReadOnly}
               />
             </div>
           </>
-        )}
+        )} 
       </div>
 
       {/* Right sidebar */}
