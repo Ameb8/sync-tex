@@ -152,3 +152,28 @@
   color: var(--text-secondary);
   font-size: 0.875rem;
 }
+
+
+.password-wrapper {
+  position: relative;
+}
+
+.password-wrapper .form-input {
+  padding-right: 2.5rem; /* space for icon */
+}
+
+.toggle-password {
+  position: absolute;
+  top: 50%;
+  right: 0.75rem;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+  color: var(--text-secondary);
+}
+
+.toggle-password:hover {
+  color: var(--text-primary);
+}
