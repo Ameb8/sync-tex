@@ -28,6 +28,7 @@ type Querier interface {
 	GetProjectInviteByToken(ctx context.Context, token string) (ProjectInvite, error)
 	GetProjectStructureAsJSON(ctx context.Context, jsonbBuildObject interface{}) ([]byte, error)
 	GetShowcaseProjectIDs(ctx context.Context) ([]pgtype.UUID, error)
+	GetUserRoleOnProject(ctx context.Context, iD pgtype.UUID, ownerID string) (interface{}, error)
 	ListDirectoriesByParent(ctx context.Context, projectID pgtype.UUID, parentID pgtype.UUID) ([]Directory, error)
 	ListDirectoriesByProject(ctx context.Context, projectID pgtype.UUID) ([]Directory, error)
 	ListFilesByDirectory(ctx context.Context, directoryID pgtype.UUID) ([]File, error)

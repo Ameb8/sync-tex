@@ -129,6 +129,25 @@ func (q *Queries) GetShowcaseProjectIDs(ctx context.Context) ([]pgtype.UUID, err
 	return items, nil
 }
 
+const getUserRoleOnProject = `-- name: GetUserRoleOnProject :one
+SELECT
+    CASE
+        WHEN p.owner_id = $2 THEN 'owner'
+        ELSE pc.role
+    END AS role
+FROM projects p
+LEFT JOIN project_collaborators pc ON p.id = pc.project_id AND pc.user_id = $2
+WHERE p.id = $1
+  AND (p.owner_id = $2 OR pc.user_id = $2)
+`
+
+func (q *Queries) GetUserRoleOnProject(ctx context.Context, iD pgtype.UUID, ownerID string) (interface{}, error) {
+	row := q.db.QueryRow(ctx, getUserRoleOnProject, iD, ownerID)
+	var role interface{}
+	err := row.Scan(&role)
+	return role, err
+}
+
 const listProjectsByOwner = `-- name: ListProjectsByOwner :many
 SELECT 
     p.id, p.owner_id, p.name, p.created_at,
