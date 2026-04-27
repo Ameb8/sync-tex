@@ -8,7 +8,7 @@ import RenameModal from './RenameModal';
 const FileTree = ({
   treeData, onFileSelect, activeFileId,
   onCreateFile, onCreateFolder, onDeleteItem, 
-  onRenameItem, onTabClose, onImageUpload,
+  onRenameItem, onTabClose, onImageUpload, readOnly,
 }) => {
   const imageInputRef = useRef(null);
   const [uploadTargetFolderId, setUploadTargetFolderId] = useState(null);
@@ -71,6 +71,8 @@ const FileTree = ({
     e.preventDefault();
     e.stopPropagation();
     
+    if (readOnly) return;
+
     setSelectedNodeId(nodeId);
     const nodeData = findNodeById(treeData, nodeId);
     setSelectedNodeData({ ...nodeData, isFile });

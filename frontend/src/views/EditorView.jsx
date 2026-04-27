@@ -268,6 +268,7 @@ const EditorView = () => {
           onRenameItem={handleRenameItem}
           onTabClose={handleTabClose}
           onImageUpload={handleImageUploadAndOpen}
+          readOnly={isReadOnly}
         />
       </div>
       <div
