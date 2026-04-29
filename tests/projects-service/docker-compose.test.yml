@@ -1,0 +1,95 @@
+version: "3.8"
+
+services:
+  postgres-test:
+    image: postgres:16-alpine
+    container_name: postgres-projects-test
+    environment:
+      POSTGRES_USER: testuser
+      POSTGRES_PASSWORD: testpassword
+      POSTGRES_DB: projects_test
+    ports:
+      - "5499:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U testuser -d projects_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - test-network
+
+  minio-test:
+    image: minio/minio:latest
+    container_name: minio-test
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: testaccess
+      MINIO_ROOT_PASSWORD: testsecret123
+    ports:
+      - "9099:9000"
+      - "9098:9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - test-network
+
+  # Run projects-service-db migrations
+  migrate-test:
+    image: migrate/migrate
+    container_name: migrate-projects-test
+    volumes:
+      - ../../projects-service/db/migrations:/migrations
+    command: >
+      -path=/migrations/
+      -database=postgres://testuser:testpassword@postgres-test:5432/projects_test?sslmode=disable
+      up
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+    networks:
+      - test-network
+    # migrate exits non-zero if already applied — that's fine for idempotency
+    restart: "no"
+
+  projects-service-test:
+    build:
+      context: ../../projects-service
+      dockerfile: Dockerfile
+    container_name: projects-service-test
+    environment:
+      # Dummy values used for testing
+      DATABASE_URL: postgres://testuser:testpassword@postgres-test:5432/projects_test?sslmode=disable
+      JWT_SECRET: test-jwt-secret-for-integration-tests
+      PORT: 8003
+      MINIO_ENDPOINT: minio-test:9000
+      MINIO_EXTERNAL_ENDPOINT: localhost:9099
+      MINIO_ACCESS_KEY: testaccess
+      MINIO_SECRET_KEY: testsecret123
+      MINIO_BUCKET: test-bucket
+      USERS_INTERNAL_API_KEY: test-internal-key
+      USERS_INTERNAL_API_URL: http://localhost:9999
+      FILE_DATA_ADDR: localhost:9999
+      EXTERNAL_URL: http://localhost:8003
+    ports:
+      - "8099:8003"
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+      minio-test:
+        condition: service_healthy
+      migrate-test:
+        condition: service_completed_successfully
+    networks:
+      - test-network
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8003/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+
+networks:
+  test-network:
+    driver: bridge
