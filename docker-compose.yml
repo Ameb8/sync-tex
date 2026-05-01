@@ -5,6 +5,7 @@ services:
     ports:
       - "80:80"
       - "443:443"
+      - "127.0.0.1:8080:8080" # Frontend dev server
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
@@ -52,6 +53,7 @@ services:
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
       GITHUB_REDIRECT_URI: ${GITHUB_REDIRECT_URI}
+      USERS_INTERNAL_API_KEY: ${USERS_INTERNAL_API_KEY}
     ports:
       - "8001:8001"
     volumes:
@@ -121,6 +123,10 @@ services:
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
       GATEWAY_URL: ${HOST_DOMAIN}
+      USERS_INTERNAL_API_KEY: ${USERS_INTERNAL_API_KEY} 
+      USERS_INTERNAL_API_URL: ${USERS_INTERNAL_API_URL}
+      FILE_DATA_ADDR: ${FILE_DATA_ADDR}
+      EXTERNAL_URL: ${EXTERNAL_URL}
     ports:
       - "8003:8003"
     volumes:
@@ -149,7 +155,7 @@ services:
       GRPC_ADDR: "[::]:50051"
       RUST_LOG: "debug"
     networks:
-      - gateway-network
+      - gateway-network 
 
   assistant-service:
     build:
@@ -164,6 +170,7 @@ services:
       ASSISTANT_ENCRYPTION_KEY: ${ASSISTANT_ENCRYPTION_KEY}
       JWT_SECRET: ${USERS_SECRET_KEY}
       JWT_ALGORITHM: HS256
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY}
 
     depends_on:
       postgres-assistant:
@@ -214,6 +221,17 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - gateway-network
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    command: tunnel --no-autoupdate --url http://nginx:80
+    restart: unless-stopped
+    depends_on:
+      nginx:
+        condition: service_started
     networks:
       - gateway-network
 

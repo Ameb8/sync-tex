@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import './ActivityBar.css';
 
 /**
@@ -67,9 +68,37 @@ const PANELS = [
       </svg>
     ),
   },
+  {
+    id: 'collaborators',
+    type: 'sidebar',
+    title: 'Collaborators',
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <circle cx="7" cy="7" r="3" stroke="currentColor" strokeWidth="1.5"/>
+        <circle cx="14" cy="8" r="2.5" stroke="currentColor" strokeWidth="1.5"/>
+        <path d="M1 17c0-3 2.5-5 6-5s6 2 6 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+        <path d="M14 13c2 0 4 1 4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+      </svg>
+    ),
+  },
 ];
 
+// Inline home icon
+const HomeIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+    <path
+      d="M3 9.5L10 3l7 6.5V17a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinejoin="round"
+    />
+    <path d="M7 18v-5h6v5" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+  </svg>
+);
+
 const ActivityBar = ({ activeSidebarPanel, activeMainPanel, onPanelToggle }) => {
+  const navigate = useNavigate();
+
   return (
     <div className="activity-bar" role="navigation" aria-label="Side panels">
       {PANELS.map(({ id, type, title, icon }) => {
@@ -91,6 +120,18 @@ const ActivityBar = ({ activeSidebarPanel, activeMainPanel, onPanelToggle }) => 
           </button>
         );
       })}
+
+      {/* Pushes home button to the bottom */}
+      <div className="activity-bar-spacer" />
+
+      <button
+        className="activity-bar-btn"
+        onClick={() => navigate('/')}
+        title="Back to dashboard"
+        aria-label="Back to dashboard"
+      >
+        <HomeIcon />
+      </button>
     </div>
   );
 };

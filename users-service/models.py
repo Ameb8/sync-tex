@@ -15,6 +15,7 @@ class User(Base):
     id = Column(Integer, primary_key=True)
     email = Column(String(255), unique=True, nullable=False, index=True)
     password = Column(String(255), nullable=True)  # NULL for OAuth users
+    name = Column(String(255), nullable=True)  
     oauth_provider = Column(String(50), nullable=True)  # "google", "github", etc.
     oauth_id = Column(String(255), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)

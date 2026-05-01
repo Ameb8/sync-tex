@@ -19,6 +19,10 @@ COPY build.rs ./
 COPY proto ./proto 
 RUN mkdir src && echo 'fn main() {}' > src/main.rs
 RUN cargo build # debug build — much faster than --release
+
+# Remove dummy binary
+RUN rm -f target/debug/compaction-service target/debug/compaction-service.d
+RUN rm -rf target/.fingerprint/compaction-service-*
 RUN rm -rf src
 
 # Expose server (overridable with docker-compose)
@@ -29,4 +33,4 @@ ENV GRPC_ADDR="[::]:50051"
 ENV RUST_LOG="debug"
 
 # Source is mounted as a volume at runtime
-CMD ["cargo", "watch", "-x", "run"]
+CMD ["sh", "-c", "touch src/main.rs && cargo watch -x run"]

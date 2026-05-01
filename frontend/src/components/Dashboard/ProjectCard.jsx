@@ -9,6 +9,15 @@ function ProjectCard({ project }) {
     navigate(`/project/${project.id}`);
   };
 
+  const getRoleBadge = (role) => {
+    const roleConfig = {
+      owner: { label: 'Owner', className: 'role-badge--owner' },
+      editor: { label: 'Editor', className: 'role-badge--editor' },
+      reader: { label: 'Reader', className: 'role-badge--reader' },
+    };
+    return roleConfig[role] ?? { label: role, className: '' };
+  };
+
   const formatTimeAgo = (dateString) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -25,6 +34,7 @@ function ProjectCard({ project }) {
   };
 
   const collaboratorCount = project.collaborators?.length || 0;
+  const { label, className } = getRoleBadge(project.role);
 
   return (
     <div className="project-card" onClick={handleClick}>
@@ -33,6 +43,7 @@ function ProjectCard({ project }) {
       </div>
       <div className="project-card-content">
         <h3 className="project-card-title">{project.name}</h3>
+        <span className={`role-badge ${className}`}>{label}</span>
         <p className="project-card-modified">
           Created {formatTimeAgo(project.created_at)}
         </p>

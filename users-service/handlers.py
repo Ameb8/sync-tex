@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, Header, status
+from fastapi import APIRouter, HTTPException, Depends, Header, status, Security, Query
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
@@ -9,7 +9,7 @@ import os
 from dotenv import load_dotenv
 
 from models import User, get_db
-from schemas import LoginRequest, LoginResponse, UserResponse, UserCreate, TokenData
+from schemas import LoginRequest, LoginResponse, UserResponse, UserCreate, TokenData, InternalUsersResponse, InternalUserResponse
 from security import hash_password, verify_password, generate_token, verify_token
 
 load_dotenv()
@@ -18,6 +18,15 @@ router = APIRouter()
 
 # OAuth2 state storage (use Redis in production)
 oauth_states = set()
+
+# API key dependency
+def verify_api_key(x_api_key: Optional[str] = Header(None)):
+    expected = os.getenv("USERS_INTERNAL_API_KEY")
+    if not expected:
+        raise HTTPException(status_code=500, detail="API key not configured")
+    if not x_api_key or not secrets.compare_digest(x_api_key, expected):
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+
 
 
 @router.post("/register", response_model=LoginResponse)
@@ -28,7 +37,7 @@ async def register(req: UserCreate, db: Session = Depends(get_db)):
         hashed_pw = hash_password(req.password)
         
         # Create user in DB
-        user = User(email=req.email, password=hashed_pw)
+        user = User(email=req.email, password=hashed_pw, name=req.name)
         db.add(user)
         db.commit()
         db.refresh(user)
@@ -87,7 +96,7 @@ async def github_callback(code: str, state: str, db: Session = Depends(get_db)):
     
     github_client_id = os.getenv("GITHUB_CLIENT_ID")
     github_client_secret = os.getenv("GITHUB_CLIENT_SECRET")
-    redirect_uri = os.getenv("GITHUB_REDIRECT_URI", "http://localhost:8001/auth/github/callback")
+    redirect_uri = os.getenv("GITHUB_REDIRECT_URI", "https://family-size-relationship-exploration.trycloudflare.com/auth/github/callback")
     
     # Exchange code for GitHub access token
     async with httpx.AsyncClient() as client:
@@ -123,6 +132,8 @@ async def github_callback(code: str, state: str, db: Session = Depends(get_db)):
     
     github_user = user_response.json()
     github_id = str(github_user["id"])
+    username = github_user.get("login")
+    name = github_user.get("name") or username
     
     # GitHub may not always return email in user endpoint, need to fetch from emails endpoint
     email = github_user.get("email")
@@ -152,7 +163,7 @@ async def github_callback(code: str, state: str, db: Session = Depends(get_db)):
     
     if not user:
         # Create new OAuth user
-        user = User(email=email, oauth_provider="github", oauth_id=github_id)
+        user = User(email=email, name=name, oauth_provider="github", oauth_id=github_id)
         db.add(user)
         db.commit()
         db.refresh(user)
@@ -166,8 +177,8 @@ async def github_callback(code: str, state: str, db: Session = Depends(get_db)):
     # Generate JWT
     token = generate_token(user.id, user.email)
     
-    # Redirect back to frontend with jwt
-    frontend_url = f"http://192.168.1.34/oauth/callback?token={token}"
+    # Redirect back to frontend with jwt 
+    frontend_url = f"https://family-size-relationship-exploration.trycloudflare.com/oauth/callback?token={token}"
     return RedirectResponse(frontend_url)
 
 
@@ -207,3 +218,31 @@ async def get_current_user(authorization: Optional[str] = Header(None), db: Sess
         raise HTTPException(status_code=404, detail="User not found")
     
     return user
+
+@router.get("/internal/users", response_model=InternalUsersResponse, dependencies=[Depends(verify_api_key)])
+async def get_users_by_ids(
+    user_ids: list[int] = Query(..., description="One or more user IDs"),
+    db: Session = Depends(get_db)
+):
+    """Internal endpoint: fetch users by IDs. Requires X-Api-Key header.
+    Usage: /internal/users?user_ids=1&user_ids=2&user_ids=3
+    """
+    if not user_ids:
+        raise HTTPException(status_code=422, detail="At least one user_id is required")
+
+    users = db.query(User).filter(User.id.in_(user_ids)).all()
+
+    found_ids = {u.id for u in users}
+    not_found = [uid for uid in user_ids if uid not in found_ids]
+
+    return InternalUsersResponse(
+        users=[to_internal_user(u) for u in users],
+        not_found=[str(uid) for uid in not_found],
+    )
+
+def to_internal_user(u: User) -> InternalUserResponse:
+    return InternalUserResponse(
+        id=str(u.id),
+        email=u.email,
+        name=u.name,
+    )

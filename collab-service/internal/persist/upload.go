@@ -31,7 +31,7 @@ func NewUploader(docID, serviceURL, internalSecret string) *Uploader {
 func (u *Uploader) Upload(data []byte) error {
 	// Get presigned upload URL
 	log.Println("File Save Triggered...")
-	url := fmt.Sprintf("%s/file/%s/upload", u.serviceURL, u.docID)
+	url := fmt.Sprintf("%s/internal/v1/file/%s/upload", u.serviceURL, u.docID)
 	log.Printf("Fetching Presigned Upload URL From:\t%s", url)
 
 	// Construct http request
@@ -85,7 +85,7 @@ func (u *Uploader) Upload(data []byte) error {
 func (u *Uploader) FileRoomEmpty() error {
 	// Get presigned upload URL
 	log.Println("Document Final Disconnect Triggered...")
-	url := fmt.Sprintf("%s/file/%s/compact", u.serviceURL, u.docID)
+	url := fmt.Sprintf("%s/internal/v1/file/%s/compact", u.serviceURL, u.docID)
 
 	// Construct http request
 	req, err := http.NewRequest(http.MethodGet, url, nil)

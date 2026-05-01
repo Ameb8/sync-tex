@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
+import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import './LoginView.css';
@@ -10,6 +11,7 @@ function LoginView() {
   const [name, setName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -129,16 +131,26 @@ function LoginView() {
 
             <div className="form-group">
               <label htmlFor="password">Password</label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-                minLength={8}
-                className="form-input"
-              />
+              <div className="password-wrapper">
+                <input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  minLength={8}
+                  className="form-input"
+                />
+                <button
+                  type="button"
+                  className="toggle-password"
+                  onClick={() => setShowPassword(prev => !prev)}
+                  tabIndex={-1}
+                >
+                  {showPassword ? <FaEyeSlash /> : <FaEye />}
+                </button>
+              </div>
               {mode === 'signup' && (
                 <p className="input-hint">At least 8 characters</p>
               )}

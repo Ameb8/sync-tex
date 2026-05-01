@@ -27,7 +27,7 @@ func main() {
 	defer db.Close(pool) // Ensure db. connection pool gets closed
 
 	// Initialize handlers
-	h, _ := handlers.NewHandler(pool, queries)
+	h, _ := handlers.NewHandler(pool, queries, cfg)
 
 	// Set up auth middleware
 	authMiddleware := middleware.NewAuthMiddleware(cfg.JWTSecret)

@@ -18,6 +18,7 @@ import EditorPane from '../components/Editor/EditorPane';
 import RightSidebar from '../components/Editor/RightSidebar';
 import AIPanel from '../components/Editor/AIPanel/AIPanel';
 import LLMPanel from '../components/Editor/LLMPanel/LLMPanel';
+import CollaboratorsPanel from '../components/Editor/CollaboratorsPanel';
 
 import './EditorView.css';
 
@@ -59,6 +60,9 @@ const EditorView = () => {
   // Project/loading state 
   const [isCollab, setIsCollab] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // User role
+  const [userRole, setUserRole] = useState(null);
 
   // Dark mode
   const [isDarkMode, setIsDarkMode] = useState(
@@ -143,7 +147,8 @@ const EditorView = () => {
     const load = async () => {
       try {
         setLoading(true);
-        await refreshTree();
+        const data = await refreshTree();
+        setUserRole(data.role);
         setIsCollab(true);
       } catch (err) {
         setError(err.message);
@@ -153,6 +158,8 @@ const EditorView = () => {
     };
     load();
   }, [projectId]);
+
+  const isReadOnly = userRole === 'viewer';
 
   // Handle save
   useEffect(() => {
@@ -261,7 +268,14 @@ const EditorView = () => {
           onRenameItem={handleRenameItem}
           onTabClose={handleTabClose}
           onImageUpload={handleImageUploadAndOpen}
+          readOnly={isReadOnly}
         />
+      </div>
+      <div
+        className="side-panel"
+        style={{ display: sidebarOpen && sidebarPanel === 'collaborators' ? 'flex' : 'none' }}
+      >
+        <CollaboratorsPanel projectId={projectId} />
       </div>
 
       {/* Main editor column — or a full-area main panel if one is active */}
@@ -299,13 +313,15 @@ const EditorView = () => {
                 imageUrl={imageUrl}
                 onMount={handleEditorMount}
                 onChange={(value) => handleEditorChange(value, activeTabId)}
+                readOnly={isReadOnly}
               />
             </div>
           </>
-        )}
+        )} 
       </div>
 
       {/* Right sidebar */}
+      {/*
       <RightSidebar
         projectId={projectId}
         activeTab={activeTab}
@@ -315,7 +331,7 @@ const EditorView = () => {
         activeContent={activeContent}
         onSave={() => handleSaveFile(activeTabId)}
       />
-
+      */}
     </div>
   );
 };

@@ -40,6 +40,7 @@ const EditorPane = ({
   imageUrl,
   onMount,
   onChange,
+  readOnly,
 }) => {
   if (!activeTab) {
     return (
@@ -78,6 +79,7 @@ const EditorPane = ({
             automaticLayout:      true,
             scrollBeyondLastLine: false,
             fontFamily:           "'Menlo', 'Monaco', 'Courier New', monospace",
+            readOnly:             !!readOnly,
           }}
         />
       )}

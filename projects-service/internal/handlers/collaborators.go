@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 
@@ -13,7 +14,58 @@ import (
 
 	db "projects-service/db/sqlc"
 	"projects-service/internal/auth"
+	"projects-service/internal/users"
 )
+
+type AccessResponse struct {
+	Allowed bool   `json:"allowed"`
+	UserID  string `json:"user_id,omitempty"`
+	Role    string `json:"role,omitempty"`
+}
+
+// GetAccess - GET /projects/v1/projects/:projectID/access
+func (h *Handler) GetAccess(c *gin.Context) {
+	// Get user ID from JWT
+	userID, err := h.getUserID(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	// Parse project ID
+	projectIDStr := c.Param("projectID")
+	projectID, err := stringToPgUUID(projectIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid project ID"})
+		return
+	}
+
+	// Get permission
+	perm, err := h.authorizer.GetUserPermission(
+		c.Request.Context(),
+		projectID,
+		userID,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check access"})
+		return
+	}
+
+	// No access → 403
+	if perm == auth.PermissionNone {
+		c.JSON(http.StatusForbidden, AccessResponse{
+			Allowed: false,
+		})
+		return
+	}
+
+	// Has access → 200
+	c.JSON(http.StatusOK, AccessResponse{
+		Allowed: true,
+		UserID:  userID,
+		Role:    string(perm),
+	})
+}
 
 // CreateInvite - POST /projects/v1/projects/:projectID/invites
 func (h *Handler) CreateInvite(c *gin.Context) {
@@ -78,7 +130,7 @@ func (h *Handler) CreateInvite(c *gin.Context) {
 	}
 
 	// Generate sharable URL
-	shareableURL := fmt.Sprintf("http://192.168.1.34./join?token=%s", token)
+	shareableURL := fmt.Sprintf("%s/join?token=%s", h.externalURL, token)
 
 	c.JSON(http.StatusCreated, gin.H{
 		"invite_id":  invite.ID,
@@ -146,14 +198,27 @@ func (h *Handler) AcceptInvite(c *gin.Context) {
 	c.JSON(http.StatusOK, collaborator)
 }
 
+type CollaboratorResponse struct {
+	ProjectID  string `json:"project_id"`
+	UserID     string `json:"user_id"`
+	Role       string `json:"role"`
+	InvitedBy  string `json:"invited_by"`
+	InvitedAt  string `json:"invited_at"`
+	Email      string `json:"email"`
+	Name       string `json:"name"`
+	ProfilePic string `json:"profile_pic"`
+}
+
 // ListCollaborators - GET /projects/v1/projects/:projectID/collaborators
 func (h *Handler) ListCollaborators(c *gin.Context) {
+	// Get client's user ID
 	userID, err := h.getUserID(c)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
+	// Get project ID
 	projectIDStr := c.Param("projectID")
 	projectID, err := stringToPgUUID(projectIDStr)
 	if err != nil {
@@ -167,13 +232,54 @@ func (h *Handler) ListCollaborators(c *gin.Context) {
 		return
 	}
 
+	// Query project collabortors from database
 	collaborators, err := h.queries.ListProjectCollaborators(c.Request.Context(), projectID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list collaborators"})
 		return
 	}
 
-	c.JSON(http.StatusOK, collaborators)
+	// Collect all unique user IDs (collaborators + inviters)
+	idSet := make(map[string]struct{})
+	for _, col := range collaborators {
+		idSet[col.UserID] = struct{}{}
+
+		if col.InvitedBy.Valid {
+			idSet[col.InvitedBy.String] = struct{}{}
+		}
+	}
+	ids := make([]string, 0, len(idSet))
+	for id := range idSet {
+		ids = append(ids, id)
+	}
+
+	log.Printf("DEBUG: collected %d unique IDs", len(ids))
+	log.Printf("DEBUG: IDs: %+v", ids)
+
+	// Fetch user data — degrade gracefully if users-service is down
+	userMap, err := h.usersClient.GetUsers(c.Request.Context(), ids)
+	if err != nil {
+		log.Printf("warn: could not fetch user data for collaborators: %v", err)
+		userMap = map[string]users.User{} // empty map, fields will be blank
+	}
+
+	// Build enriched response
+	response := make([]CollaboratorResponse, 0, len(collaborators))
+	for _, col := range collaborators {
+		u := userMap[col.UserID]
+		response = append(response, CollaboratorResponse{
+			ProjectID:  pgUUIDToString(col.ProjectID),
+			UserID:     col.UserID,
+			Role:       string(col.Role),
+			InvitedBy:  col.InvitedBy.String,
+			InvitedAt:  col.InvitedAt.Time.Format(time.RFC3339),
+			Email:      u.Email,
+			Name:       u.Name,
+			ProfilePic: u.ProfilePic,
+		})
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 // RemoveCollaborator - DELETE /projects/v1/projects/:projectID/collaborators/:userID

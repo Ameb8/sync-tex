@@ -1,0 +1,5 @@
+pytest>=8.0
+requests>=2.31
+PyJWT>=2.8
+boto3>=1.34          # for inspecting MinIO state in assertions
+pytest-timeout>=2.3  # per-test timeout guard

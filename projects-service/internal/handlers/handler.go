@@ -17,7 +17,9 @@ import (
 	db "projects-service/db/sqlc"
 	"projects-service/internal/auth"
 	"projects-service/internal/compaction"
+	"projects-service/internal/config"
 	"projects-service/internal/storage"
+	"projects-service/internal/users"
 )
 
 // Handlers contains all HTTP handlers
@@ -28,11 +30,13 @@ type Handler struct {
 	authorizer     *auth.Authorizer
 	minioClient    *minio.Client
 	fileDataClient *compaction.Client
+	usersClient    *users.Client
+	externalURL		string
 }
 
 // NewHandler initializes a new Handler object
 // Includes required dependencies
-func NewHandler(pool *pgxpool.Pool, queries *db.Queries) (*Handler, error) {
+func NewHandler(pool *pgxpool.Pool, queries *db.Queries, cfg *config.Config) (*Handler, error) {
 	// Initialize minio client
 	minioClient, err := storage.NewMinioClient()
 	if err != nil {
@@ -42,7 +46,7 @@ func NewHandler(pool *pgxpool.Pool, queries *db.Queries) (*Handler, error) {
 	}
 
 	// Initialize File Data client
-	fileDataClient, err := compaction.NewClient("file-data-service:50051")
+	fileDataClient, err := compaction.NewClient(cfg.FileDataAddr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize File Data client: %w", err)
 	} else {
@@ -55,6 +59,8 @@ func NewHandler(pool *pgxpool.Pool, queries *db.Queries) (*Handler, error) {
 		authorizer:     auth.NewAuthorizer(queries),
 		minioClient:    minioClient,
 		fileDataClient: fileDataClient,
+		usersClient:    users.NewClient(),
+		externalURL:	cfg.ExternalURL,
 	}, nil
 }
 
