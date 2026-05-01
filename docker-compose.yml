@@ -5,6 +5,7 @@ services:
     ports:
       - "80:80"
       - "443:443"
+      - "127.0.0.1:8080:8080" # Frontend dev server
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
@@ -169,6 +170,7 @@ services:
       ASSISTANT_ENCRYPTION_KEY: ${ASSISTANT_ENCRYPTION_KEY}
       JWT_SECRET: ${USERS_SECRET_KEY}
       JWT_ALGORITHM: HS256
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY}
 
     depends_on:
       postgres-assistant:
