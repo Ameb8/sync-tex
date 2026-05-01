@@ -16,3 +16,6 @@ google-genai
 
 # Postgres Vector Storage
 pgvector
+
+# Logging
+structlog
