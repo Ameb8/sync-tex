@@ -39,6 +39,52 @@ Schema highlights:
 | POST   | /chat/stream                      | Stream chat response (SSE)   |
 | GET    | /providers                        | List supported providers     |
 
+## Database:
+
+
+### LlmUsageLog
+- id (string, pk)
+- user_id (string, index)
+- project_id (string)
+- job_id (string, optional)
+- operation (string)
+- model (string)
+- tokens_in (int)
+- tokens_out (int)
+- created_at (timestamp)
+
+### UserLlmKey
+- user_id (string)
+- provider (string)
+- encrypted_key (bytes)
+- created_at (timestamp)
+- updated_at (timestamp)
+- pk (user_id, provider)
+
+### UserLlmSettings
+- user_id (string, pk)
+- monthly_token_limit (int, optional)
+- tokens_used_this_month (int)
+- token_reset_date (date)
+- preferred_model (string, optional)
+- max_tokens_per_call (int)
+- updated_at (timestamp)
+
+### Chat 
+- id (string, pk)
+- user_id (string, index)
+- project_id (string, index)
+- title (string, optional)
+- created_at (timestamp)
+- updated_at (timestamp)
+
+### ChatMessage
+- id (string, pk)
+- chat_id (fk -> Chat.id)
+- role (string)
+- content (text)
+- created_at (timestamp)
+
 ## Env
 
 ```
