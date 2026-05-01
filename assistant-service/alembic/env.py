@@ -9,6 +9,7 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 # Import models
 from app.core.database import Base
 from app.llm.models import UserLLMKey, UserLLMSettings, LLMUsageLog
+from app.auto_context.models import RagIndexState, RagFileIndex, RagChunk, RagRetrievedChunk
 
 config = context.config
 fileConfig(config.config_file_name)
