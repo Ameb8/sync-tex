@@ -127,6 +127,7 @@ services:
       USERS_INTERNAL_API_URL: ${USERS_INTERNAL_API_URL}
       FILE_DATA_ADDR: ${FILE_DATA_ADDR}
       EXTERNAL_URL: ${EXTERNAL_URL}
+      PROJECTS_INTERNAL_API_KEY: ${PROJECTS_INTERNAL_API_KEY}
     ports:
       - "8003:8003"
     volumes:
@@ -171,6 +172,9 @@ services:
       JWT_SECRET: ${USERS_SECRET_KEY}
       JWT_ALGORITHM: HS256
       VOYAGE_API_KEY: ${VOYAGE_API_KEY}
+      PROJECTS_SERVICE_URL: ${PROJECTS_SERVICE_URL}
+      PROJECTS_INTERNAL_API_KEY: ${PROJECTS_INTERNAL_API_KEY}
+      LOG_LEVEL: ${ASSISTANT_SERVICE_LOG_LEVEL}
 
     depends_on:
       postgres-assistant:
@@ -184,7 +188,7 @@ services:
       --reload
 
   postgres-assistant:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     container_name: postgres-assistant-db
     environment:
       POSTGRES_USER: ${ASSISTANT_DB_USER:-postgres}
