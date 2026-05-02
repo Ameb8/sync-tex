@@ -1,6 +1,14 @@
 from fastapi import FastAPI
+from contextlib import asynccontextmanager
+
 from app.llm.router import router as llm_router
+from app.core.database import engine
 from app.core import setup_logging
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+    await engine.dispose()
 
 app = FastAPI(title="SyncTeX Assistant Service")
 setup_logging()
