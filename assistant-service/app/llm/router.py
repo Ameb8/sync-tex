@@ -1,28 +1,28 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 import json
 import uuid
 
 from app.core.database import get_db
 from app.core.auth import get_current_user_id
-from .client import get_llm_client
+from .client import get_client_for_user
 from .providers import supported_providers
 from . import schemas, crud, models
 
 router = APIRouter(tags=["llm"])
 
-# Create or update LLM key
+
 @router.put("/keys", response_model=schemas.LLMKeyResponse, status_code=status.HTTP_200_OK)
-def upsert_key(
+async def upsert_key(
     body: schemas.LLMKeyUpsert,
     user_id: str = Depends(get_current_user_id),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """Store or replace an API key for the given provider. Idempotent."""
-    row = crud.upsert_llm_key(db, user_id, body.provider, body.api_key)
+    row = await crud.upsert_llm_key(db, user_id, body.provider, body.api_key)
     return schemas.LLMKeyResponse(
         provider=row.provider,
         has_key=True,
@@ -31,14 +31,13 @@ def upsert_key(
     )
 
 
-# Get LLM key by provider
 @router.get("/keys", response_model=schemas.LLMKeyListResponse)
-def list_keys(
+async def list_keys(
     user_id: str = Depends(get_current_user_id),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """List which providers the user has keys for. Never returns the key itself."""
-    rows = crud.get_llm_keys(db, user_id)
+    rows = await crud.get_llm_keys(db, user_id)
     return schemas.LLMKeyListResponse(
         keys=[
             schemas.LLMKeyResponse(
@@ -52,64 +51,61 @@ def list_keys(
     )
 
 
-# Delete LLM key
 @router.delete("/keys/{provider}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_key(
+async def delete_key(
     provider: str,
     user_id: str = Depends(get_current_user_id),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """Remove a stored API key for the given provider."""
-    deleted = crud.delete_llm_key(db, user_id, provider)
+    deleted = await crud.delete_llm_key(db, user_id, provider)
     if not deleted:
-        raise HTTPException(status_code=404, detail=f"No key found for provider '{provider}'")
+        raise HTTPException(404, detail=f"No key found for provider '{provider}'")
 
 
-# Get user LLM settings
 @router.get("/settings", response_model=schemas.LLMSettingsResponse)
-def get_settings(
+async def get_settings(
     user_id: str = Depends(get_current_user_id),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
-    row = crud.get_or_create_settings(db, user_id)
-    row = crud.maybe_reset_token_count(db, row)
+    """Fetch user LLM settings"""
+    row = await crud.get_or_create_settings(db, user_id)
+    row = await crud.maybe_reset_token_count(db, row)
     return row
 
 
-# Update user LLM settings
 @router.patch("/settings", response_model=schemas.LLMSettingsResponse)
-def update_settings(
+async def update_settings(
     body: schemas.LLMSettingsUpdate,
     user_id: str = Depends(get_current_user_id),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
-    row = crud.update_settings(
+    """Update user LLM settiings"""
+    return await crud.update_settings(
         db,
         user_id,
         monthly_token_limit=body.monthly_token_limit,
         preferred_model=body.preferred_model,
         max_tokens_per_call=body.max_tokens_per_call,
     )
-    return row
 
 
-# Get usage info
 @router.get("/usage", response_model=list[schemas.UsageLogResponse])
-def get_usage(
+async def get_usage(
     user_id: str = Depends(get_current_user_id),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
-    """Return the 50 most recent LLM calls for this user."""
-    return crud.get_usage_logs(db, user_id)
+    """Fetch usage data"""
+    return await crud.get_usage_logs(db, user_id)
 
 
-# Create new chat
 @router.post("/chats", response_model=schemas.ChatSummary)
-def create_chat(
+async def create_chat(
     body: schemas.CreateChatRequest,
     user_id: str = Depends(get_current_user_id),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
+    """Create new chat"""
     chat = models.Chat(
         id=str(uuid.uuid4()),
         user_id=user_id,
@@ -117,84 +113,102 @@ def create_chat(
         title=body.title,
     )
     db.add(chat)
-    db.commit()
-    db.refresh(chat)
+    await db.commit()
+    await db.refresh(chat)
     return chat
 
 
-# Get list of chats
 @router.get("/chats", response_model=list[schemas.ChatSummary])
-def list_chats(
+async def list_chats(
     project_id: str,
     user_id: str = Depends(get_current_user_id),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
-    return (
-        db.query(models.Chat)
-        .filter(models.Chat.user_id == user_id, models.Chat.project_id == project_id)
+    """List user chats"""
+    result = await db.execute(
+        select(models.Chat)
+        .where(models.Chat.user_id == user_id, models.Chat.project_id == project_id)
         .order_by(models.Chat.updated_at.desc())
-        .all()
     )
+    return result.scalars().all()
 
 
-# Get chat history
 @router.get("/chats/{chat_id}/messages", response_model=list[schemas.ChatMessageResponse])
-def get_chat_history(
+async def get_chat_history(
     chat_id: str,
     user_id: str = Depends(get_current_user_id),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
-    chat = db.query(models.Chat).filter(
-        models.Chat.id == chat_id, models.Chat.user_id == user_id
-    ).first()
+    """Fetch full history of given chat"""
+    result = await db.execute(
+        select(models.Chat).where(
+            models.Chat.id == chat_id, models.Chat.user_id == user_id
+        )
+    )
+    chat = result.scalar_one_or_none()
     if not chat:
         raise HTTPException(404, "Chat not found")
-    return chat.messages
+
+    # Eagerly load messages
+    msg_result = await db.execute(
+        select(models.ChatMessage)
+        .where(models.ChatMessage.chat_id == chat_id)
+        .order_by(models.ChatMessage.created_at)
+    )
+    return msg_result.scalars().all()
 
 
 @router.delete("/chats/{chat_id}", status_code=204)
-def delete_chat(
+async def delete_chat(
     chat_id: str,
     user_id: str = Depends(get_current_user_id),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
-    chat = db.query(models.Chat).filter(
-        models.Chat.id == chat_id, models.Chat.user_id == user_id
-    ).first()
+    """Delete chat and history"""
+    result = await db.execute(
+        select(models.Chat).where(
+            models.Chat.id == chat_id, models.Chat.user_id == user_id
+        )
+    )
+    chat = result.scalar_one_or_none()
     if not chat:
         raise HTTPException(404, "Chat not found")
-    db.delete(chat)
-    db.commit()
+    await db.delete(chat)
+    await db.commit()
 
 
-# Streamed LLM chat
 @router.post("/chat/stream")
 async def chat_stream(
     body: schemas.ChatStreamRequest,
     user_id: str = Depends(get_current_user_id),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
-    # Auth: verify chat belongs to user
-    chat = db.query(models.Chat).filter(
-        models.Chat.id == body.chat_id, models.Chat.user_id == user_id
-    ).first()
+    """Send LLM prompt with reply streamed back to client"""
+    result = await db.execute(
+        select(models.Chat).where(
+            models.Chat.id == body.chat_id, models.Chat.user_id == user_id
+        )
+    )
+    chat = result.scalar_one_or_none()
     if not chat:
         raise HTTPException(404, "Chat not found")
 
-    client, settings, provider = get_llm_client(user_id, db)
+    client, settings, provider = await get_client_for_user(user_id, db)
 
-    # Load history from DB
-    history = [
-        {"role": msg.role, "content": msg.content}
-        for msg in chat.messages
-    ]
+    # Load message history
+    msg_result = await db.execute(
+        select(models.ChatMessage)
+        .where(models.ChatMessage.chat_id == chat.id)
+        .order_by(models.ChatMessage.created_at)
+    )
+    messages = msg_result.scalars().all()
 
-    # Append new user message
+    history = [{"role": msg.role, "content": msg.content} for msg in messages]
     history.append({"role": "user", "content": body.message})
 
     estimated = sum(len(m["content"]) for m in history) // 4
     try:
-        crud.check_token_budget(db, user_id, estimated)
+        await crud.check_token_budget(db, user_id, estimated)
     except ValueError as e:
         raise HTTPException(429, detail=str(e))
 
@@ -208,10 +222,10 @@ async def chat_stream(
     db.add(user_msg)
 
     # Auto-title chat on first user message
-    if not chat.title and not chat.messages:
+    if not chat.title and not messages:
         chat.title = body.message[:60]
 
-    db.commit()
+    await db.commit()
 
     messages_to_send = history
     if body.system_prompt:
@@ -224,7 +238,7 @@ async def chat_stream(
                 full_text += chunk
                 yield f"data: {json.dumps({'chunk': chunk})}\n\n"
 
-            # Persist assistant response
+            # Persist LLM response
             asst_msg = models.ChatMessage(
                 id=str(uuid.uuid4()),
                 chat_id=chat.id,
@@ -235,7 +249,7 @@ async def chat_stream(
             chat.updated_at = func.now()
 
             tokens_out_est = len(full_text) // 4
-            crud.record_token_usage(
+            await crud.record_token_usage(
                 db,
                 user_id=user_id,
                 project_id=chat.project_id,
@@ -244,12 +258,12 @@ async def chat_stream(
                 tokens_in=estimated,
                 tokens_out=tokens_out_est,
             )
-            db.commit()
+            await db.commit()
 
             yield f"data: {json.dumps({'done': True, 'model': provider, 'usage': {'tokens_in': estimated, 'tokens_out': tokens_out_est}})}\n\n"
 
         except Exception as e:
-            db.rollback()
+            await db.rollback()
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
     return StreamingResponse(
@@ -258,7 +272,8 @@ async def chat_stream(
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
+
 @router.get("/providers")
-def list_providers():
+async def list_providers():
     """Return which LLM providers this service supports."""
     return {"providers": supported_providers()}
