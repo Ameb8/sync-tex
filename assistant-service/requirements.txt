@@ -1,8 +1,10 @@
 # Server Core Packages
 fastapi
 uvicorn[standard]
-sqlalchemy
+sqlalchemy[asyncio]>=2.0
 psycopg2-binary
+asyncpg
+greenlet
 alembic
 pydantic
 python-dotenv
