@@ -16,6 +16,9 @@ cryptography
 # LLM Clients
 google-genai
 
+# Embedding Client
+voyageai
+
 # Postgres Vector Storage
 pgvector
 
