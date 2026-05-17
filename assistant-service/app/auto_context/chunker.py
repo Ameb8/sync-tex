@@ -2,6 +2,10 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
+from app.core import get_logger
+
+log = get_logger(module="rag.chunker")
+
 # Ordered from highest to lowest level
 SECTION_COMMANDS = [
     "part",
@@ -102,6 +106,22 @@ def chunk_latex(source: str) -> list[Chunk]:
 
     # Flush the final chunk
     flush(len(lines))
+
+    # Log file chunking
+    log.debug(
+        "chunker_split",
+        total_chunks=len(chunks),
+        chunks=[
+            {
+                "hierarchy": hierarchy_path(c),
+                "start_line": c.start_line,
+                "end_line": c.end_line,
+                "text_length": len(c.text),
+            }
+            for c in chunks
+        ],
+    )
+
 
     return chunks
 
