@@ -1,5 +1,6 @@
 # Server Core Packages
 fastapi
+httpx
 uvicorn[standard]
 sqlalchemy[asyncio]>=2.0
 psycopg2-binary
