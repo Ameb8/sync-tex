@@ -43,7 +43,7 @@ func NewSeeder(docID, serviceURL, internalSecret string) *Seeder {
 func (s *Seeder) Load() (snapshot []byte, updates []byte) {
 	s.once.Do(func() {
 		// Get presigned download URL from projects-service
-		url := fmt.Sprintf("%s/internal/v1/file/%s/download?type=uploads,snapshot", s.serviceURL, s.docID)
+		url := fmt.Sprintf("%s/projects/internal/v1/file/%s/download?type=uploads,snapshot", s.serviceURL, s.docID)
 		req, err := http.NewRequest(http.MethodGet, url, nil)
 		if err != nil {
 			log.Printf("[%s] seed request build error: %v\n", s.docID, err)
