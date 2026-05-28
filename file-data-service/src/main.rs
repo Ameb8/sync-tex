@@ -55,7 +55,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Server::builder()
         .add_service(svc_server)
         .serve(addr)
-        .await?;
+        .await
+        .map_err(|e| {
+            eprintln!("gRPC server error: {e}");
+            e
+        })?;
 
     Ok(())
 }
