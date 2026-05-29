@@ -1,95 +1,115 @@
-# assistant-service + postgres-assistant
+# assistant-service
 
-Python/FastAPI. Provides AI chat assistant scoped to a LaTeX project. BYOK (bring-your-own-key) model — users supply their own LLM API keys, stored encrypted at rest.
+FastAPI service for project-scoped AI assistance. Owns BYOK LLM keys, chat
+history, usage tracking, provider abstraction, SSE streaming, and
+auto-context/RAG indexing.
 
-## DB
+## Source Of Truth
 
-PostgreSQL instance `postgres-assistant`. Migrations via Alembic/SQLAlchemy. Stores encrypted API keys, conversation history.
+Use code-generated or code-adjacent sources for exact schemas. Do not treat this
+file as an endpoint or database schema reference.
 
-Schema highlights:
-- `api_keys`: user_id, provider, encrypted_key, iv, tag (AES-256-GCM fields)
-- `conversations`: id, project_id, user_id, created_at
-- `messages`: id, conversation_id, role (user|assistant), content, created_at
+- API routes: `app/llm/router.py`, `app/auto_context/router.py`
+- Request/response schemas: `app/llm/schemas.py`, `app/auto_context/schemas.py`
+- DB models: `app/llm/models.py`, `app/auto_context/models.py`
+- DB migrations: `alembic/versions/`
+- Provider implementations: `app/llm/providers/`
+- Project file/text access: `app/clients/projects_client.py`
+- Auto-context indexing: `app/auto_context/indexer.py`
+- Context assembly/tracking helpers: `app/context/`
 
-## Key Design
+If a stable external API reference is needed, generate it from FastAPI OpenAPI
+rather than hand-maintaining endpoint tables here.
 
-**BYOK key storage**: API keys encrypted with AES-256-GCM before DB write. Encryption key derived from `SECRET_KEY` env var. Never stored in plaintext.
+## Service Structure
 
-**Provider abstraction**: `BaseProvider` interface with `stream(messages) -> AsyncIterator[str]`. Implemented: `GeminiProvider`. Extensible to `AnthropicProvider`, `OpenAIProvider` without API changes.
+- `app/core/`: auth, crypto, database sessions, logging
+- `app/llm/`: API keys, user settings, usage logs, chats, streaming, providers
+- `app/auto_context/`: RAG index state, chunking, embeddings, indexing
+- `app/context/`: context assembly, mention resolution, context tracking
+- `app/clients/`: cross-service clients
+- `alembic/`: PostgreSQL migrations for this service
+- `tests/`: pytest coverage for service behavior
 
-**Context assembly**: Before calling the LLM, service fetches relevant file text from `file-data-service` (gRPC `ExportText`). Smart selection: prioritize files recently edited or referenced in conversation. Assembled context injected as system prompt.
+## Invariants
 
-**Streaming**: Responses streamed to client via SSE (`text/event-stream`). Each chunk is a `data: <token>\n\n` frame. Final frame is `data: [DONE]\n\n`.
+- JWT `sub` is a string user id.
+- Scope user-owned data by `user_id`; never expose chats, keys, settings, or
+  usage across users.
+- Never log raw API keys. Stored provider keys must remain encrypted at rest.
+- BYOK encryption depends on `SECRET_KEY`; avoid changes that make existing
+  encrypted keys unreadable without an explicit migration plan.
+- Streaming chat responses use SSE from `/chat/stream`.
+- Database schema changes require SQLAlchemy model updates, Alembic migrations,
+  and focused tests.
+- Cross-service project/file access goes through projects-service internal APIs;
+  this service should not access MinIO directly except through URLs supplied by
+  projects-service.
+- Auto-context indexing is background work. Keep request handlers responsive and
+  persist per-file failures without failing the whole project index when possible.
 
-## Endpoints
+## Coding Style
 
-| Method | Path                              | Description                  |
-|--------|-----------------------------------|------------------------------|
-| GET    | /health                           | Health check                 |
-| GET    | /keys                             | List stored API keys         |
-| PUT    | /keys                             | Upsert API key               |
-| DELETE | /keys/{provider}                  | Delete API key               |
-| GET    | /settings                         | Get user settings            |
-| PATCH  | /settings                         | Update user settings         |
-| GET    | /usage                            | Get recent usage logs        |
-| POST   | /chats                            | Create chat                  |
-| GET    | /chats                            | List chats (by project_id)   |
-| GET    | /chats/{chat_id}/messages         | Get chat history             |
-| DELETE | /chats/{chat_id}                  | Delete chat                  |
-| POST   | /chat/stream                      | Stream chat response (SSE)   |
-| GET    | /providers                        | List supported providers     |
+- Use type hints on function definitions, including return types.
+- Add variable/type annotations where they make the code more semantic,
+  professional, or easier to review. Avoid noisy annotations for obvious locals.
+- Prefer existing local patterns over new abstractions.
+- Keep comments/docstrings useful and specific. Add them for public helpers,
+  non-obvious decisions, security-sensitive code, cross-service contracts, and
+  notable inner blocks that would otherwise require careful reconstruction.
+- Do not add comments that merely restate the next line of code.
+- Keep async SQLAlchemy session ownership clear. Background tasks should create
+  their own sessions instead of reusing request-scoped sessions.
 
-## Database:
+## Common Workflows
 
+When changing API behavior:
 
-### LlmUsageLog
-- id (string, pk)
-- user_id (string, index)
-- project_id (string)
-- job_id (string, optional)
-- operation (string)
-- model (string)
-- tokens_in (int)
-- tokens_out (int)
-- created_at (timestamp)
+- Update the router and Pydantic schemas together.
+- Check frontend callers and any generated OpenAPI artifact if one exists.
+- Add or update tests for auth scoping, validation, and error behavior.
 
-### UserLlmKey
-- user_id (string)
-- provider (string)
-- encrypted_key (bytes)
-- created_at (timestamp)
-- updated_at (timestamp)
-- pk (user_id, provider)
+When changing persistence:
 
-### UserLlmSettings
-- user_id (string, pk)
-- monthly_token_limit (int, optional)
-- tokens_used_this_month (int)
-- token_reset_date (date)
-- preferred_model (string, optional)
-- max_tokens_per_call (int)
-- updated_at (timestamp)
+- Update SQLAlchemy models.
+- Add an Alembic migration in `alembic/versions/`.
+- Test migration-sensitive behavior and model CRUD paths.
 
-### Chat 
-- id (string, pk)
-- user_id (string, index)
-- project_id (string, index)
-- title (string, optional)
-- created_at (timestamp)
-- updated_at (timestamp)
+When adding an LLM provider:
 
-### ChatMessage
-- id (string, pk)
-- chat_id (fk -> Chat.id)
-- role (string)
-- content (text)
-- created_at (timestamp)
+- Implement the provider under `app/llm/providers/`.
+- Register it in the provider registry.
+- Preserve the existing streaming interface.
+- Avoid provider-specific behavior leaking into API schemas unless it is a
+  deliberate product/API change.
 
-## Env
+When changing auto-context/RAG:
 
-```
-DATABASE_URL
-SECRET_KEY              # used to derive AES encryption key
-FILE_DATA_SERVICE_ADDR  # gRPC
-JWT_SECRET
-```
+- Check chunking, embedding dimensions, index state transitions, and failure
+  persistence.
+- Keep projects-service as the source for project file lists and text URLs.
+
+## Environment
+
+Important environment variables include:
+
+- `DATABASE_URL`
+- `SECRET_KEY`
+- `JWT_SECRET`
+- `PROJECTS_SERVICE_URL`
+- `PROJECTS_INTERNAL_API_KEY`
+
+Verify current code before adding new required variables.
+
+## Tests
+
+Use pytest for assistant-service tests. From `assistant-service/`:
+
+- `make test` for normal edit/verify loops
+- `make test-cov` for coverage
+- `make test-container` for container parity
+- `make test-container-build` after dependency, Dockerfile, compose, or runtime
+  changes
+
+Prefer `make test` during normal development. Use container tests only when behavior
+may depend on image contents, dependency resolution, or Docker networking, not for standard logic/feature updates.
