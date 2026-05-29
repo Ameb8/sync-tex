@@ -49,10 +49,11 @@ services:
     container_name: users-service
     environment:
       DATABASE_URL: ${USERS_DB_URL}
+      EXTERNAL_URL: ${EXTERNAL_URL}
       SECRET_KEY: ${USERS_SECRET_KEY}
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
-      GITHUB_REDIRECT_URI: ${GITHUB_REDIRECT_URI}
+      GITHUB_REDIRECT_URI: ${EXTERNAL_URL}/auth/github/callback
       USERS_INTERNAL_API_KEY: ${USERS_INTERNAL_API_KEY}
     ports:
       - "8001:8001"
