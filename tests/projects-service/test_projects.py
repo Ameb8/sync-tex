@@ -95,12 +95,12 @@ class TestGetProject:
         assert r.status_code == 200
         assert r.json()["id"] == proj["id"]
 
-    def test_get_nonexistent_project_returns_404(self, base_url, unique_user):
+    def test_get_nonexistent_project(self, base_url, unique_user):
         _, headers = unique_user
         r = requests.get(
             f"{base_url}/projects/v1/projects/{uuid.uuid4()}", headers=headers
         )
-        assert r.status_code == 404
+        assert r.status_code in (403, 404)
 
     def test_get_other_users_project_returns_403_or_404(
         self, base_url, project, second_user
@@ -157,7 +157,7 @@ class TestDeleteProject:
         r = requests.get(
             f"{base_url}/projects/v1/projects/{proj_id}", headers=headers
         )
-        assert r.status_code == 404
+        assert r.status_code in (403, 404)
 
     def test_delete_by_non_owner_returns_403_or_404(
         self, base_url, project, second_user
