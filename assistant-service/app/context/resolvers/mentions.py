@@ -1,6 +1,6 @@
 import re
 import httpx
-from ..schemas import ContextChunk, ContextSource
+from ..schemas import ContextChunk, ContextSource, ContextScope
 from .base import BaseResolver
 
 MENTION_RE = re.compile(r"@([\w./\-]+)")
@@ -35,5 +35,6 @@ class MentionResolver(BaseResolver):
                     path=path,
                     content=content_resp.text,
                     source=ContextSource.MENTION,
+                    scope=ContextScope.FULL_FILE,
                 ))
         return chunks
