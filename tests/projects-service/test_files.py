@@ -19,10 +19,13 @@ import requests
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def create_file(base_url, proj_id, headers, filename="test.txt", path="/"):
+def create_file(base_url, proj_id, headers, filename="test.txt", directory_id=None, file_type="tex"):
+    body = {"filename": filename, "file_type": file_type}
+    if directory_id is not None:
+        body["directory_id"] = directory_id
     return requests.post(
         f"{base_url}/projects/v1/projects/{proj_id}/files",
-        json={"name": filename, "path": path},
+        json=body,
         headers=headers,
     )
 
@@ -95,11 +98,11 @@ class TestUpdateFile:
 
         r = requests.patch(
             f"{base_url}/projects/v1/projects/{proj['id']}/files/{file_id}",
-            json={"name": "renamed.txt"},
+            json={"filename": "renamed.txt"},
             headers=headers,
         )
         assert r.status_code == 200
-        assert r.json()["name"] == "renamed.txt"
+        assert r.json()["filename"] == "renamed.txt"
 
     def test_rename_by_non_member_returns_403_or_404(
         self, base_url, project, second_user

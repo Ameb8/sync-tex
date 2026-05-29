@@ -1,30 +1,23 @@
-from fastapi import HTTPException, Depends
-from sqlalchemy.orm import Session
+from fastapi import HTTPException
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from . import models
 from .providers import get_client
 from app.core.crypto import decrypt_api_key
-from app.core.auth import get_current_user_id
-from app.core.database import get_db
-
-def get_llm_client(
-    user_id: str = Depends(get_current_user_id),
-    db: Session = Depends(get_db),
-):
-    return get_client_for_user(user_id, db)
 
 
-def get_client_for_user(user_id: str, db: Session):
-    # Fetch key
-    key = (
-        db.query(models.UserLLMKey)
-        .filter(models.UserLLMKey.user_id == user_id)
-        .first()
+
+async def get_client_for_user(user_id: str, db: AsyncSession):
+    result = await db.execute(
+        select(models.UserLLMKey)
+        .where(models.UserLLMKey.user_id == user_id)
+        .limit(1)
     )
+    key = result.scalar_one_or_none()
     if not key:
         raise HTTPException(400, "No LLM API key configured")
 
-    # Decrypt
     try:
         api_key = decrypt_api_key(key.encrypted_key)
     except Exception:
@@ -32,18 +25,15 @@ def get_client_for_user(user_id: str, db: Session):
 
     provider = key.provider
 
-    # Fetch settings
-    settings = (
-        db.query(models.UserLLMSettings)
-        .filter(models.UserLLMSettings.user_id == user_id)
-        .first()
+    result = await db.execute(
+        select(models.UserLLMSettings)
+        .where(models.UserLLMSettings.user_id == user_id)
     )
+    settings = result.scalar_one_or_none()
 
-    # Instantiate client
     client = get_client(
         provider=provider,
         api_key=api_key,
         preferred_model=settings.preferred_model if settings else None,
     )
-
-    return client, settings, provider
+    return client, settings, provider 

@@ -6,7 +6,7 @@ Self-hosted collaborative LaTeX IDE. Raspberry Pi 5, Docker Compose, ARM64. Poly
 
 | Dir | Lang | Role | Docs |
 |-----|------|------|------|
-| `users-service/` | Python/FastAPI | Auth, JWT, GitHub OAuth2, Postgres | [README](users-service/README.md) |
+| `users-service/` | Python/FastAPI | Auth, JWT, GitHub OAuth2, Postgres | [README](users-service/README.md) |c
 | `projects-service/` | Go/Gin, sqlc, pgx, Postgres | File metadata, MinIO presigned URLs, ETag cache, invite links | [README](projects-service/README.md) |
 | `collab-service/` | Go | WebSocket Yjs binary relay, snapshot seeding | [README](collab-service/README.md) |
 | `file-data-service/` | Rust/yrs, tonic/gRPC | Yjs compaction, text export | [README](file-data-service/README.md) |
@@ -41,3 +41,7 @@ assistant-service/
 compile-service/
 frontend/
 ```
+
+## LLM Assistance
+
+If more context is needed to answer question or complete task, immediately ask for context before thinking or reasoning about the answer. 

@@ -18,7 +18,7 @@ target_metadata = Base.metadata
 # Override DB URL form env var
 config.set_main_option(
     "sqlalchemy.url",
-    os.getenv("DATABASE_URL")
+    os.getenv("DATABASE_SYNC_URL")
 )
 
 def run_migrations_offline():

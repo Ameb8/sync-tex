@@ -287,3 +287,108 @@ func (h *Handler) ensureTextUpToDate(ctx context.Context, file db.File) error {
 
 	return nil
 }
+
+
+// InternalDownloadProject handles:
+// GET /internal/project/:projectID/download
+//
+// Optional query param: ?type=uploads,snapshot,text
+// If omitted, files are returned without presigned URLs.
+//
+// Returns:
+//
+//	{
+//	  "files": [
+//	    {
+//	      "id": "...",
+//	      "filename": "...",
+//	      "file_type": "...",
+//	      "storage_key": "...",
+//	      "urls": { "uploads": "...", ... }   // omitted if ?type not provided
+//	    }
+//	  ]
+//	}
+func (h *Handler) InternalDownloadProject(c *gin.Context) {
+	// Parse project ID
+	projectIDStr := c.Param("projectID")
+	projectID, err := stringToPgUUID(projectIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid project ID"})
+		return
+	}
+
+	// Fetch all files for the project
+	files, err := h.queries.ListFilesByProject(c.Request.Context(), projectID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch project files"})
+		return
+	}
+
+	// Parse optional ?type= query param
+	queryTypes := c.Query("type")
+	var typesToReturn []string
+	withURLs := queryTypes != ""
+	if withURLs {
+		typesToReturn = strings.Split(queryTypes, ",")
+		validTypes := map[string]bool{"uploads": true, "snapshot": true, "text": true}
+		for _, t := range typesToReturn {
+			if !validTypes[t] {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid type, must be 'uploads', 'snapshot', or 'text'"})
+				return
+			}
+		}
+	}
+
+	// Build response
+	type FileEntry struct {
+		ID         string            `json:"id"`
+		Filename   string            `json:"filename"`
+		FileType   db.FileType       `json:"file_type"`
+		URLs       map[string]string `json:"urls,omitempty"`
+	}
+
+	entries := make([]FileEntry, 0, len(files))
+
+	for _, file := range files {
+		entry := FileEntry{
+			ID:         pgUUIDToString(file.ID),
+			Filename:   file.Filename,
+			FileType:   file.FileType,
+		}
+
+		if withURLs {
+			// Ensure text is fresh before generating its URL
+			if slices.Contains(typesToReturn, "text") {
+				if err := h.ensureTextUpToDate(c.Request.Context(), file); err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{
+						"error": fmt.Sprintf("Failed to ensure text version is up to date for file %s", entry.ID),
+					})
+					return
+				}
+			}
+
+			urls := make(map[string]string, len(typesToReturn))
+			for _, t := range typesToReturn {
+				url, err := h.generateDownloadURL(
+					c.Request.Context(),
+					t, // bucket matches type
+					file.StorageKey,
+					15*time.Minute,
+					true,
+				)
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{
+						"error": fmt.Sprintf("Failed to generate %s URL for file %s", t, entry.ID),
+					})
+					return
+				}
+				urls[t] = url
+			}
+			entry.URLs = urls
+		}
+
+		entries = append(entries, entry)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"files": entries})
+}

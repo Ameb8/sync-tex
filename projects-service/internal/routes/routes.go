@@ -54,4 +54,5 @@ func SetupRoutes(r *gin.Engine, h *handlers.Handler, authMiddleware *middleware.
 	internal.GET("/file/:fileID/download", h.InternalDownloadFile)
 	internal.GET("/file/:fileID/upload", h.InternalUploadFile)
 	internal.GET("/file/:fileID/compact", h.InternalCompactFile)
+	internal.GET("/project/:projectID/download", h.InternalDownloadProject)
 }
