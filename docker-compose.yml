@@ -1,121 +1,76 @@
 services:
   nginx:
     image: nginx:alpine
-    container_name: api-gateway
-    ports:
-      - "80:80"
-      - "443:443"
-      - "127.0.0.1:8080:8080" # Frontend dev server
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/conf.d:/etc/nginx/conf.d:ro
-      - ./nginx/certs:/etc/nginx/certs:ro
-      - ./frontend/dist:/usr/share/nginx/html:ro
+      - ./nginx/conf.d/default.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
-      collab-service:
-        condition: service_started
       users-service:
         condition: service_started
       projects-service:
         condition: service_started
+      collab-service:
+        condition: service_started
+      assistant-service:
+        condition: service_started
       minio:
-        condition: service_healthy 
+        condition: service_healthy
     networks:
       - gateway-network
 
   postgres-users:
     image: postgres:16-alpine
-    container_name: postgres-users-db
     environment:
       POSTGRES_USER: ${USERS_DB_USER}
       POSTGRES_PASSWORD: ${USERS_DB_PASSWORD}
       POSTGRES_DB: ${USERS_DB}
     volumes:
       - postgres_users_data:/var/lib/postgresql/data
-    ports:
-      - "127.0.0.1:5434:5432"
-    networks:
-      - gateway-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - gateway-network
 
   users-service:
     build:
       context: ./users-service
-      dockerfile: Dockerfile
-    container_name: users-service
     environment:
       DATABASE_URL: ${USERS_DB_URL}
       EXTERNAL_URL: ${EXTERNAL_URL}
+      FRONTEND_URL: ${FRONTEND_URL}
       SECRET_KEY: ${USERS_SECRET_KEY}
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
       GITHUB_REDIRECT_URI: ${EXTERNAL_URL}/auth/github/callback
       USERS_INTERNAL_API_KEY: ${USERS_INTERNAL_API_KEY}
-    ports:
-      - "8001:8001"
-    volumes:
-      - ./users-service:/app
-      - /app/__pycache__
     depends_on:
       postgres-users:
         condition: service_healthy
     networks:
       - gateway-network
 
-  collab-service:
-    build:
-      context: ./collab-service
-      dockerfile: Dockerfile.dev
-    container_name: collab-service
-    environment:
-      BIND_ADDR: ${COLLAB_SERVICE_BIND_ADDR}
-      PROJECTS_SERVICE_URL: ${PROJECTS_SERVICE_URL:-http://projects-service:8003}
-      UPLOAD_DEBOUNCE_MS: ${COLLAB_UPLOAD_DEBOUNCE_MS}
-      UPLOAD_MAX_INTERVAL_SECS: ${COLLAB_UPLOAD_MAX_SEC}
-
-    volumes:
-      # Bind-mount source so cargo-watch sees edits without rebuild
-      - ./collab-service:/app
-      - collab_build_cache:/app/target
-    depends_on:
-      projects-service:
-        condition: service_started
-    networks:
-      - gateway-network
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
-      interval: 15s
-      timeout: 5s
-      retries: 3
-
   postgres-projects:
     image: postgres:16-alpine
-    container_name: postgres-projects-db
     environment:
-      POSTGRES_USER: ${PROJECTS_DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${PROJECTS_DB_PASSWORD:-postgres}
-      POSTGRES_DB: ${PROJECTS_DB:-projects_db}
+      POSTGRES_USER: ${PROJECTS_DB_USER}
+      POSTGRES_PASSWORD: ${PROJECTS_DB_PASSWORD}
+      POSTGRES_DB: ${PROJECTS_DB}
     volumes:
       - postgres_projects_data:/var/lib/postgresql/data
-    ports:
-      - "5433:5432"
-    networks:
-      - gateway-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - gateway-network
 
   projects-service:
     build:
       context: ./projects-service
-      dockerfile: Dockerfile.dev
-    container_name: projects-service
     environment:
       DATABASE_URL: ${PROJECTS_DB_URL}
       JWT_SECRET: ${USERS_SECRET_KEY}
@@ -124,49 +79,62 @@ services:
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
       GATEWAY_URL: ${HOST_DOMAIN}
-      USERS_INTERNAL_API_KEY: ${USERS_INTERNAL_API_KEY} 
+      USERS_INTERNAL_API_KEY: ${USERS_INTERNAL_API_KEY}
       USERS_INTERNAL_API_URL: ${USERS_INTERNAL_API_URL}
-      FILE_DATA_ADDR: ${FILE_DATA_ADDR}
+      FILE_DATA_ADDR: ${FILE_DATA_ADDR:-file-data-service:50051}
       EXTERNAL_URL: ${EXTERNAL_URL}
       PROJECTS_INTERNAL_API_KEY: ${PROJECTS_INTERNAL_API_KEY}
-    ports:
-      - "8003:8003"
-    volumes:
-      - ./projects-service:/app
-      - /app/tmp
     depends_on:
       postgres-projects:
         condition: service_healthy
+      file-data-service:
+        condition: service_started
+      minio:
+        condition: service_healthy
+    networks:
+      - gateway-network
+
+  collab-service:
+    build:
+      context: ./collab-service
+    environment:
+      BIND_ADDR: ${COLLAB_SERVICE_BIND_ADDR}
+      PROJECTS_SERVICE_URL: ${PROJECTS_SERVICE_URL:-http://projects-service:8003}
+      UPLOAD_DEBOUNCE_MS: ${COLLAB_UPLOAD_DEBOUNCE_MS}
+      UPLOAD_MAX_INTERVAL_SECS: ${COLLAB_UPLOAD_MAX_SEC}
+    depends_on:
+      projects-service:
+        condition: service_started
     networks:
       - gateway-network
 
   file-data-service:
     build:
       context: ./file-data-service
-      dockerfile: Dockerfile.dev
-    volumes:
-      # Mount source so cargo-watch sees your edits instantly.
-      - ./file-data-service/src:/app/src
-      # Mount proto for changing service definition
-      - ./proto:/app/proto
-      # Persist the build cache between container restarts
-      - file_data_target:/app/target
-    ports:
-      - "50051:50051"
     environment:
-      GRPC_ADDR: "[::]:50051"
-      RUST_LOG: "debug"
+      GRPC_ADDR: ${FILE_DATA_GRPC_ADDR:-[::]:50051}
     networks:
-      - gateway-network 
+      - gateway-network
+
+  postgres-assistant:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${ASSISTANT_DB_USER}
+      POSTGRES_PASSWORD: ${ASSISTANT_DB_PASSWORD}
+      POSTGRES_DB: ${ASSISTANT_DB}
+    volumes:
+      - postgres_assistant_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - gateway-network
 
   assistant-service:
     build:
       context: ./assistant-service
-      dockerfile: Dockerfile.dev
-    volumes:
-      - ./assistant-service:/app
-    ports:
-      - "8000:8000"
     environment:
       DATABASE_URL: ${ASSISTANT_DB_URL}
       DATABASE_SYNC_URL: ${ASSISTANT_DB_SYNC_URL}
@@ -176,52 +144,22 @@ services:
       VOYAGE_API_KEY: ${VOYAGE_API_KEY}
       PROJECTS_SERVICE_URL: ${PROJECTS_SERVICE_URL:-http://projects-service:8003}
       PROJECTS_INTERNAL_API_KEY: ${PROJECTS_INTERNAL_API_KEY}
-      LOG_LEVEL: ${ASSISTANT_SERVICE_LOG_LEVEL}
-
     depends_on:
       postgres-assistant:
         condition: service_healthy
+      projects-service:
+        condition: service_started
     networks:
       - gateway-network
-    command: >
-      uvicorn app.main:app
-      --host 0.0.0.0
-      --port 8000
-      --reload
-
-  postgres-assistant:
-    image: pgvector/pgvector:pg16
-    container_name: postgres-assistant-db
-    environment:
-      POSTGRES_USER: ${ASSISTANT_DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${ASSISTANT_DB_PASSWORD:-postgres}
-      POSTGRES_DB: ${ASSISTANT_DB:-assistant_db}
-    volumes:
-      - postgres_assistant_data:/var/lib/postgresql/data
-    ports:
-      - "5435:5432"
-    networks:
-      - gateway-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   minio:
     image: minio/minio:latest
-    container_name: minio
     command: server /data --console-address ":9001"
-    ports:
-      - "9000:9000"  # S3 API
-      - "9001:9001"  # Web console
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     volumes:
       - minio_data:/data
-    mem_limit: 512m
-    restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 10s
@@ -230,25 +168,11 @@ services:
     networks:
       - gateway-network
 
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    container_name: cloudflared
-    command: tunnel --no-autoupdate --url http://nginx:80
-    restart: unless-stopped
-    depends_on:
-      nginx:
-        condition: service_started
-    networks:
-      - gateway-network
-
 volumes:
   postgres_users_data:
-  postgres_projects_data: 
+  postgres_projects_data:
   postgres_assistant_data:
   minio_data:
-  collab_cargo_cache:
-  collab_build_cache:
-  file_data_target:
 
 networks:
   gateway-network:

@@ -1,0 +1,57 @@
+services:
+  nginx:
+    restart: unless-stopped
+    volumes:
+      - ./nginx/conf.d/frontend.conf:/etc/nginx/conf.d/frontend.conf:ro
+      - ./frontend/dist:/usr/share/nginx/html:ro
+
+  postgres-users:
+    restart: unless-stopped
+
+  users-service:
+    build:
+      dockerfile: Dockerfile
+    restart: unless-stopped
+
+  postgres-projects:
+    restart: unless-stopped
+
+  projects-service:
+    build:
+      dockerfile: Dockerfile
+    restart: unless-stopped
+
+  collab-service:
+    build:
+      dockerfile: Dockerfile
+    restart: unless-stopped
+
+  file-data-service:
+    build:
+      dockerfile: Dockerfile
+    environment:
+      RUST_LOG: info
+    restart: unless-stopped
+
+  postgres-assistant:
+    restart: unless-stopped
+
+  assistant-service:
+    build:
+      dockerfile: Dockerfile
+    environment:
+      LOG_LEVEL: info
+    restart: unless-stopped
+
+  minio:
+    restart: unless-stopped
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate --url http://nginx:80
+    restart: unless-stopped
+    depends_on:
+      nginx:
+        condition: service_started
+    networks:
+      - gateway-network
