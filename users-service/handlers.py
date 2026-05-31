@@ -6,13 +6,10 @@ from typing import Optional
 import httpx
 import secrets
 import os
-from dotenv import load_dotenv
 
 from models import User, get_db
 from schemas import LoginRequest, LoginResponse, UserResponse, UserCreate, TokenData, InternalUsersResponse, InternalUserResponse
 from security import hash_password, verify_password, generate_token, verify_token
-
-load_dotenv()
 
 router = APIRouter()
 
@@ -94,10 +91,19 @@ async def github_callback(code: str, state: str, db: Session = Depends(get_db)):
     
     oauth_states.discard(state)
     
+    # Read env vars
     github_client_id = os.getenv("GITHUB_CLIENT_ID")
-    github_client_secret = os.getenv("GITHUB_CLIENT_SECRET")
-    redirect_uri = os.getenv("GITHUB_REDIRECT_URI", "https://family-size-relationship-exploration.trycloudflare.com/auth/github/callback")
-    
+    github_client_secret = os.getenv("GITHUB_CLIENT_SECRET")    
+    external_url = os.getenv("EXTERNAL_URL")
+    redirect_uri = os.getenv("GITHUB_REDIRECT_URI")
+
+    # Ensure vars exist
+    if not external_url or not redirect_uri:
+      raise HTTPException(status_code=500, detail="OAuth URL configuration is missing")
+    if not github_client_id or not github_client_secret:
+      raise HTTPException(status_code=500, detail="GitHub OAuth configuration is missing")
+
+
     # Exchange code for GitHub access token
     async with httpx.AsyncClient() as client:
         token_response = await client.post(
@@ -114,6 +120,7 @@ async def github_callback(code: str, state: str, db: Session = Depends(get_db)):
     if token_response.status_code != 200:
         raise HTTPException(status_code=400, detail="Failed to exchange authorization code")
     
+    # Parse token data
     token_data = token_response.json()
     if "error" in token_data:
         raise HTTPException(status_code=400, detail=token_data.get("error_description", "OAuth error"))
@@ -130,6 +137,7 @@ async def github_callback(code: str, state: str, db: Session = Depends(get_db)):
     if user_response.status_code != 200:
         raise HTTPException(status_code=400, detail="Failed to fetch user info from GitHub")
     
+    # Read user data from token
     github_user = user_response.json()
     github_id = str(github_user["id"])
     username = github_user.get("login")
@@ -178,7 +186,7 @@ async def github_callback(code: str, state: str, db: Session = Depends(get_db)):
     token = generate_token(user.id, user.email)
     
     # Redirect back to frontend with jwt 
-    frontend_url = f"https://family-size-relationship-exploration.trycloudflare.com/oauth/callback?token={token}"
+    frontend_url = f"{external_url}/oauth/callback?token={token}"
     return RedirectResponse(frontend_url)
 
 
