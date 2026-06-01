@@ -111,6 +111,8 @@ services:
   file-data-service:
     build:
       context: ./file-data-service
+      additional_contexts:
+        root-proto: ./proto # Pass in shared proto definition from project root
     environment:
       GRPC_ADDR: ${FILE_DATA_GRPC_ADDR:-[::]:50051}
     networks:

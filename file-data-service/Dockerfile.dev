@@ -15,10 +15,16 @@ WORKDIR /app
 # Pre-fetch dependencies by copying manifests + dummy src first
 # This layer is cached as long as Cargo.toml/Cargo.lock don't change.
 COPY Cargo.toml Cargo.lock* ./
+
+# Copy build file
 COPY build.rs ./
-COPY proto ./proto 
+
+# Use shared proto definition from project root
+COPY --from=root-proto . ./proto 
+
+# Debug build
 RUN mkdir src && echo 'fn main() {}' > src/main.rs
-RUN cargo build # debug build — much faster than --release
+RUN cargo build
 
 # Remove dummy binary
 RUN rm -f target/debug/compaction-service target/debug/compaction-service.d
