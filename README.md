@@ -2,9 +2,36 @@
 
 ![SyncTex Logo](https://github.com/Ameb8/sync-tex/blob/master/docs/SyncTex.png)
 
-SyncTex is a web-based LaTeX project editor. It allows users to store and save full-fledged projects, containing various file types and resources. Users can collaborate in real time, allowing teams to work together to produce clean and professional documentation. 
+SyncTex is a web-based LaTeX project editor. It allows users to store and save full-fledged projects, containing various file types and resources. Users can collaborate in real time, allowing teams to work together to produce clean and professional documentation. Get advice, ask questions, or generate content with built-in LLM assistant. Login with your GitHub or email and start editing now!
+
+## Features
+
+- Real-Time collaborative document editing
+
+- Multi-file and directory project support
+
+- Gemini LLM assistant integration
+
+- Collaborators with editor and read-only privileges
+
+- Login with GitHub or email/password
+
+## Planned Features
+
+- Project compilation to PDF
+
+- Login with Google
+
+- Additional LLM provider support
+
+- Project source/bibliography management
+
+- Auto-context for LLM assistant
+
 
 # Software Design
+
+SyncTex is built on a microservice architecture to support independent scaling and separation of concerns. 
 
 ![Architecture Diagram](https://github.com/Ameb8/sync-tex/blob/master/docs/sync-tex-architecture.png)
 
