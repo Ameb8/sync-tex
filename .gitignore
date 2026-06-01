@@ -7,36 +7,39 @@
 nginx/certs/
 
 # Docker volumes
-**/postgres-data/
-**/docker-data/
+postgres-data/
+docker-data/
 
 # Logs
 *.log
 
 # Python
-**/__pycache__/
+__pycache__/
 *.pyc
 *.pyo
-**/.venv/
-**/venv/
+.venv/
+venv/
 
 # Go
-**/bin/
-**/dist/
+bin/
+dist/
 *.test
 
 # Node
-**/node_modules/
-**/dist/
-**/.vite/
+node_modules/
+dist/
+.vite/
+
+# Rust
+target/
 
 # OS
-**/.DS_Store
-**/Thumbs.db
+.DS_Store
+Thumbs.db
 
 # Editors
-**/.vscode/
-**/.idea/
+.vscode/
+.idea/
 
 # Swap
 *.swp
