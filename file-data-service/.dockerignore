@@ -1,0 +1,11 @@
+.git
+.env*
+*.log
+**/node_modules
+**/dist
+**/__pycache__
+
+.DS_Store
+Dockerfile.dev
+target/
+file-data-service/
