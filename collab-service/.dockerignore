@@ -1,0 +1,13 @@
+.git
+.env*
+*.log
+**/node_modules
+**/dist
+**/__pycache__
+
+.air.toml
+.DS_Store
+coverage.out
+bin/
+target/
+tmp/
