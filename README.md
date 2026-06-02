@@ -28,6 +28,66 @@ SyncTex is a web-based LaTeX project editor. It allows users to store and save f
 
 - Auto-context for LLM assistant
 
+## Running
+
+Prerequisites: Docker Compose for the service stack, Node.js/npm for the React frontend, and a populated `.env` file. Start from `.env.example`:
+
+```sh
+cp .env.example .env
+```
+
+For production, replace all example secrets, database passwords, OAuth credentials, API keys, and public URLs before starting the stack.
+
+### Development
+
+Development mode uses `docker-compose.yml` plus `docker-compose.dev.yml`. Backend services run in containers with reload/watch commands, while nginx proxies the frontend route to the local Vite dev server.
+
+```sh
+make dev-build
+make dev-up
+
+cd frontend
+npm install
+npm run dev
+```
+
+Open `http://localhost`. Useful dev endpoints are exposed locally: users service on `8001`, projects service on `8003`, assistant service on `8000`, file-data gRPC on `50051`, MinIO API on `9000`, and MinIO console on `9001`.
+
+Common commands:
+
+```sh
+make dev-logs                 # follow all service logs
+make dev-logs SERVICE=minio   # follow one service
+make dev-ps                   # list containers
+make dev-down                 # stop and remove dev containers
+make dev-reset                # also remove dev volumes
+```
+
+### Production
+
+Production mode uses `docker-compose.yml` plus `docker-compose.prod.yml`. It builds production service images, serves `frontend/dist` through nginx, and starts the Cloudflare tunnel sidecar.
+
+```sh
+cd frontend
+npm install
+npm run build
+cd ..
+
+make prod-build
+make prod-up
+```
+
+Set `FRONTEND_URL` and `EXTERNAL_URL` in `.env` to the public origin clients should use. The app is served by nginx on port `80`; production object URLs and OAuth redirects depend on those external URL values.
+
+Common commands:
+
+```sh
+make prod-logs
+make prod-ps
+make prod-down
+make prod-reset    # removes production containers and volumes
+```
+
 
 # Software Design
 
