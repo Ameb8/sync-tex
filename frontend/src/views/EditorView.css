@@ -498,6 +498,14 @@
 .collab-connected .collab-dot {
   animation: pulse 2s ease-in-out infinite;
 }
+
+.yRemoteSelection {
+  background-color: rgba(31, 128, 221, 0.18);
+}
+
+.yRemoteSelectionHead {
+  border-left: 2px solid #1f80dd;
+}
  
 @media (prefers-color-scheme: dark) {
   .collab-indicator.collab-connected    { background: rgba(76, 175, 80, 0.08);  }

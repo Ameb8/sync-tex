@@ -55,7 +55,7 @@ const isImageType = (fileType) => IMAGE_TYPES.has(fileType?.toLowerCase());
  */
 const EditorView = () => {
   const { projectId } = useParams();
-  const { getToken } = useAuth();
+  const { getToken, user } = useAuth();
 
   // Project/loading state 
   const [isCollab, setIsCollab] = useState(false);
@@ -103,7 +103,7 @@ const EditorView = () => {
     openCollabSession,
     closeCollabSession,
     bindActiveSession,
-  } = useCollabSessions({ projectId, getToken });
+  } = useCollabSessions({ projectId, getToken, user });
 
   // useFileManager is declared first so clearFileContent is available
   const {

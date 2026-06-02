@@ -11,7 +11,7 @@ import { createCollabSession } from '../api/session';
  *   - Binding a session to a Monaco editor instance
  *   - Tracking per-file connection status for UI indicators
  */
-export function useCollabSessions({ projectId, getToken }) {
+export function useCollabSessions({ projectId, getToken, user = null }) {
   // Map of fileId -> session object from createCollabSession().
   // Ref (not state) because mutations don't need re-renders.
   const collabSessions = useRef({});
@@ -43,13 +43,14 @@ export function useCollabSessions({ projectId, getToken }) {
       fileId: file.id,
       projectId,
       token,
+      user,
       onStatus: (status) => {
         setCollabStatus((prev) => ({ ...prev, [file.id]: status }));
       },
     });
 
     collabSessions.current[file.id] = session;
-  }, [projectId, getToken]);
+  }, [projectId, getToken, user]);
 
   const closeCollabSession = useCallback((fileId) => {
     const session = collabSessions.current[fileId];
