@@ -9,6 +9,7 @@ Use this skill when asked to create or update a production Dockerfile for a serv
 3. If a matching language-specific instruction file exists in `resources/`, read it and apply it after the baseline conventions.
    - `resources/fastapi.md` for Python FastAPI/Uvicorn services.
    - `resources/go.md` for Go services.
+   - `resources/rust.md` for Rust services.
 4. Treat language-specific instructions as higher priority than generic conventions when they conflict.
 5. Inspect the target service before editing so the Dockerfile matches the actual build command, dependency manager, module path, application entry point, port, health endpoint, and runtime needs.
 6. If the service has a `Dockerfile.dev`, read it for discovery only: entry point, port, dependency manager, build commands, working directory, and service-specific environment defaults. Do not copy dev-only patterns into the production Dockerfile unless they are explicitly appropriate for production.
