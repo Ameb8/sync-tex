@@ -23,6 +23,9 @@ export function useCollabSessions({ projectId, getToken, user = null }) {
   // fileId statuses: 'connecting' | 'connected' | 'disconnected'
   const [collabStatus, setCollabStatus] = useState({});
 
+  // fileId -> awareness users for currently open collaborative sessions
+  const [liveEditorsByFile, setLiveEditorsByFile] = useState({});
+
   // Track which files have a live Monaco binding to avoid double-binding
   const boundFiles = useRef(new Set());
 
@@ -46,6 +49,16 @@ export function useCollabSessions({ projectId, getToken, user = null }) {
       user,
       onStatus: (status) => {
         setCollabStatus((prev) => ({ ...prev, [file.id]: status }));
+        if (status !== 'connected') {
+          setLiveEditorsByFile((prev) => ({ ...prev, [file.id]: [] }));
+          return;
+        }
+
+        const users = collabSessions.current[file.id]?.getAwarenessUsers?.() || [];
+        setLiveEditorsByFile((prev) => ({ ...prev, [file.id]: users }));
+      },
+      onAwarenessChange: (users) => {
+        setLiveEditorsByFile((prev) => ({ ...prev, [file.id]: users }));
       },
     });
 
@@ -62,6 +75,12 @@ export function useCollabSessions({ projectId, getToken, user = null }) {
     delete collabSessions.current[fileId];
 
     setCollabStatus((prev) => {
+      const next = { ...prev };
+      delete next[fileId];
+      return next;
+    });
+
+    setLiveEditorsByFile((prev) => {
       const next = { ...prev };
       delete next[fileId];
       return next;
@@ -109,6 +128,7 @@ const bindActiveSession = useCallback((editor, activeTabId, isCollab, _attempt =
   return {
     collabSessions,   // ref — read .current[fileId] to get a session
     collabStatus,     // state — fileId to status string
+    liveEditorsByFile,
     openCollabSession,
     closeCollabSession,
     bindActiveSession,

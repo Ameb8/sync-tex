@@ -26,6 +26,14 @@ const AWARENESS_COLORS = [
   '#047857',
   '#b45309',
   '#2563eb',
+  '#db2777',
+  '#0891b2',
+  '#65a30d',
+  '#9333ea',
+  '#ea580c',
+  '#0284c7',
+  '#16a34a',
+  '#e11d48',
 ];
 
 function colorForUserId(id) {
@@ -36,18 +44,34 @@ function colorForUserId(id) {
   return AWARENESS_COLORS[Math.abs(hash) % AWARENESS_COLORS.length];
 }
 
+function isHexColor(value) {
+  return typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value);
+}
+
+function colorWithAlpha(hex, alpha) {
+  if (!isHexColor(hex)) return `rgba(31, 128, 221, ${alpha})`;
+
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 function normalizeAwarenessUser(input) {
   const source = input ?? {};
   const rawId = source.id ?? source.user_id ?? source.sub ?? 'local-user';
   const id = String(rawId);
   const email = typeof source.email === 'string' ? source.email : '';
   const rawName = source.name || source.display_name || source.username || email || 'Local User';
+  const sourceColor = isHexColor(source.color) ? source.color : null;
+  const avatarUrl = source.avatar_url || source.avatarUrl || source.picture || '';
 
   return {
     id,
     name: String(rawName),
     email,
-    color: typeof source.color === 'string' ? source.color : colorForUserId(id),
+    avatar_url: typeof avatarUrl === 'string' ? avatarUrl : '',
+    color: sourceColor || colorForUserId(id),
   };
 }
 
@@ -63,9 +87,19 @@ function normalizeAwarenessUser(input) {
  * @param {object=}  opts.user      - Optional authenticated user metadata
  * @param {object=}  opts.localUser - Optional explicit awareness user metadata
  *
- * @returns {{ bindEditor, getContent, destroy }}
+ * @param {function=} opts.onAwarenessChange - Called with live awareness users
+ *
+ * @returns {{ bindEditor, getContent, destroy, getAwarenessUsers }}
  */
-export function createCollabSession({ fileId, projectId, token, onStatus, user = null, localUser = null }) {
+export function createCollabSession({
+  fileId,
+  projectId,
+  token,
+  onStatus,
+  onAwarenessChange = () => {},
+  user = null,
+  localUser = null,
+}) {
   // Each file gets its own Y.Doc — they must not be shared across files.
   const ydoc = new Y.Doc();
   const ytext = ydoc.getText('content');
@@ -78,6 +112,76 @@ export function createCollabSession({ fileId, projectId, token, onStatus, user =
   let destroyed = false;
   let reconnectAttempts = 0;
   let reconnectTimer = null;
+  let awarenessStyleEl = null;
+  let lastAwarenessUsersKey = '';
+
+  function getAwarenessUsers() {
+    return Array.from(awareness.getStates().entries())
+      .map(([clientId, state]) => {
+        if (!state?.user) return null;
+
+        return {
+          clientId,
+          fileId,
+          isLocal: clientId === awareness.clientID,
+          user: normalizeAwarenessUser(state.user),
+        };
+      })
+      .filter(Boolean);
+  }
+
+  function getAwarenessUsersKey(users) {
+    return JSON.stringify(users.map(({ clientId, isLocal, user }) => ({
+      clientId,
+      isLocal,
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      avatar_url: user.avatar_url,
+      color: user.color,
+    })));
+  }
+
+  function updateAwarenessStyles(users) {
+    if (typeof document === 'undefined') return;
+
+    const styles = users
+      .filter(({ isLocal }) => !isLocal)
+      .map(({ clientId, user }) => {
+        const selectionColor = colorWithAlpha(user.color, 0.18);
+
+        return `
+.yRemoteSelection-${clientId} {
+  background-color: ${selectionColor};
+}
+
+.yRemoteSelectionHead-${clientId} {
+  border-left-color: ${user.color};
+  border-left-width: 2px;
+  border-left-style: solid;
+}
+`;
+      })
+      .join('\n');
+
+    if (!awarenessStyleEl) {
+      awarenessStyleEl = document.createElement('style');
+      awarenessStyleEl.dataset.syncTexAwareness = fileId;
+      document.head.appendChild(awarenessStyleEl);
+    }
+
+    awarenessStyleEl.textContent = styles;
+  }
+
+  function emitAwarenessChange() {
+    const users = getAwarenessUsers();
+    const usersKey = getAwarenessUsersKey(users);
+    if (usersKey === lastAwarenessUsersKey) return;
+
+    lastAwarenessUsersKey = usersKey;
+    updateAwarenessStyles(users);
+    onAwarenessChange(users);
+  }
 
   function sendAwarenessUpdate(clientIds) {
     if (!ws || ws.readyState !== WebSocket.OPEN || clientIds.length === 0) {
@@ -104,6 +208,7 @@ export function createCollabSession({ fileId, projectId, token, onStatus, user =
       reconnectAttempts = 0;
       onStatus('connected');
       sendAwarenessUpdate([awareness.clientID]);
+      emitAwarenessChange();
       // No handshake needed — the server sends the current document state
       // as a Yjs binary update immediately on connect. We just wait for it.
     };
@@ -139,6 +244,7 @@ export function createCollabSession({ fileId, projectId, token, onStatus, user =
     };
 
     ws.onclose = () => {
+      if (destroyed) return;
       onStatus('disconnected');
       scheduleReconnect();
     };
@@ -164,6 +270,8 @@ export function createCollabSession({ fileId, projectId, token, onStatus, user =
     if (origin === 'remote') return;
     sendAwarenessUpdate(added.concat(updated, removed));
   });
+
+  awareness.on('change', emitAwarenessChange);
 
   // Observe local Y.Doc changes and forward them to the server.
   // This fires whenever the local user edits (via MonacoBinding) or when
@@ -249,6 +357,12 @@ export function createCollabSession({ fileId, projectId, token, onStatus, user =
     clearTimeout(reconnectTimer);
     if (binding) { binding.destroy(); binding = null; }
     if (ws) { ws.close(); ws = null; }
+    awareness.off('change', emitAwarenessChange);
+    if (awarenessStyleEl) {
+      awarenessStyleEl.remove();
+      awarenessStyleEl = null;
+    }
+    onAwarenessChange([]);
     awareness.destroy();
     ydoc.destroy();
   }
@@ -256,5 +370,7 @@ export function createCollabSession({ fileId, projectId, token, onStatus, user =
   // Kick off the initial connection.
   connect();
 
-  return { bindEditor, getContent, destroy };
+  emitAwarenessChange();
+
+  return { bindEditor, getContent, destroy, getAwarenessUsers };
 }
