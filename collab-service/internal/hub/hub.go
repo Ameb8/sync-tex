@@ -12,9 +12,10 @@ import (
 
 // Document holds all runtime state for one open collaborative file.
 type Document struct {
-	ID      string
-	mu      sync.RWMutex
-	clients map[*client.Client]bool
+	ID        string
+	mu        sync.RWMutex
+	clients   map[*client.Client]bool
+	awareness map[*client.Client][]byte
 
 	// snapshot is a Yjs binary snapshot of document in compressed form
 	snapshot []byte
@@ -59,6 +60,12 @@ func New(
 	}
 }
 
+func cloneBytes(src []byte) []byte {
+	dst := make([]byte, len(src))
+	copy(dst, src)
+	return dst
+}
+
 // GetOrCreate returns the Document for docID, creating it if needed.
 func (h *Hub) GetOrCreate(docID string) *Document {
 	h.mu.Lock()
@@ -70,6 +77,7 @@ func (h *Hub) GetOrCreate(docID string) *Document {
 	doc := &Document{
 		ID:            docID,
 		clients:       make(map[*client.Client]bool),
+		awareness:     make(map[*client.Client][]byte),
 		seeder:        h.seederFactory(docID),
 		uploader:      h.uploaderFactory(docID),
 		debounceDelay: h.debounceDelay,
@@ -105,7 +113,18 @@ func (h *Hub) Register(c *client.Client) {
 	doc.mu.Lock()
 	doc.clients[c] = true
 	n := len(doc.clients)
+	cachedAwareness := make([][]byte, 0, len(doc.awareness))
+	for peer, msg := range doc.awareness {
+		if peer == c {
+			continue
+		}
+		cachedAwareness = append(cachedAwareness, cloneBytes(msg))
+	}
 	doc.mu.Unlock()
+
+	for _, msg := range cachedAwareness {
+		c.Send <- msg
+	}
 
 	log.Printf("[%s] %s (%s) connected — %d clients\n", c.DocID, c.UserID, c.Role, n)
 }
@@ -176,6 +195,7 @@ func (h *Hub) Unregister(c *client.Client) {
 		return
 	}
 	delete(doc.clients, c)
+	delete(doc.awareness, c)
 	remaining := len(doc.clients)
 
 	// Cancel any pending debounce before final upload
@@ -222,6 +242,10 @@ func (h *Hub) HandleMessage(c *client.Client, msg []byte) {
 	case yjs.MsgAwareness:
 		// Awareness (cursors/presence) — broadcast to all peers including viewers.
 		log.Println("[Message Type]: Awareness")
+		doc.mu.Lock()
+		doc.awareness[c] = cloneBytes(msg)
+		doc.mu.Unlock()
+
 		Broadcast(doc, c, msg)
 
 	case yjs.MsgSync:

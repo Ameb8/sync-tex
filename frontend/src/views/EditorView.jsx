@@ -55,7 +55,7 @@ const isImageType = (fileType) => IMAGE_TYPES.has(fileType?.toLowerCase());
  */
 const EditorView = () => {
   const { projectId } = useParams();
-  const { getToken } = useAuth();
+  const { getToken, user } = useAuth();
 
   // Project/loading state 
   const [isCollab, setIsCollab] = useState(false);
@@ -100,10 +100,11 @@ const EditorView = () => {
   const {
     collabSessions,
     collabStatus,
+    liveEditorsByFile,
     openCollabSession,
     closeCollabSession,
     bindActiveSession,
-  } = useCollabSessions({ projectId, getToken });
+  } = useCollabSessions({ projectId, getToken, user });
 
   // useFileManager is declared first so clearFileContent is available
   const {
@@ -240,6 +241,10 @@ const EditorView = () => {
   const activeLanguage     = activeTab ? getLanguage(activeTab.file_type) : 'latex';
   const isActiveFileDirty  = !isActiveCollab && !!activeTabId && unsavedFiles.has(activeTabId);
   const imageUrl           = isActiveImage ? fileContents[activeTabId] : null;
+  const activeLiveEditors  =
+    activeTabId && activeCollabStatus === 'connected'
+      ? (liveEditorsByFile[activeTabId] || []).filter((editor) => !editor.isLocal)
+      : [];
 
   // Handle loading/error states
   if (loading) return <div className="editor-loading"><p>Loading project…</p></div>;
@@ -275,7 +280,7 @@ const EditorView = () => {
         className="side-panel"
         style={{ display: sidebarOpen && sidebarPanel === 'collaborators' ? 'flex' : 'none' }}
       >
-        <CollaboratorsPanel projectId={projectId} />
+        <CollaboratorsPanel projectId={projectId} liveEditors={activeLiveEditors} />
       </div>
 
       {/* Main editor column — or a full-area main panel if one is active */}

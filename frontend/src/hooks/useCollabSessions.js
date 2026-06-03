@@ -11,7 +11,7 @@ import { createCollabSession } from '../api/session';
  *   - Binding a session to a Monaco editor instance
  *   - Tracking per-file connection status for UI indicators
  */
-export function useCollabSessions({ projectId, getToken }) {
+export function useCollabSessions({ projectId, getToken, user = null }) {
   // Map of fileId -> session object from createCollabSession().
   // Ref (not state) because mutations don't need re-renders.
   const collabSessions = useRef({});
@@ -22,6 +22,9 @@ export function useCollabSessions({ projectId, getToken }) {
 
   // fileId statuses: 'connecting' | 'connected' | 'disconnected'
   const [collabStatus, setCollabStatus] = useState({});
+
+  // fileId -> awareness users for currently open collaborative sessions
+  const [liveEditorsByFile, setLiveEditorsByFile] = useState({});
 
   // Track which files have a live Monaco binding to avoid double-binding
   const boundFiles = useRef(new Set());
@@ -43,13 +46,24 @@ export function useCollabSessions({ projectId, getToken }) {
       fileId: file.id,
       projectId,
       token,
+      user,
       onStatus: (status) => {
         setCollabStatus((prev) => ({ ...prev, [file.id]: status }));
+        if (status !== 'connected') {
+          setLiveEditorsByFile((prev) => ({ ...prev, [file.id]: [] }));
+          return;
+        }
+
+        const users = collabSessions.current[file.id]?.getAwarenessUsers?.() || [];
+        setLiveEditorsByFile((prev) => ({ ...prev, [file.id]: users }));
+      },
+      onAwarenessChange: (users) => {
+        setLiveEditorsByFile((prev) => ({ ...prev, [file.id]: users }));
       },
     });
 
     collabSessions.current[file.id] = session;
-  }, [projectId, getToken]);
+  }, [projectId, getToken, user]);
 
   const closeCollabSession = useCallback((fileId) => {
     const session = collabSessions.current[fileId];
@@ -61,6 +75,12 @@ export function useCollabSessions({ projectId, getToken }) {
     delete collabSessions.current[fileId];
 
     setCollabStatus((prev) => {
+      const next = { ...prev };
+      delete next[fileId];
+      return next;
+    });
+
+    setLiveEditorsByFile((prev) => {
       const next = { ...prev };
       delete next[fileId];
       return next;
@@ -108,6 +128,7 @@ const bindActiveSession = useCallback((editor, activeTabId, isCollab, _attempt =
   return {
     collabSessions,   // ref — read .current[fileId] to get a session
     collabStatus,     // state — fileId to status string
+    liveEditorsByFile,
     openCollabSession,
     closeCollabSession,
     bindActiveSession,
