@@ -156,8 +156,8 @@
 }
 
 .llm-icon-btn.danger:hover {
-  background: rgba(239, 68, 68, 0.15);
-  color: #f87171;
+  background: var(--danger-bg);
+  color: var(--danger);
 }
 
 .llm-icon-btn:disabled {
@@ -246,13 +246,13 @@
 }
 
 .llm-save-btn.saved {
-  background: #16a34a;
+  background: var(--success);
 }
 
 .llm-form-error {
   margin: 0;
   font-size: 11px;
-  color: #f87171;
+  color: var(--danger);
 }
 
 .llm-form-hint {

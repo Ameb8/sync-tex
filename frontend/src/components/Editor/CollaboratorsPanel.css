@@ -31,7 +31,7 @@
 
 .collab-tab:hover {
   color: var(--text-primary, #333);
-  background: rgba(0, 0, 0, 0.02);
+  background: var(--hover-bg);
 }
 
 .collab-tab.active {
@@ -119,7 +119,7 @@
 .collab-select:focus {
   outline: none;
   border-color: var(--text-info, #1f80dd);
-  box-shadow: 0 0 0 2px rgba(31, 128, 221, 0.1);
+  box-shadow: 0 0 0 2px var(--focus-ring);
 }
 
 .collab-select:disabled {
@@ -163,8 +163,8 @@
 }
 
 .collab-btn-primary:hover:not(:disabled) {
-  background: #1565c0;
-  border-color: #1565c0;
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
 }
 
 .collab-btn-secondary {
@@ -173,12 +173,12 @@
 
 .collab-btn-danger {
   background: none;
-  color: #d32f2f;
-  border-color: #d32f2f;
+  color: var(--danger);
+  border-color: var(--danger);
 }
 
 .collab-btn-danger:hover:not(:disabled) {
-  background: rgba(211, 47, 47, 0.08);
+  background: var(--danger-bg);
 }
 
 /* Remove button: icon-only, compact */
@@ -287,7 +287,7 @@
   min-height: 36px;
   padding: 6px 8px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.36)),
+    linear-gradient(180deg, var(--surface), transparent),
     var(--bg-sidebar, #f9f9f9);
   border: 0.5px solid var(--border-color, #e0e0e0);
   border-radius: 6px;
@@ -438,14 +438,14 @@
 }
 
 .collab-member-access--editor {
-  background: rgba(31, 128, 221, 0.12);
+  background: var(--info-bg);
   color: var(--text-info, #1f80dd);
 }
 
 /* Role badge — viewer (muted green) */
 .collab-member-access--viewer {
-  background: rgba(56, 142, 60, 0.1);
-  color: #388e3c;
+  background: var(--success-bg);
+  color: var(--success);
 }
 
 .collab-member-joined {
@@ -456,8 +456,8 @@
 /* Error */
 .collab-error {
   padding: 10px 12px;
-  background: rgba(211, 47, 47, 0.08);
-  border: 0.5px solid #d32f2f;
+  background: var(--danger-bg);
+  border: 0.5px solid var(--danger);
   border-radius: 4px;
   margin: 12px 12px 0 12px;
 }
@@ -465,92 +465,5 @@
 .collab-error p {
   margin: 0;
   font-size: 12px;
-  color: #d32f2f;
-}
-
-/* Dark mode */
-@media (prefers-color-scheme: dark) {
-  .collab-tabs {
-    background: var(--bg-sidebar, #252526);
-    border-color: var(--border-color, #3e3e42);
-  }
-
-  .collab-tab {
-    color: var(--text-secondary, #a0a0a0);
-  }
-
-  .collab-tab:hover {
-    background: rgba(255, 255, 255, 0.04);
-  }
-
-  .collab-section {
-    background: var(--bg-primary, #1e1e1e);
-    border-color: var(--border-color, #3e3e42);
-  }
-
-  .collab-select {
-    background: var(--bg-sidebar, #252526);
-    border-color: var(--border-color, #3e3e42);
-    color: var(--text-primary, #e0e0e0);
-  }
-
-  .collab-select:hover {
-    border-color: var(--text-info, #1f80dd);
-  }
-
-  .collab-btn {
-    background: var(--bg-sidebar, #252526);
-    border-color: var(--border-color, #3e3e42);
-    color: var(--text-primary, #e0e0e0);
-  }
-
-  .collab-btn:hover:not(:disabled) {
-    background: var(--bg-primary, #1e1e1e);
-  }
-
-  .collab-link-item {
-    background: var(--bg-sidebar, #252526);
-    border-color: var(--border-color, #3e3e42);
-  }
-
-  .collab-link-item:hover {
-    background: var(--bg-primary, #1e1e1e);
-  }
-
-  .collab-link-url {
-    color: var(--text-primary, #e0e0e0);
-  }
-
-  .collab-live-editor {
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01)),
-      var(--bg-sidebar, #252526);
-    border-color: var(--border-color, #3e3e42);
-  }
-
-  .collab-live-editor:hover {
-    background: var(--bg-primary, #1e1e1e);
-  }
-
-  .collab-avatar--image {
-    background: var(--bg-sidebar, #252526);
-  }
-
-  .collab-member-item {
-    background: var(--bg-sidebar, #252526);
-    border-color: var(--border-color, #3e3e42);
-  }
-
-  .collab-member-item:hover {
-    background: var(--bg-primary, #1e1e1e);
-  }
-
-  .collab-member-email {
-    color: var(--text-secondary, #888);
-  }
-
-  .collab-member-access--viewer {
-    background: rgba(56, 142, 60, 0.15);
-    color: #66bb6a;
-  }
+  color: var(--danger);
 }

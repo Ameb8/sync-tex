@@ -128,7 +128,7 @@
 }
 
 .ai-chat-delete-btn:hover {
-  color: #f48771;
+  color: var(--danger);
 }
 
 .ai-chat-empty {
@@ -433,11 +433,11 @@
 }
 
 .ai-stop-btn {
-  background: #8b1a1a;
+  background: var(--danger);
 }
 
 .ai-stop-btn:hover:not(:disabled) {
-  background: #b52626 !important;
+  background: var(--danger-hover) !important;
 }
 
 .ai-input-meta {
@@ -466,10 +466,10 @@
 .ai-error-banner {
   margin: 0 14px 8px;
   padding: 7px 10px;
-  background: rgba(244, 135, 113, 0.12);
-  border: 1px solid rgba(244, 135, 113, 0.35);
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-border);
   border-radius: 4px;
-  color: #f48771;
+  color: var(--danger);
   font-size: 12px;
 }
 
