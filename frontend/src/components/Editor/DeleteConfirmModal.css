@@ -5,7 +5,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -19,7 +19,7 @@
   padding: 24px;
   width: 90%;
   max-width: 400px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow-lg);
   animation: slideUp 0.2s ease-out;
 }
 
@@ -85,33 +85,16 @@
 }
 
 .btn-delete {
-  background: #d32f2f;
+  background: var(--danger);
   color: white;
-  border-color: #d32f2f;
+  border-color: var(--danger);
 }
 
 .btn-delete:hover {
-  background: #b71c1c;
-  border-color: #b71c1c;
+  background: var(--danger-hover);
+  border-color: var(--danger-hover);
 }
 
 .btn-delete:active {
   transform: scale(0.98);
-}
-
-/* Dark mode */
-@media (prefers-color-scheme: dark) {
-  .modal-content {
-    background: var(--bg-primary, #1e1e1e);
-    border-color: var(--border-color, #3e3e42);
-  }
-
-  .btn-cancel {
-    background: var(--bg-sidebar, #252526);
-    border-color: var(--border-color, #3e3e42);
-  }
-
-  .btn-cancel:hover {
-    background: var(--bg-sidebar, #2d2d30);
-  }
 }

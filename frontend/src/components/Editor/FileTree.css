@@ -43,11 +43,11 @@
 }
 
 .tree-item:hover {
-  background-color: rgba(0, 0, 0, 0.05);
+  background-color: var(--hover-bg);
 }
 
 .file-item.active {
-  background-color: rgba(31, 128, 221, 0.1);
+  background-color: var(--info-bg);
   color: var(--text-info, #1f80dd);
 }
 
@@ -88,7 +88,7 @@
   background: var(--bg-primary, #ffffff);
   border: 0.5px solid var(--border-color, #e0e0e0);
   border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--shadow-lg);
   z-index: 999;
   min-width: 200px;
   overflow: hidden;
@@ -143,12 +143,12 @@
 
 /* Delete button styling */
 .context-menu-item.delete {
-  color: #d32f2f;
+  color: var(--danger);
 }
 
 .context-menu-item.delete:hover {
-  background-color: rgba(211, 47, 47, 0.08);
-  color: #b71c1c;
+  background-color: var(--danger-bg);
+  color: var(--danger-hover);
 }
 
 /* Divider */
@@ -156,51 +156,4 @@
   height: 0.5px;
   background: var(--border-color, #e0e0e0);
   margin: 6px 0;
-}
-
-/* Dark mode */
-@media (prefers-color-scheme: dark) {
-  .file-tree {
-    background: var(--bg-sidebar, #1e1e1e);
-    border-color: var(--border-color, #333);
-  }
-
-  .tree-header {
-    background: var(--bg-sidebar, #1e1e1e);
-    border-color: var(--border-color, #333);
-  }
-
-  .tree-item:hover {
-    background-color: rgba(255, 255, 255, 0.08);
-  }
-
-  .file-item.active {
-    background-color: rgba(31, 128, 221, 0.15);
-  }
-
-  .context-menu {
-    background: var(--bg-primary, #252526);
-    border-color: var(--border-color, #3e3e42);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-  }
-
-  .context-menu-item {
-    color: var(--text-primary, #e0e0e0);
-  }
-
-  .context-menu-item:hover {
-    background-color: var(--bg-sidebar, #2d2d30);
-  }
-
-  .context-menu-item.delete:hover {
-    background-color: rgba(211, 47, 47, 0.15);
-  }
-
-  .context-menu-divider {
-    background: var(--border-color, #3e3e42);
-  }
-
-  .context-menu-item:not(.delete):not(:last-of-type)::after {
-    color: var(--text-tertiary, #606060);
-  }
 }

@@ -87,7 +87,7 @@
 }
 
 .tab-close:hover {
-  background: rgba(0, 0, 0, 0.08);
+  background: var(--hover-bg);
   color: var(--text-secondary, #666);
 }
 
@@ -95,33 +95,4 @@
   flex: 1;
   height: 40px;
   background: var(--bg-tab-bar, #fafafa);
-}
-
-/* Dark mode support */
-@media (prefers-color-scheme: dark) {
-  .tab-bar {
-    background: var(--bg-tab-bar, #252526);
-    border-color: var(--border-color, #3e3e42);
-  }
-
-  .tab {
-    background: var(--bg-tab-bar, #252526);
-    border-color: var(--border-color, #3e3e42);
-  }
-
-  .tab:hover {
-    background: var(--bg-primary, #1e1e1e);
-  }
-
-  .tab.active {
-    background: var(--bg-primary, #1e1e1e);
-  }
-
-  .tab-close:hover {
-    background: rgba(255, 255, 255, 0.1);
-  }
-
-  .tab-spacer {
-    background: var(--bg-tab-bar, #252526);
-  }
 }
