@@ -65,14 +65,9 @@ make dev-reset                # also remove dev volumes
 
 ### Production
 
-Production mode uses `docker-compose.yml` plus `docker-compose.prod.yml`. It builds production service images, serves `frontend/dist` through nginx, and starts the Cloudflare tunnel sidecar.
+Production mode uses `docker-compose.yml` plus `docker-compose.prod.yml`. It builds production service images, packages the Vite frontend into the nginx gateway image, and starts the Cloudflare tunnel sidecar.
 
 ```sh
-cd frontend
-npm install
-npm run build
-cd ..
-
 make prod-build
 make prod-up
 ```
