@@ -5,7 +5,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -19,7 +19,7 @@
   padding: 24px;
   width: 90%;
   max-width: 400px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow-lg);
   animation: slideUp 0.2s ease-out;
 }
 
@@ -59,7 +59,7 @@
   font-size: 13px;
   border: 0.5px solid var(--border-color, #e0e0e0);
   border-radius: 4px;
-  background: var(--bg-primary, #ffffff);
+  background: var(--bg-input);
   color: var(--text-primary, #333);
   font-family: inherit;
   box-sizing: border-box;
@@ -69,21 +69,21 @@
 .form-group input:focus {
   outline: none;
   border-color: var(--text-info, #1f80dd);
-  box-shadow: 0 0 0 2px rgba(31, 128, 221, 0.1);
+  box-shadow: 0 0 0 2px var(--focus-ring);
 }
 
 .form-group input.error {
-  border-color: #d32f2f;
+  border-color: var(--danger);
 }
 
 .form-group input.error:focus {
-  box-shadow: 0 0 0 2px rgba(211, 47, 47, 0.1);
+  box-shadow: 0 0 0 2px var(--danger-bg);
 }
 
 .error-message {
   margin: 6px 0 0 0;
   font-size: 12px;
-  color: #d32f2f;
+  color: var(--danger);
 }
 
 .form-actions {
@@ -117,33 +117,10 @@
 }
 
 .btn-submit:hover {
-  background: #1565c0;
-  border-color: #1565c0;
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
 }
 
 .btn-submit:active {
   transform: scale(0.98);
-}
-
-/* Dark mode */
-@media (prefers-color-scheme: dark) {
-  .modal-content {
-    background: var(--bg-primary, #1e1e1e);
-    border-color: var(--border-color, #3e3e42);
-  }
-
-  .form-group input {
-    background: var(--bg-sidebar, #252526);
-    border-color: var(--border-color, #3e3e42);
-    color: var(--text-primary, #e0e0e0);
-  }
-
-  .btn-cancel {
-    background: var(--bg-sidebar, #252526);
-    border-color: var(--border-color, #3e3e42);
-  }
-
-  .btn-cancel:hover {
-    background: var(--bg-sidebar, #2d2d30);
-  }
 }

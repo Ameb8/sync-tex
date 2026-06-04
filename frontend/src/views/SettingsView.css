@@ -1,0 +1,108 @@
+.settings-view {
+  min-height: 100vh;
+  background: var(--background);
+  color: var(--text-primary);
+}
+
+.settings-header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  display: flex;
+  justify-content: flex-start;
+  padding: 1rem 2rem;
+}
+
+.settings-panel {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.settings-title-group {
+  margin-bottom: 1.5rem;
+}
+
+.settings-title-group h1 {
+  font-size: 1.75rem;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.settings-row {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  display: flex;
+  gap: 1.5rem;
+  justify-content: space-between;
+  padding: 1.25rem;
+}
+
+.settings-row-copy h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.theme-segmented-control {
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: inline-flex;
+  gap: 0.25rem;
+  padding: 0.25rem;
+}
+
+.theme-segment {
+  align-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  gap: 0.5rem;
+  min-height: 2.25rem;
+  padding: 0.45rem 0.75rem;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.theme-segment:hover {
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+.theme-segment.active {
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: var(--shadow);
+  color: var(--primary-color);
+}
+
+@media (max-width: 640px) {
+  .settings-header,
+  .settings-panel {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .settings-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .theme-segmented-control {
+    width: 100%;
+  }
+
+  .theme-segment {
+    flex: 1;
+    justify-content: center;
+  }
+}

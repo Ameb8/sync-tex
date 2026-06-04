@@ -7,6 +7,7 @@ import darkTheme from '../monaco/themes/monokai.json';
 import lightTheme from '../monaco/themes/github-light.json';
 
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { useCollabSessions } from '../hooks/useCollabSessions';
 import { useTabManager } from '../hooks/useTabManager';
 import { useFileManager } from '../hooks/useFileManager';
@@ -56,6 +57,8 @@ const isImageType = (fileType) => IMAGE_TYPES.has(fileType?.toLowerCase());
 const EditorView = () => {
   const { projectId } = useParams();
   const { getToken, user } = useAuth();
+  const { resolvedTheme } = useTheme();
+  const isDarkMode = resolvedTheme === 'dark';
 
   // Project/loading state 
   const [isCollab, setIsCollab] = useState(false);
@@ -64,24 +67,13 @@ const EditorView = () => {
   // User role
   const [userRole, setUserRole] = useState(null);
 
-  // Dark mode
-  const [isDarkMode, setIsDarkMode] = useState(
-    window.matchMedia('(prefers-color-scheme: dark)').matches
-  );
-  useEffect(() => {
-    const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    const handler = (e) => setIsDarkMode(e.matches);
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  }, []);
-
   // Activity bar
   const [sidebarPanel, setSidebarPanel] = useState('files'); // Which panel is shown
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mainPanel, setMainPanel] = useState(null); // Show editor when null
 
   // Toggle/switch sidebar panels
-    const handlePanelToggle = useCallback((panelId, type) => {
+  const handlePanelToggle = useCallback((panelId, type) => {
     if (type === 'sidebar') {
       setSidebarOpen((open) => {
         if (sidebarPanel === panelId) return !open; // Toggle if same panel
