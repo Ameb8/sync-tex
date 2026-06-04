@@ -1,9 +1,14 @@
 services:
   nginx:
+    image: sync-tex-nginx:prod
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile
+      args:
+        GIT_SHA: ${GIT_SHA:-unknown}
+        BUILD_DATE: ${BUILD_DATE:-unknown}
     restart: unless-stopped
-    volumes:
-      - ./nginx/conf.d/frontend.conf:/etc/nginx/conf.d/frontend.conf:ro
-      - ./frontend/dist:/usr/share/nginx/html:ro
+    volumes: !reset []
 
   postgres-users:
     restart: unless-stopped
