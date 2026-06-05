@@ -15,7 +15,7 @@
 //     └───────────────────────────────────────────────────────┘
 //
 //   This matches the framing used by the Go collab-service when persisting
-//   CRDT state to MinIO. 
+//   CRDT state to MinIO.
 //
 // ── Compaction strategy ───────────────────────────────────────────────────────
 //
@@ -76,8 +76,8 @@ pub fn compact_update_log(raw: &[u8], base_snapshot: Option<&[u8]>) -> Result<Co
         // If a base snapshot was provided, apply it first to seed the document
         // state before folding in the new updates
         if let Some(snapshot_bytes) = base_snapshot {
-            let base = Update::decode_v1(snapshot_bytes)
-                .context("Failed to decode base snapshot")?;
+            let base =
+                Update::decode_v1(snapshot_bytes).context("Failed to decode base snapshot")?;
             txn.apply_update(base)
                 .context("Failed to apply base snapshot")?;
             debug!(bytes = snapshot_bytes.len(), "Applied base snapshot");
@@ -86,13 +86,15 @@ pub fn compact_update_log(raw: &[u8], base_snapshot: Option<&[u8]>) -> Result<Co
         for (i, update_bytes) in updates.iter().enumerate() {
             // Decode the raw bytes into a structured `yrs::Update`.
             let update = Update::decode_v1(update_bytes).with_context(|| {
-                format!("Failed to decode Yjs update at index {i} ({} bytes)", update_bytes.len())
+                format!(
+                    "Failed to decode Yjs update at index {i} ({} bytes)",
+                    update_bytes.len()
+                )
             })?;
 
             // Apply the decoded update to the document.
-            txn.apply_update(update).with_context(|| {
-                format!("Failed to apply Yjs update at index {i}")
-            })?;
+            txn.apply_update(update)
+                .with_context(|| format!("Failed to apply Yjs update at index {i}"))?;
         }
         // `txn` is dropped here, committing all changes to `doc`.
     }

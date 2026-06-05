@@ -135,10 +135,7 @@ EXPOSE 50051
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
     CMD ["/app/healthcheck"]
 
-# NOTE: This service requires SIGTERM handling in application code.
-# Use tokio::signal::unix::signal(SignalKind::terminate()) and wire it into
-# tonic server shutdown. Without it, the process is SIGKILLed after the
-# orchestrator grace period with no graceful drain.
+# The application wires SIGTERM into tonic graceful shutdown for Swarm updates.
 STOPSIGNAL SIGTERM
 
 ENTRYPOINT ["/app/server"]

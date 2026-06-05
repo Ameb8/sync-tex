@@ -1,8 +1,8 @@
-// src/http.rs
+    // src/http.rs
 //
 // Async helpers for interacting with pre-signed object-storage URLs.
 
-use anyhow::{Context, Result, bail};
+use anyhow::{bail, Context, Result};
 use bytes::Bytes;
 use reqwest::Client;
 use tracing::{debug, info};
