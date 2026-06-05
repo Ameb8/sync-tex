@@ -4,16 +4,20 @@ const TabBar = ({ tabs, activeTabId, onTabSelect, onTabClose, unsavedFiles = new
   return (
     <div className="tab-bar">
       {tabs.map((tab) => {
-        const isUnsaved = unsavedFiles.has(tab.id);
+        const isFileTab = tab.kind === 'file';
+        const isChatTab = tab.kind === 'chat';
+        const label = tab.title || tab.filename || 'Untitled';
+        const isUnsaved = isFileTab && unsavedFiles.has(tab.resourceId);
         return (
           <div
             key={tab.id}
-            className={`tab ${activeTabId === tab.id ? 'active' : ''} ${isUnsaved ? 'unsaved' : ''}`}
+            className={`tab ${activeTabId === tab.id ? 'active' : ''} ${isUnsaved ? 'unsaved' : ''} ${isChatTab ? 'chat-tab' : ''}`}
             onClick={() => onTabSelect(tab.id)}
-            title={isUnsaved ? `${tab.filename} (unsaved)` : tab.filename}
+            title={isUnsaved ? `${label} (unsaved)` : label}
           >
             <span className="tab-name">
-              {tab.filename}
+              {isChatTab && <span className="tab-kind-icon" aria-hidden="true">◇</span>}
+              {label}
               {isUnsaved && <span className="unsaved-dot">●</span>}
             </span>
             <button

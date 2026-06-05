@@ -36,7 +36,7 @@ const PANELS = [
   },
   {
     id: 'ai',
-    type: 'main',
+    type: 'sidebar',
     title: 'AI Assistant',
     icon: (
       <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
