@@ -1,11 +1,11 @@
+import './AIPanel.css';
+
 /**
  * ChatSidebar
  *
- * The collapsible left panel inside AIPanel that lists all chats for the
- * project. Can be hidden to give the chat window full width.
+ * Lists all chats for the project inside the normal editor side panel.
  */
 const ChatSidebar = ({
-  visible,
   chats,
   loading,
   activeChatId,
@@ -14,7 +14,7 @@ const ChatSidebar = ({
   onNewChat,
 }) => {
   return (
-    <div className={`ai-chat-sidebar${visible ? '' : ' collapsed'}`}>
+    <div className="ai-chat-sidebar">
       <div className="ai-sidebar-header">
         <h3>Chats</h3>
         <button className="ai-sidebar-new-btn" onClick={onNewChat} title="New chat">

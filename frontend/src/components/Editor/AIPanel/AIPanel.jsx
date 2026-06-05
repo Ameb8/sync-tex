@@ -8,7 +8,7 @@ import './AIPanel.css';
 /**
  * AIPanel
  *
- * Mounted when mainPanel === 'ai' in EditorView.
+ * Legacy wrapper for the assistant chat pieces.
  * Owns the chat list and the active chat state.
  * Renders as: [ChatSidebar?] [ChatWindow]
  *
@@ -18,9 +18,6 @@ import './AIPanel.css';
  */
 const AIPanel = ({ projectId, activeTab }) => {
   const { getToken } = useAuth();
-
-  // sidebar visibility
-  const [sidebarVisible, setSidebarVisible] = useState(true);
 
   // chats list
   const [chats, setChats] = useState([]);
@@ -101,7 +98,6 @@ const AIPanel = ({ projectId, activeTab }) => {
   return (
     <div className="ai-panel">
       <ChatSidebar
-        visible={sidebarVisible}
         chats={chats}
         loading={chatsLoading}
         activeChatId={activeChatId}
@@ -112,12 +108,10 @@ const AIPanel = ({ projectId, activeTab }) => {
 
       <ChatWindow
         projectId={projectId}
-        activeTab={activeTab}
+        contextFile={activeTab}
         chat={chats.find((c) => c.id === activeChatId) ?? null}
         messages={messages}
         messagesLoading={messagesLoading}
-        sidebarVisible={sidebarVisible}
-        onToggleSidebar={() => setSidebarVisible((v) => !v)}
         onNewChat={handleNewChat}
         onMessagesUpdate={handleMessagesUpdate}
         onChatTitleUpdate={handleChatTitleUpdate}
