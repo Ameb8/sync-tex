@@ -1,8 +1,13 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"log"
 	"net/http"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/ameb8/sync-tex/collab-service/internal/auth"
 	"github.com/ameb8/sync-tex/collab-service/internal/config"
@@ -34,6 +39,39 @@ func main() {
 	handler.Register(mux, wsHandler)
 
 	addr := "0.0.0.0:" + cfg.Port
-	log.Printf("collab-service listening on %s\n", addr)
-	log.Fatal(http.ListenAndServe(addr, mux))
+	srv := &http.Server{
+		Addr:    addr,
+		Handler: mux,
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	serverErr := make(chan error, 1)
+	go func() {
+		log.Printf("collab-service listening on %s\n", addr)
+		serverErr <- srv.ListenAndServe()
+	}()
+
+	select {
+	case err := <-serverErr:
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("collab-service failed: %v", err)
+		}
+	case <-ctx.Done():
+		stop()
+		log.Println("Shutdown signal received")
+	}
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Printf("Graceful shutdown timed out: %v", err)
+		if closeErr := srv.Close(); closeErr != nil {
+			log.Printf("Forced server close failed: %v", closeErr)
+		}
+	}
+
+	log.Println("collab-service stopped")
 }

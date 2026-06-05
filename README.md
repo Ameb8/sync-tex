@@ -65,12 +65,14 @@ make dev-reset                # also remove dev volumes
 
 ### Production
 
-Production mode uses `docker-compose.yml` plus `docker-compose.prod.yml`. It builds production service images, packages the Vite frontend into the nginx gateway image, and starts the Cloudflare tunnel sidecar.
+Production Compose mode uses `docker-compose.yml` plus `docker-compose.prod.yml`. It builds production service images, packages the Vite frontend into the nginx gateway image, and starts the Cloudflare tunnel sidecar.
 
 ```sh
 make prod-build
 make prod-up
 ```
+
+The continuous deployment path uses GHCR images and the Swarm stack in `docker-compose.swarm.yml`; see `docs/deployment-runbook.md`. Keep `docker-compose.prod.yml` as the legacy/manual production path while Swarm is being validated.
 
 Set `FRONTEND_URL` and `EXTERNAL_URL` in `.env` to the public origin clients should use. The app is served by nginx on port `80`; production object URLs and OAuth redirects depend on those external URL values.
 

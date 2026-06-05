@@ -162,7 +162,7 @@ func (h *Handler) InternalCompactFile(c *gin.Context) {
 	// Fetch file from DB
 	file, err := h.queries.GetFile(c.Request.Context(), fileID)
 	if err != nil {
-		log.Printf("File not found with ID '%s': %v", fileID, err)
+		log.Printf("File not found with ID '%s': %v", fileIDStr, err)
 		c.JSON(http.StatusNotFound, gin.H{"error": "File not found"})
 		return
 	}
@@ -288,7 +288,6 @@ func (h *Handler) ensureTextUpToDate(ctx context.Context, file db.File) error {
 	return nil
 }
 
-
 // InternalDownloadProject handles:
 // GET /internal/project/:projectID/download
 //
@@ -341,19 +340,19 @@ func (h *Handler) InternalDownloadProject(c *gin.Context) {
 
 	// Build response
 	type FileEntry struct {
-		ID         string            `json:"id"`
-		Filename   string            `json:"filename"`
-		FileType   db.FileType       `json:"file_type"`
-		URLs       map[string]string `json:"urls,omitempty"`
+		ID       string            `json:"id"`
+		Filename string            `json:"filename"`
+		FileType db.FileType       `json:"file_type"`
+		URLs     map[string]string `json:"urls,omitempty"`
 	}
 
 	entries := make([]FileEntry, 0, len(files))
 
 	for _, file := range files {
 		entry := FileEntry{
-			ID:         pgUUIDToString(file.ID),
-			Filename:   file.Filename,
-			FileType:   file.FileType,
+			ID:       pgUUIDToString(file.ID),
+			Filename: file.Filename,
+			FileType: file.FileType,
 		}
 
 		if withURLs {

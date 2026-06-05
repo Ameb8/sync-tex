@@ -14,19 +14,15 @@
 use std::sync::Arc;
 
 use tonic::{Request, Response, Status};
-use tracing::{error, info, warn, instrument};
+use tracing::{error, info, instrument, warn};
 
 use crate::compaction::compact_update_log;
 use crate::export::extract_text_bytes;
 use crate::http::{download_bytes, upload_bytes, upload_text};
 use crate::proto::compaction::{
-    compaction_service_server::CompactionService,
-    CompactRequest,
-    CompactResponse,
-    ExportRequest,
-    ExportResponse
+    compaction_service_server::CompactionService, CompactRequest, CompactResponse, ExportRequest,
+    ExportResponse,
 };
-
 
 /// Shared state for the gRPC service.
 ///
@@ -49,7 +45,6 @@ impl CompactionServiceImpl {
         }
     }
 }
-
 
 // gRPC trait implementation
 #[tonic::async_trait]
@@ -92,8 +87,7 @@ impl CompactionService for CompactionServiceImpl {
             Ok((updates_merged, compacted_size_bytes)) => {
                 info!(
                     updates_merged,
-                    compacted_size_bytes,
-                    "CompactDocument succeeded"
+                    compacted_size_bytes, "CompactDocument succeeded"
                 );
                 Ok(Response::new(CompactResponse {
                     success: true,
@@ -157,10 +151,7 @@ impl CompactionService for CompactionServiceImpl {
     }
 }
 
-async fn run_export(
-    http: &reqwest::Client,
-    req: &ExportRequest,
-) -> anyhow::Result<u64> {
+async fn run_export(http: &reqwest::Client, req: &ExportRequest) -> anyhow::Result<u64> {
     // Download the compacted snapshot (always required).
     let snapshot = download_bytes(http, &req.snapshot_url).await?;
     info!(bytes = snapshot.len(), "Downloaded snapshot");
@@ -187,7 +178,6 @@ async fn run_export(
     Ok(exported_bytes)
 }
 
-
 /// Execute the full (download, compact, upload)
 ///
 /// Returns `(updates_merged, compacted_size_bytes)` on success.
@@ -196,18 +186,18 @@ async fn run_compaction(
     http: &reqwest::Client,
     download_url: &str,
     upload_url: &str,
-    snapshot_url: Option <&str>
+    snapshot_url: Option<&str>,
 ) -> anyhow::Result<(u32, u64)> {
     // Download the base snapshot first if one was supplied.
     let base_snapshot = if let Some(url) = snapshot_url {
         info!(bytes = ?url, "Downloading base snapshot");
         match download_bytes(http, url).await {
-        Ok(bytes) => Some(bytes),
-        Err(err) => {
-            warn!(error = %err, "Failed to download base snapshot, continuing without it");
-            None
+            Ok(bytes) => Some(bytes),
+            Err(err) => {
+                warn!(error = %err, "Failed to download base snapshot, continuing without it");
+                None
+            }
         }
-    }
     } else {
         None
     };
@@ -217,13 +207,13 @@ async fn run_compaction(
     let raw = download_bytes(http, download_url).await?;
     info!(bytes = raw.len(), "Downloaded update log");
 
-    // Compact the update log 
+    // Compact the update log
     let base_ref = base_snapshot.as_deref();
     let result = compact_update_log(&raw, base_ref)?;
     let compacted_size = result.compacted_bytes.len() as u64;
     info!(
-        updates_merged    = result.updates_merged,
-        compacted_bytes   = compacted_size,
+        updates_merged = result.updates_merged,
+        compacted_bytes = compacted_size,
         "Compaction complete"
     );
 

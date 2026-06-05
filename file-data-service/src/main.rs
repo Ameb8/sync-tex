@@ -39,12 +39,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!(grpc_addr = %cfg.grpc_addr, "Starting compaction-service");
 
     // Parse bind address
-    let addr: SocketAddr = cfg.grpc_addr.parse().unwrap_or_else(|e| {
-        panic!(
-            "Invalid GRPC_ADDR '{}': {}",
-            cfg.grpc_addr, e
-        )
-    });
+    let addr: SocketAddr = cfg
+        .grpc_addr
+        .parse()
+        .unwrap_or_else(|e| panic!("Invalid GRPC_ADDR '{}': {}", cfg.grpc_addr, e));
 
     // Build the gRPC service
     let svc = CompactionServiceImpl::new();
@@ -54,7 +52,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!(%addr, "gRPC server listening");
     Server::builder()
         .add_service(svc_server)
-        .serve(addr)
+        .serve_with_shutdown(addr, shutdown_signal())
         .await
         .map_err(|e| {
             eprintln!("gRPC server error: {e}");
@@ -62,4 +60,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         })?;
 
     Ok(())
+}
+
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("failed to install SIGTERM handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
+
+    info!("Shutdown signal received");
 }

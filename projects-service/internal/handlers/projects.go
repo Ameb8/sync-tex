@@ -29,71 +29,70 @@ func (h *Handler) ListProjects(c *gin.Context) {
 	// Return only owned projects
 	if c.Query("filter") == "owned" {
 		// Get owned projects from datbase
-        projects, err := h.queries.ListProjectsByOwner(c.Request.Context(), userID)
-        if err != nil { // Error fetching owned projects
-            c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list projects"})
-            return
-        }
-        c.JSON(http.StatusOK, projects)
-        return
-    }
+		projects, err := h.queries.ListProjectsByOwner(c.Request.Context(), userID)
+		if err != nil { // Error fetching owned projects
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list projects"})
+			return
+		}
+		c.JSON(http.StatusOK, projects)
+		return
+	}
 
 	// Get all accesible projects from databae
-    projects, err := h.queries.ListProjectsByUser(c.Request.Context(), userID)
-    if err != nil { // Error fetching projects
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list projects"})
-        return
-    }
+	projects, err := h.queries.ListProjectsByUser(c.Request.Context(), userID)
+	if err != nil { // Error fetching projects
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list projects"})
+		return
+	}
 
-	// Grant new users access to showcase projects 
-    if len(projects) == 0 { // Triggered if user has access to zero projects
-        if addErr := h.addShowcaseAccess(c.Request.Context(), userID); addErr != nil {
+	// Grant new users access to showcase projects
+	if len(projects) == 0 { // Triggered if user has access to zero projects
+		if addErr := h.addShowcaseAccess(c.Request.Context(), userID); addErr != nil {
 			// Non-fatal: log and return empty list rather than erroring the request.
-            // The user will get showcase access on their next load.
-            log.Printf("addShowcaseAccess: failed for user %s: %v", userID, addErr)
-            c.JSON(http.StatusOK, projects)
-            return
-        }
+			// The user will get showcase access on their next load.
+			log.Printf("addShowcaseAccess: failed for user %s: %v", userID, addErr)
+			c.JSON(http.StatusOK, projects)
+			return
+		}
 
 		// Get updated user projects from database
-        projects, err = h.queries.ListProjectsByUser(c.Request.Context(), userID)
-        if err != nil { // Error fetching projects
-            c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list projects"})
-            return
-        }
-    }
+		projects, err = h.queries.ListProjectsByUser(c.Request.Context(), userID)
+		if err != nil { // Error fetching projects
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list projects"})
+			return
+		}
+	}
 
-    c.JSON(http.StatusOK, projects)
+	c.JSON(http.StatusOK, projects)
 }
-
 
 // addShowcaseAccess grants the user viewer access to all showcase projects.
 // It is a no-op if the user already has access to any of them.
 func (h *Handler) addShowcaseAccess(ctx context.Context, userID string) error {
 	// Get showcase projet IDs
-    showcaseIDs, err := h.queries.GetShowcaseProjectIDs(ctx)
-    if err != nil {
-        return fmt.Errorf("fetching showcase project IDs: %w", err)
-    }
+	showcaseIDs, err := h.queries.GetShowcaseProjectIDs(ctx)
+	if err != nil {
+		return fmt.Errorf("fetching showcase project IDs: %w", err)
+	}
 
 	// Add user as read-only collaborator
-    now := time.Now()
-    for _, projectID := range showcaseIDs {
+	now := time.Now()
+	for _, projectID := range showcaseIDs {
 		// Create new row in collaborators table
 		_, err := h.queries.CreateProjectCollaborator(
 			ctx,
 			projectID,
 			userID,
-			"viewer", // Read Access
-			pgtype.Text{Valid: false}, // Invited-by = null
+			"viewer",                                 // Read Access
+			pgtype.Text{Valid: false},                // Invited-by = null
 			pgtype.Timestamp{Time: now, Valid: true}, // Invited at
 		)
-        if err != nil {
-            return fmt.Errorf("adding showcase collaborator for project %s: %w", projectID, err)
-        }
-    }
+		if err != nil {
+			return fmt.Errorf("adding showcase collaborator for project %s: %w", pgUUIDToString(projectID), err)
+		}
+	}
 
-    return nil
+	return nil
 }
 
 // CreateProject handles:
@@ -455,7 +454,7 @@ func (h *Handler) GetProjectTree(c *gin.Context) {
 		"project_id": raw.ProjectID,
 		"tree":       tree,
 		"is_collab":  isCollab,
-		"role": 	  role,
+		"role":       role,
 	})
 }
 

@@ -95,14 +95,8 @@ EXPOSE 8080
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
     CMD ["/app/healthcheck"]
 
-# NOTE: This service requires manual SIGTERM handling in application code.
-# See Go signal.NotifyContext. Without it, the process can be SIGKILLed
-# after the orchestrator grace period with no graceful drain.
-#
-# NOTE: WebSocket servers must track and explicitly close active connections
-# on SIGTERM. http.Server.Shutdown alone does not terminate existing
-# WebSocket connections.
+# The application handles SIGTERM and closes the HTTP listener. Active
+# WebSocket clients should reconnect after Swarm replaces the task.
 STOPSIGNAL SIGTERM
 
 ENTRYPOINT ["/app/server"]
-
