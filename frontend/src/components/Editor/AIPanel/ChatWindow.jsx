@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useAuth } from '../../../contexts/AuthContext';
 import { streamChat } from '../../../api/llm';
 import MessageList from './MessageList';
+import './AIPanel.css';
 
 /**
  * ChatWindow
@@ -14,18 +14,14 @@ import MessageList from './MessageList';
  */
 const ChatWindow = ({
   projectId,
-  activeTab,
+  contextFile,
   chat,
   messages,
   messagesLoading,
-  sidebarVisible,
-  onToggleSidebar,
   onNewChat,
   onMessagesUpdate,
   onChatTitleUpdate,
 }) => {
-  const { getToken } = useAuth();
-
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
   const [streamBuffer, setStreamBuffer] = useState(''); // partial assistant text
@@ -34,6 +30,10 @@ const ChatWindow = ({
   const abortRef = useRef(null);
   const textareaRef = useRef(null);
   const bottomRef = useRef(null);
+
+  useEffect(() => {
+    return () => abortRef.current?.abort();
+  }, []);
 
   // auto-scroll on new messages or stream chunks
   useEffect(() => {
@@ -50,66 +50,16 @@ const ChatWindow = ({
 
   // build a system prompt that includes the active file name for context
   const buildSystemPrompt = useCallback(() => {
-    if (!activeTab) return undefined;
+    if (!contextFile) return undefined;
+    const filename = contextFile.filename || contextFile.name;
+    if (!filename) return undefined;
+
     return (
       `You are a helpful LaTeX assistant embedded in SyncTeX, a collaborative LaTeX editor. ` +
-      `The user is currently editing a file called "${activeTab.name}". ` +
+      `The user is currently editing a file called "${filename}". ` +
       `Provide concise, accurate help. When showing LaTeX code, wrap it in code blocks.`
     );
-  }, [activeTab]);
-
-  const handleSend = useCallback(async () => {
-    const text = input.trim();
-    if (!text || streaming || !chat) return;
-
-    setInput('');
-    setError(null);
-
-    // optimistically add user message
-    const userMsg = { id: `local-${Date.now()}`, role: 'user', content: text };
-    onMessagesUpdate((prev) => [...prev, userMsg]);
-
-    setStreaming(true);
-    setStreamBuffer('');
-
-    abortRef.current = streamChat(
-      getToken,
-      {
-        chatId: chat.id,
-        message: text,
-        systemPrompt: buildSystemPrompt(),
-        maxTokens: 2048,
-      },
-      {
-        onChunk: (chunk) => {
-          setStreamBuffer((prev) => prev + chunk);
-        },
-        onDone: (meta) => {
-          setStreaming(false);
-          setStreamBuffer('');
-
-          // commit final assistant message from buffer
-          setStreamBuffer((buf) => {
-            onMessagesUpdate((prev) => [
-              ...prev,
-              { id: `asst-${Date.now()}`, role: 'assistant', content: buf },
-            ]);
-            return '';
-          });
-
-          // update chat title if it was just set (auto-title on first message)
-          if (chat && !chat.title) {
-            onChatTitleUpdate(chat.id, text.slice(0, 60));
-          }
-        },
-        onError: (err) => {
-          setStreaming(false);
-          setStreamBuffer('');
-          setError(err.message ?? 'Streaming failed');
-        },
-      }
-    );
-  }, [input, streaming, chat, getToken, buildSystemPrompt, onMessagesUpdate, onChatTitleUpdate]);
+  }, [contextFile]);
 
   // onDone captures stale streamBuffer via closure; use a ref workaround
   // Simpler: collect buffer in ref and read it in onDone
@@ -166,7 +116,7 @@ const ChatWindow = ({
         },
       }
     );
-  }, [input, streaming, chat, getToken, buildSystemPrompt, onMessagesUpdate, onChatTitleUpdate]);
+  }, [input, streaming, chat, buildSystemPrompt, onMessagesUpdate, onChatTitleUpdate]);
 
   const handleStop = useCallback(() => {
     abortRef.current?.abort();
@@ -185,17 +135,6 @@ const ChatWindow = ({
     <div className="ai-chat-main">
       {/* Top bar */}
       <div className="ai-chat-topbar">
-        <button
-          className={`ai-topbar-toggle-btn${sidebarVisible ? ' sidebar-visible' : ''}`}
-          onClick={onToggleSidebar}
-          title={sidebarVisible ? 'Hide chat list' : 'Show chat list'}
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <rect x="1" y="2" width="5" height="12" rx="1" stroke="currentColor" strokeWidth="1.4"/>
-            <path d="M9 4h5M9 8h5M9 12h5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
-          </svg>
-        </button>
-
         <span className={`ai-topbar-title${chat ? '' : ' placeholder'}`}>
           {chat ? (chat.title || 'Untitled chat') : 'Select or create a chat'}
         </span>
@@ -274,8 +213,8 @@ const ChatWindow = ({
 
             <div className="ai-input-meta">
               <span className="ai-input-hint">Shift+Enter for newline</span>
-              {activeTab && (
-                <span className="ai-model-badge">{activeTab.name}</span>
+              {contextFile && (
+                <span className="ai-model-badge">{contextFile.filename || contextFile.name}</span>
               )}
             </div>
           </div>

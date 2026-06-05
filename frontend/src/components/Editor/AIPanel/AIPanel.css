@@ -12,21 +12,14 @@
 /* ─── Chat sidebar (list of chats) ───────────────────────────────────────── */
 
 .ai-chat-sidebar {
-  width: 220px;
-  min-width: 220px;
+  width: 100%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   border-right: 1px solid var(--border, #2d2d2d);
   background: var(--bg-secondary, #efeded);
   overflow: hidden;
-  transition: width 0.2s ease, min-width 0.2s ease, opacity 0.2s ease;
-}
-
-.ai-chat-sidebar.collapsed {
-  width: 0;
-  min-width: 0;
-  opacity: 0;
-  pointer-events: none;
+  height: 100%;
 }
 
 .ai-sidebar-header {

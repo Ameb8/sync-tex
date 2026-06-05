@@ -11,13 +11,15 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useCollabSessions } from '../hooks/useCollabSessions';
 import { useTabManager } from '../hooks/useTabManager';
 import { useFileManager } from '../hooks/useFileManager';
+import { useChatManager } from '../hooks/useChatManager';
 
 import ActivityBar from '../components/Editor/ActivityBar';
 import FileTree from '../components/Editor/FileTree';
 import TabBar from '../components/Editor/TabBar';
 import EditorPane from '../components/Editor/EditorPane';
 import RightSidebar from '../components/Editor/RightSidebar';
-import AIPanel from '../components/Editor/AIPanel/AIPanel';
+import ChatSidebar from '../components/Editor/AIPanel/ChatSidebar';
+import ChatWindow from '../components/Editor/AIPanel/ChatWindow';
 import LLMPanel from '../components/Editor/LLMPanel/LLMPanel';
 import CollaboratorsPanel from '../components/Editor/CollaboratorsPanel';
 
@@ -39,6 +41,32 @@ const FILE_LANGUAGE_MAP = {
 const getLanguage = (fileType) => FILE_LANGUAGE_MAP[fileType] || 'latex';
 const IMAGE_TYPES = new Set(['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'image']);
 const isImageType = (fileType) => IMAGE_TYPES.has(fileType?.toLowerCase());
+
+const fileTabId = (fileId) => `file:${fileId}`;
+const chatTabId = (chatId) => `chat:${chatId}`;
+
+const resourceIdFromTabId = (tabId, prefix) => (
+  typeof tabId === 'string' && tabId.startsWith(prefix)
+    ? tabId.slice(prefix.length)
+    : null
+);
+
+const makeFileTab = (file) => ({
+  ...file,
+  id: fileTabId(file.id),
+  kind: 'file',
+  resourceId: file.id,
+  title: file.filename,
+  file,
+});
+
+const makeChatTab = (chat) => ({
+  id: chatTabId(chat.id),
+  kind: 'chat',
+  resourceId: chat.id,
+  title: chat.title || 'Untitled chat',
+  chat,
+});
 
 
 
@@ -75,6 +103,7 @@ const EditorView = () => {
   // Toggle/switch sidebar panels
   const handlePanelToggle = useCallback((panelId, type) => {
     if (type === 'sidebar') {
+      setMainPanel(null);
       setSidebarOpen((open) => {
         if (sidebarPanel === panelId) return !open; // Toggle if same panel
         return true; // Open if different panel
@@ -122,8 +151,11 @@ const EditorView = () => {
   // Tab close: tear down session and clear cached content.
   // Defined after fileManager so clearFileContent exists.
   const handleTabCloseWithCleanup = useCallback((tabId) => {
-    closeCollabSession(tabId);
-    clearFileContent(tabId);
+    const fileId = resourceIdFromTabId(tabId, 'file:');
+    if (!fileId) return;
+
+    closeCollabSession(fileId);
+    clearFileContent(fileId);
   }, [closeCollabSession, clearFileContent]);
 
   const {
@@ -131,9 +163,29 @@ const EditorView = () => {
     activeTabId,
     activeTab,
     addTab,
+    updateTab,
     handleTabSelect,
     handleTabClose,
   } = useTabManager({ onTabClose: handleTabCloseWithCleanup });
+
+  const {
+    chats,
+    chatsLoading,
+    messagesByChatId,
+    messagesLoadingByChatId,
+    ensureChatMessages,
+    createNewChat,
+    removeChat,
+    updateChatTitle,
+    updateChatMessages,
+  } = useChatManager({ projectId });
+
+  const activeFileTab = activeTab?.kind === 'file' ? activeTab : null;
+  const activeChatTab = activeTab?.kind === 'chat' ? activeTab : null;
+  const activeFile = activeFileTab?.file ?? null;
+  const activeFileId = activeFile?.id ?? null;
+  const activeChatId = activeChatTab?.resourceId ?? null;
+  const [lastActiveFile, setLastActiveFile] = useState(null);
 
   // Handle initial load 
   useEffect(() => {
@@ -152,6 +204,14 @@ const EditorView = () => {
     load();
   }, [projectId]);
 
+  useEffect(() => {
+    if (activeFile) setLastActiveFile(activeFile);
+  }, [activeFile]);
+
+  useEffect(() => {
+    if (activeChatId) ensureChatMessages(activeChatId);
+  }, [activeChatId, ensureChatMessages]);
+
   const isReadOnly = userRole === 'viewer';
 
   // Handle save
@@ -159,22 +219,24 @@ const EditorView = () => {
     const handler = (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
-        if (activeTabId) handleSaveFile(activeTabId);
+        if (activeFileId) handleSaveFile(activeFileId);
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [activeTabId, handleSaveFile]);
+  }, [activeFileId, handleSaveFile]);
 
   // Handle file select
   const handleFileSelect = useCallback(async (file) => {
+    const tabId = fileTabId(file.id);
+
     // Already open — just switch
-    if (openTabs.find((t) => t.id === file.id)) {
-      handleTabSelect(file.id);
+    if (openTabs.find((t) => t.id === tabId)) {
+      handleTabSelect(tabId);
       return;
     }
 
-    addTab(file);
+    addTab(makeFileTab(file));
 
     if (isImageType(file.file_type)) {
       setFileUrl(file.id, file.download_url);
@@ -192,50 +254,99 @@ const EditorView = () => {
     }
   }, [openTabs, isCollab, addTab, handleTabSelect, setFileUrl, openCollabSession, loadFileContent, setError]);
 
+  const handleOpenChatTab = useCallback((chatId) => {
+    const chat = chats.find((item) => item.id === chatId);
+    if (!chat) return;
+
+    const tabId = chatTabId(chat.id);
+    if (openTabs.find((tab) => tab.id === tabId)) {
+      handleTabSelect(tabId);
+    } else {
+      addTab(makeChatTab(chat));
+    }
+
+    ensureChatMessages(chat.id);
+  }, [addTab, chats, ensureChatMessages, handleTabSelect, openTabs]);
+
+  const handleCreateChatTab = useCallback(async () => {
+    try {
+      const chat = await createNewChat();
+      addTab(makeChatTab(chat));
+    } catch (err) {
+      console.error('Failed to create chat:', err);
+    }
+  }, [addTab, createNewChat]);
+
+  const handleDeleteChat = useCallback(async (chatId) => {
+    try {
+      await removeChat(chatId);
+      handleTabClose(chatTabId(chatId));
+    } catch (err) {
+      console.error('Failed to delete chat:', err);
+    }
+  }, [handleTabClose, removeChat]);
+
+  const handleChatTitleUpdate = useCallback((chatId, title) => {
+    const nextTitle = title || 'Untitled chat';
+    updateChatTitle(chatId, nextTitle);
+    updateTab(chatTabId(chatId), { title: nextTitle });
+  }, [updateChatTitle, updateTab]);
+
+  const handleActiveChatMessagesUpdate = useCallback((updater) => {
+    if (!activeChatId) return;
+    updateChatMessages(activeChatId, updater);
+  }, [activeChatId, updateChatMessages]);
+
   // Handle editor mount 
   const handleEditorMount = useCallback((editor) => {
     editorRef.current = editor;
-    bindActiveSession(editor, activeTabId, isCollab);
-  }, [bindActiveSession, activeTabId, isCollab]);
+    bindActiveSession(editor, activeFileId, isCollab);
+  }, [bindActiveSession, activeFileId, isCollab]);
 
   // Re-bind when switching to a tab whose session is already open
   useEffect(() => {
     if (editorRef.current) {
-      bindActiveSession(editorRef.current, activeTabId, isCollab);
+      bindActiveSession(editorRef.current, activeFileId, isCollab);
     }
-  }, [activeTabId, bindActiveSession, isCollab]);
+  }, [activeFileId, bindActiveSession, isCollab]);
 
   // File CRUD handlers
   const handleCreateFileAndOpen = useCallback(async (parentFolderId, filename) => {
     const newFile = await handleCreateFile(parentFolderId, filename);
     if (newFile) {
-      addTab(newFile);
+      addTab(makeFileTab(newFile));
       if (isCollab) openCollabSession(newFile);
     }
   }, [handleCreateFile, addTab, isCollab, openCollabSession]);
 
   const handleDeleteItemAndClose = useCallback(async (itemId, itemType) => {
     const ok = await handleDeleteItem(itemId, itemType);
-    if (ok && itemType === 'file') handleTabClose(itemId);
+    if (ok && itemType === 'file') {
+      handleTabClose(fileTabId(itemId));
+      setLastActiveFile((current) => current?.id === itemId ? null : current);
+    }
   }, [handleDeleteItem, handleTabClose]);
 
   const handleImageUploadAndOpen = useCallback(async (parentFolderId, file) => {
     const newFile = await handleImageUpload(parentFolderId, file);
-    if (newFile) addTab(newFile);
+    if (newFile) addTab(makeFileTab(newFile));
   }, [handleImageUpload, addTab]);
 
   // Derived state
 
-  const isActiveImage      = activeTab ? isImageType(activeTab.file_type) : false;
-  const isActiveCollab     = !!activeTabId && !isActiveImage && !!collabSessions.current[activeTabId];
-  const activeCollabStatus = activeTabId ? (collabStatus[activeTabId] ?? null) : null;
-  const activeContent      = (!isActiveCollab && activeTabId) ? (fileContents[activeTabId] ?? '') : '';
-  const activeLanguage     = activeTab ? getLanguage(activeTab.file_type) : 'latex';
-  const isActiveFileDirty  = !isActiveCollab && !!activeTabId && unsavedFiles.has(activeTabId);
-  const imageUrl           = isActiveImage ? fileContents[activeTabId] : null;
+  const activeChat         = activeChatId ? (chats.find((chat) => chat.id === activeChatId) ?? activeChatTab?.chat ?? null) : null;
+  const activeMessages     = activeChatId ? (messagesByChatId[activeChatId] ?? []) : [];
+  const messagesLoading    = activeChatId ? !!messagesLoadingByChatId[activeChatId] : false;
+  const isActiveImage      = activeFile ? isImageType(activeFile.file_type) : false;
+  const isActiveCollab     = !!activeFileId && !isActiveImage && !!collabSessions.current[activeFileId];
+  const activeCollabStatus = activeFileId ? (collabStatus[activeFileId] ?? null) : null;
+  const activeContent      = (!isActiveCollab && activeFileId) ? (fileContents[activeFileId] ?? '') : '';
+  const activeLanguage     = activeFile ? getLanguage(activeFile.file_type) : 'latex';
+  const isActiveFileDirty  = !isActiveCollab && !!activeFileId && unsavedFiles.has(activeFileId);
+  const imageUrl           = isActiveImage ? fileContents[activeFileId] : null;
   const activeLiveEditors  =
-    activeTabId && activeCollabStatus === 'connected'
-      ? (liveEditorsByFile[activeTabId] || []).filter((editor) => !editor.isLocal)
+    activeFileId && activeCollabStatus === 'connected'
+      ? (liveEditorsByFile[activeFileId] || []).filter((editor) => !editor.isLocal)
       : [];
 
   // Handle loading/error states
@@ -258,12 +369,12 @@ const EditorView = () => {
         <FileTree
           treeData={treeData}
           onFileSelect={handleFileSelect}
-          activeFileId={activeTabId}
+          activeFileId={activeFileId}
           onCreateFile={handleCreateFileAndOpen}
           onCreateFolder={handleCreateFolder}
           onDeleteItem={handleDeleteItemAndClose}
           onRenameItem={handleRenameItem}
-          onTabClose={handleTabClose}
+          onTabClose={(fileId) => handleTabClose(fileTabId(fileId))}
           onImageUpload={handleImageUploadAndOpen}
           readOnly={isReadOnly}
         />
@@ -274,13 +385,24 @@ const EditorView = () => {
       >
         <CollaboratorsPanel projectId={projectId} liveEditors={activeLiveEditors} />
       </div>
+      <div
+        className="side-panel"
+        style={{ display: sidebarOpen && sidebarPanel === 'ai' ? 'flex' : 'none' }}
+      >
+        <ChatSidebar
+          chats={chats}
+          loading={chatsLoading}
+          activeChatId={activeChatId}
+          onSelectChat={handleOpenChatTab}
+          onDeleteChat={handleDeleteChat}
+          onNewChat={handleCreateChatTab}
+        />
+      </div>
 
-      {/* Main editor column — or a full-area main panel if one is active */}
+      {/* Main editor column — or a full-area non-chat main panel if one is active */}
       <div className="editor-main">
         {mainPanel === 'llm' ? (
           <LLMPanel />
-        ) : mainPanel === 'ai' ? (
-          <AIPanel projectId={projectId} activeTab={activeTab} />
         ) : mainPanel ? (
           <div className="main-panel-content">
             <div style={{ padding: '2rem', color: 'var(--text-secondary)' }}>
@@ -297,21 +419,34 @@ const EditorView = () => {
               unsavedFiles={unsavedFiles}
             />
             <div className="editor-content">
-              <EditorPane
-                activeTab={activeTab}
-                isActiveImage={isActiveImage}
-                isActiveCollab={isActiveCollab}
-                activeContent={activeContent}
-                activeLanguage={activeLanguage}
-                isDarkMode={isDarkMode}
-                activeCollabStatus={activeCollabStatus}
-                isActiveFileDirty={isActiveFileDirty}
-                isSaving={isSaving}
-                imageUrl={imageUrl}
-                onMount={handleEditorMount}
-                onChange={(value) => handleEditorChange(value, activeTabId)}
-                readOnly={isReadOnly}
-              />
+              {activeChatTab ? (
+                <ChatWindow
+                  projectId={projectId}
+                  contextFile={lastActiveFile}
+                  chat={activeChat}
+                  messages={activeMessages}
+                  messagesLoading={messagesLoading}
+                  onNewChat={handleCreateChatTab}
+                  onMessagesUpdate={handleActiveChatMessagesUpdate}
+                  onChatTitleUpdate={handleChatTitleUpdate}
+                />
+              ) : (
+                <EditorPane
+                  activeTab={activeFile}
+                  isActiveImage={isActiveImage}
+                  isActiveCollab={isActiveCollab}
+                  activeContent={activeContent}
+                  activeLanguage={activeLanguage}
+                  isDarkMode={isDarkMode}
+                  activeCollabStatus={activeCollabStatus}
+                  isActiveFileDirty={isActiveFileDirty}
+                  isSaving={isSaving}
+                  imageUrl={imageUrl}
+                  onMount={handleEditorMount}
+                  onChange={(value) => handleEditorChange(value, activeFileId)}
+                  readOnly={isReadOnly}
+                />
+              )}
             </div>
           </>
         )} 
