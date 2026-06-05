@@ -1,0 +1,299 @@
+services:
+  nginx:
+    image: ${REGISTRY_IMAGE_PREFIX:-ghcr.io/ameb8/sync-tex}/nginx:${NGINX_TAG:-latest}
+    ports:
+      - target: 80
+        published: 80
+        protocol: tcp
+        mode: ingress
+    networks:
+      - gateway-network
+    stop_grace_period: 30s
+    deploy:
+      replicas: 1
+      update_config:
+        parallelism: 1
+        order: start-first
+        failure_action: rollback
+        delay: 0s
+        monitor: 30s
+      rollback_config:
+        parallelism: 1
+        order: start-first
+        monitor: 30s
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+        window: 60s
+
+  postgres-users:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${USERS_DB_USER}
+      POSTGRES_PASSWORD: ${USERS_DB_PASSWORD}
+      POSTGRES_DB: ${USERS_DB}
+    volumes:
+      - postgres_users_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - gateway-network
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+        window: 60s
+
+  users-service:
+    image: ${REGISTRY_IMAGE_PREFIX:-ghcr.io/ameb8/sync-tex}/users-service:${USERS_SERVICE_TAG:-latest}
+    environment:
+      DATABASE_URL: ${USERS_DB_URL}
+      EXTERNAL_URL: ${EXTERNAL_URL}
+      FRONTEND_URL: ${FRONTEND_URL}
+      SECRET_KEY: ${USERS_SECRET_KEY}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
+      GITHUB_REDIRECT_URI: ${EXTERNAL_URL}/auth/github/callback
+      USERS_INTERNAL_API_KEY: ${USERS_INTERNAL_API_KEY}
+    networks:
+      - gateway-network
+    stop_grace_period: 30s
+    deploy:
+      replicas: 1
+      update_config:
+        parallelism: 1
+        order: start-first
+        failure_action: rollback
+        delay: 0s
+        monitor: 30s
+      rollback_config:
+        parallelism: 1
+        order: start-first
+        monitor: 30s
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+        window: 60s
+
+  postgres-projects:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${PROJECTS_DB_USER}
+      POSTGRES_PASSWORD: ${PROJECTS_DB_PASSWORD}
+      POSTGRES_DB: ${PROJECTS_DB}
+    volumes:
+      - postgres_projects_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - gateway-network
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+        window: 60s
+
+  projects-service:
+    image: ${REGISTRY_IMAGE_PREFIX:-ghcr.io/ameb8/sync-tex}/projects-service:${PROJECTS_SERVICE_TAG:-latest}
+    environment:
+      DATABASE_URL: ${PROJECTS_DB_URL}
+      JWT_SECRET: ${USERS_SECRET_KEY}
+      PORT: ${PROJECTS_PORT:-8003}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      GATEWAY_URL: ${EXTERNAL_URL}
+      USERS_INTERNAL_API_KEY: ${USERS_INTERNAL_API_KEY}
+      USERS_INTERNAL_API_URL: ${USERS_INTERNAL_API_URL}
+      FILE_DATA_ADDR: ${FILE_DATA_ADDR:-file-data-service:50051}
+      EXTERNAL_URL: ${EXTERNAL_URL}
+      PROJECTS_INTERNAL_API_KEY: ${PROJECTS_INTERNAL_API_KEY}
+    networks:
+      - gateway-network
+    stop_grace_period: 30s
+    deploy:
+      replicas: 1
+      update_config:
+        parallelism: 1
+        order: start-first
+        failure_action: rollback
+        delay: 0s
+        monitor: 30s
+      rollback_config:
+        parallelism: 1
+        order: start-first
+        monitor: 30s
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+        window: 60s
+
+  collab-service:
+    image: ${REGISTRY_IMAGE_PREFIX:-ghcr.io/ameb8/sync-tex}/collab-service:${COLLAB_SERVICE_TAG:-latest}
+    environment:
+      PORT: ${COLLAB_SERVICE_PORT:-8080}
+      PROJECTS_SERVICE_URL: ${PROJECTS_SERVICE_URL:-http://projects-service:8003}
+      INTERNAL_SECRET: ${PROJECTS_INTERNAL_API_KEY}
+      SAVE_DEBOUNCE_MS: ${COLLAB_UPLOAD_DEBOUNCE_MS:-2000}
+    networks:
+      - gateway-network
+    stop_grace_period: 45s
+    deploy:
+      replicas: 1
+      update_config:
+        parallelism: 1
+        order: start-first
+        failure_action: rollback
+        delay: 0s
+        monitor: 30s
+      rollback_config:
+        parallelism: 1
+        order: start-first
+        monitor: 30s
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+        window: 60s
+
+  file-data-service:
+    image: ${REGISTRY_IMAGE_PREFIX:-ghcr.io/ameb8/sync-tex}/file-data-service:${FILE_DATA_SERVICE_TAG:-latest}
+    environment:
+      GRPC_ADDR: ${FILE_DATA_GRPC_ADDR:-[::]:50051}
+      RUST_LOG: ${FILE_DATA_RUST_LOG:-info}
+    networks:
+      - gateway-network
+    stop_grace_period: 30s
+    deploy:
+      replicas: 1
+      update_config:
+        parallelism: 1
+        order: start-first
+        failure_action: rollback
+        delay: 0s
+        monitor: 30s
+      rollback_config:
+        parallelism: 1
+        order: start-first
+        monitor: 30s
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+        window: 60s
+
+  postgres-assistant:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${ASSISTANT_DB_USER}
+      POSTGRES_PASSWORD: ${ASSISTANT_DB_PASSWORD}
+      POSTGRES_DB: ${ASSISTANT_DB}
+    volumes:
+      - postgres_assistant_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - gateway-network
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+        window: 60s
+
+  assistant-service:
+    image: ${REGISTRY_IMAGE_PREFIX:-ghcr.io/ameb8/sync-tex}/assistant-service:${ASSISTANT_SERVICE_TAG:-latest}
+    environment:
+      DATABASE_URL: ${ASSISTANT_DB_URL}
+      DATABASE_SYNC_URL: ${ASSISTANT_DB_SYNC_URL}
+      ASSISTANT_ENCRYPTION_KEY: ${ASSISTANT_ENCRYPTION_KEY}
+      JWT_SECRET: ${USERS_SECRET_KEY}
+      JWT_ALGORITHM: HS256
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY}
+      PROJECTS_SERVICE_URL: ${PROJECTS_SERVICE_URL:-http://projects-service:8003}
+      PROJECTS_INTERNAL_API_KEY: ${PROJECTS_INTERNAL_API_KEY}
+      LOG_LEVEL: ${ASSISTANT_LOG_LEVEL:-info}
+    networks:
+      - gateway-network
+    stop_grace_period: 30s
+    deploy:
+      replicas: 1
+      update_config:
+        parallelism: 1
+        order: start-first
+        failure_action: rollback
+        delay: 0s
+        monitor: 30s
+      rollback_config:
+        parallelism: 1
+        order: start-first
+        monitor: 30s
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+        window: 60s
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - gateway-network
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+        window: 60s
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate --url http://nginx:80
+    networks:
+      - gateway-network
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+        window: 60s
+
+volumes:
+  postgres_users_data:
+  postgres_projects_data:
+  postgres_assistant_data:
+  minio_data:
+
+networks:
+  gateway-network:
+    driver: overlay
+    attachable: true

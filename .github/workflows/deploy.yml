@@ -1,0 +1,216 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      build_all:
+        description: Build and deploy every SyncTeX image.
+        required: false
+        type: boolean
+        default: false
+      deploy_stack:
+        description: Deploy the stack even when no image build is requested.
+        required: false
+        type: boolean
+        default: true
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  detect-changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      changed_services: ${{ steps.matrix.outputs.changed_services }}
+      build_required: ${{ steps.matrix.outputs.build_required }}
+      deploy_required: ${{ steps.matrix.outputs.deploy_required }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Detect changed paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            users-service:
+              - 'users-service/**'
+            projects-service:
+              - 'projects-service/**'
+              - 'proto/**'
+            collab-service:
+              - 'collab-service/**'
+            file-data-service:
+              - 'file-data-service/**'
+              - 'proto/**'
+            assistant-service:
+              - 'assistant-service/**'
+            nginx:
+              - 'nginx/**'
+              - 'frontend/**'
+            stack:
+              - 'docker-compose.yml'
+              - 'docker-compose.prod.yml'
+              - 'docker-compose.swarm.yml'
+              - '.env.example'
+            workflow:
+              - '.github/workflows/**'
+            deploy-scripts:
+              - 'scripts/**'
+
+      - name: Build service matrix
+        id: matrix
+        uses: actions/github-script@v7
+        env:
+          CHANGES: ${{ steps.filter.outputs.changes }}
+          EVENT_NAME: ${{ github.event_name }}
+          BUILD_ALL: ${{ inputs.build_all || 'false' }}
+          DEPLOY_STACK: ${{ inputs.deploy_stack || 'false' }}
+        with:
+          script: |
+            const changed = JSON.parse(process.env.CHANGES || '[]');
+            const manual = process.env.EVENT_NAME === 'workflow_dispatch';
+            const buildAll = process.env.BUILD_ALL === 'true';
+            const manualDeploy = process.env.DEPLOY_STACK === 'true';
+
+            const buildMap = {
+              'users-service': {
+                service: 'users-service',
+                context: './users-service',
+                dockerfile: './users-service/Dockerfile',
+                buildContexts: '',
+              },
+              'projects-service': {
+                service: 'projects-service',
+                context: './projects-service',
+                dockerfile: './projects-service/Dockerfile',
+                buildContexts: '',
+              },
+              'collab-service': {
+                service: 'collab-service',
+                context: './collab-service',
+                dockerfile: './collab-service/Dockerfile',
+                buildContexts: '',
+              },
+              'file-data-service': {
+                service: 'file-data-service',
+                context: './file-data-service',
+                dockerfile: './file-data-service/Dockerfile',
+                buildContexts: 'root-proto=./proto',
+              },
+              'assistant-service': {
+                service: 'assistant-service',
+                context: './assistant-service',
+                dockerfile: './assistant-service/Dockerfile',
+                buildContexts: '',
+              },
+              nginx: {
+                service: 'nginx',
+                context: '.',
+                dockerfile: './nginx/Dockerfile',
+                buildContexts: '',
+              },
+            };
+
+            const deployOnly = ['stack', 'workflow', 'deploy-scripts'];
+            const selected = buildAll ? Object.keys(buildMap) : changed.filter((name) => buildMap[name]);
+            const seen = new Set();
+            const matrix = selected
+              .filter((name) => {
+                if (seen.has(name)) {
+                  return false;
+                }
+                seen.add(name);
+                return true;
+              })
+              .map((name) => buildMap[name]);
+
+            core.setOutput('matrix', JSON.stringify({include: matrix}));
+            core.setOutput('changed_services', JSON.stringify(matrix.map((item) => item.service)));
+            core.setOutput('build_required', String(matrix.length > 0));
+            core.setOutput(
+              'deploy_required',
+              String(matrix.length > 0 || changed.some((name) => deployOnly.includes(name)) || (manual && manualDeploy)),
+            );
+
+  build-and-push:
+    name: Build and push ${{ matrix.service }}
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.build_required == 'true' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Compute image prefix
+        id: image
+        shell: bash
+        run: echo "prefix=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Compute build date
+        id: build-date
+        shell: bash
+        run: echo "value=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ${{ steps.image.outputs.prefix }}/${{ matrix.service }}:latest
+            ${{ steps.image.outputs.prefix }}/${{ matrix.service }}:${{ github.sha }}
+          build-args: |
+            GIT_SHA=${{ github.sha }}
+            BUILD_DATE=${{ steps.build-date.outputs.value }}
+          build-contexts: ${{ matrix.buildContexts }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+  deploy-stack:
+    name: Deploy stack
+    needs: [detect-changes, build-and-push]
+    if: ${{ always() && needs.detect-changes.outputs.deploy_required == 'true' && (needs.build-and-push.result == 'success' || needs.build-and-push.result == 'skipped') }}
+    runs-on: [self-hosted, linux, ARM64, synctex-prod]
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          clean: false
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Deploy Swarm stack
+        run: scripts/deploy-stack.sh
