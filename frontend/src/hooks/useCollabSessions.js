@@ -16,18 +16,15 @@ export function useCollabSessions({ projectId, getToken, user = null }) {
   // Ref (not state) because mutations don't need re-renders.
   const collabSessions = useRef({});
 
-  // Track which *session instance* is bound, not just the file ID.
-  // This ensures a new session (after close+reopen) always triggers bindEditor.
-  const boundSessions = useRef(new Map()); // fileId -> session object
+  // Track the live Monaco model for each file. Monaco is remounted on tab
+  // switches, so a session-only guard would incorrectly skip required rebinds.
+  const boundEditors = useRef(new Map()); // fileId -> { session, model }
 
   // fileId statuses: 'connecting' | 'connected' | 'disconnected'
   const [collabStatus, setCollabStatus] = useState({});
 
   // fileId -> awareness users for currently open collaborative sessions
   const [liveEditorsByFile, setLiveEditorsByFile] = useState({});
-
-  // Track which files have a live Monaco binding to avoid double-binding
-  const boundFiles = useRef(new Set());
 
   const openCollabSession = useCallback((file) => {
     //if (collabSessions.current[file.id]) return; // Handle already open
@@ -70,8 +67,7 @@ export function useCollabSessions({ projectId, getToken, user = null }) {
     if (!session) return;
 
     session.destroy();
-    boundSessions.current.delete(fileId);
-    //boundFiles.current.delete(fileId);
+    boundEditors.current.delete(fileId);
     delete collabSessions.current[fileId];
 
     setCollabStatus((prev) => {
@@ -89,33 +85,34 @@ export function useCollabSessions({ projectId, getToken, user = null }) {
 
   /**
    * Bind the active file's session to a Monaco editor instance.
-   * Safe to call on every editor mount and every tab switch
-   * it's a no-op if already bound or if there's no session.
+   * Safe to call on every editor mount and every tab switch. It is a no-op
+   * only when this session is already bound to the same Monaco model.
    */
-const bindActiveSession = useCallback((editor, activeTabId, isCollab, _attempt = 0) => {
-  if (!isCollab || !activeTabId) return;
+  const bindActiveSession = useCallback((editor, activeTabId, isCollab, _attempt = 0) => {
+    if (!isCollab || !activeTabId) return;
 
-  const session = collabSessions.current[activeTabId];
-  if (!session) return;
+    const session = collabSessions.current[activeTabId];
+    if (!session) return;
 
-  // Skip only if this exact session instance is already bound
-  if (boundSessions.current.get(activeTabId) === session) return;
+    const model = editor.getModel();
+    const currentBinding = boundEditors.current.get(activeTabId);
+    if (currentBinding?.session === session && currentBinding.model === model) return;
 
-  const ok = session.bindEditor(editor);
-  if (ok) {
-    console.log('[collab] bound session to editor for', activeTabId);
-    boundSessions.current.set(activeTabId, session);
-  } else if (_attempt < 10) {
-    // Model not ready yet — retry, but only if this session is still active
-    setTimeout(() => {
-      if (collabSessions.current[activeTabId] === session) {
-        bindActiveSession(editor, activeTabId, isCollab, _attempt + 1);
-      }
-    }, 50);
-  } else {
-    console.error('[collab] bindEditor failed after 10 attempts for', activeTabId);
-  }
-}, []);
+    const ok = session.bindEditor(editor);
+    if (ok) {
+      console.log('[collab] bound session to editor for', activeTabId);
+      boundEditors.current.set(activeTabId, { session, model });
+    } else if (_attempt < 10) {
+      // Model not ready yet — retry, but only if this session is still active
+      setTimeout(() => {
+        if (collabSessions.current[activeTabId] === session) {
+          bindActiveSession(editor, activeTabId, isCollab, _attempt + 1);
+        }
+      }, 50);
+    } else {
+      console.error('[collab] bindEditor failed after 10 attempts for', activeTabId);
+    }
+  }, []);
 
 
   // Tear down all sessions on unmount
