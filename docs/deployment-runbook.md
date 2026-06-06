@@ -66,7 +66,7 @@ Place the repository somewhere stable, for example:
 mkdir -p /opt/synctex
 cd /opt/synctex
 git clone https://github.com/ameb8/sync-tex.git .
-git checkout main
+git checkout master
 ```
 
 The self-hosted runner should deploy from this checkout or from the checkout it
@@ -249,7 +249,7 @@ Then validate the public route through cloudflared:
 - Collaboration WebSocket connect and reconnect.
 - Assistant SSE streaming under `/api/llm/v1/`.
 
-After manual validation passes, future pushes to `main` can use the CD workflow.
+After manual validation passes, future pushes to `master` can use the CD workflow.
 
 ## Required Images
 
