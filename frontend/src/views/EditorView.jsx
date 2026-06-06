@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { loader } from '@monaco-editor/react';
 
@@ -113,9 +113,6 @@ const EditorView = () => {
       setMainPanel((current) => current === panelId ? null : panelId);
     }
   }, [sidebarPanel]);
-
-  // Editor ref so bindActiveSession can receive it
-  const editorRef = useRef(null);
 
   // Hooks
   const {
@@ -299,16 +296,8 @@ const EditorView = () => {
 
   // Handle editor mount 
   const handleEditorMount = useCallback((editor) => {
-    editorRef.current = editor;
     bindActiveSession(editor, activeFileId, isCollab);
   }, [bindActiveSession, activeFileId, isCollab]);
-
-  // Re-bind when switching to a tab whose session is already open
-  useEffect(() => {
-    if (editorRef.current) {
-      bindActiveSession(editorRef.current, activeFileId, isCollab);
-    }
-  }, [activeFileId, bindActiveSession, isCollab]);
 
   // File CRUD handlers
   const handleCreateFileAndOpen = useCallback(async (parentFolderId, filename) => {
