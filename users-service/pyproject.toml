@@ -10,6 +10,9 @@ select = [
     "I",
     "UP",
 ]
+ignore = [
+    "B008",
+]
 
 [tool.ruff.format]
 quote-style = "double"
