@@ -1,0 +1,4 @@
+interface:
+  display_name: "Implement Integration Tests"
+  short_description: "Write SyncTeX pytest files from TEST_PLAN.md"
+  default_prompt: "Implement the assigned SyncTeX REST integration test route group from tests/<service>/TEST_PLAN.md as one pytest file, using only the existing conftest fixtures and helpers, then verify collection."
