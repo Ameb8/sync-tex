@@ -1,0 +1,4 @@
+interface:
+  display_name: "Setup Service Integration Tests"
+  short_description: "Build black-box service test harnesses."
+  default_prompt: "Set up a service-specific black-box pytest integration test harness for a SyncTeX backend service."
