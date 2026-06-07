@@ -1,29 +1,37 @@
-from fastapi import APIRouter, HTTPException, Depends, Header, status, Security, Query
-from fastapi.responses import RedirectResponse
-from sqlalchemy.orm import Session
-from sqlalchemy.exc import IntegrityError
-from typing import Optional
-import httpx
-import secrets
 import os
+import secrets
+
+import httpx
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi.responses import RedirectResponse
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
 from models import User, get_db
-from schemas import LoginRequest, LoginResponse, UserResponse, UserCreate, TokenData, InternalUsersResponse, InternalUserResponse
-from security import hash_password, verify_password, generate_token, verify_token
+from schemas import (
+    InternalUserResponse,
+    InternalUsersResponse,
+    LoginRequest,
+    LoginResponse,
+    TokenData,
+    UserCreate,
+    UserResponse,
+)
+from security import generate_token, hash_password, verify_password, verify_token
 
 router = APIRouter()
 
 # OAuth2 state storage (use Redis in production)
 oauth_states = set()
 
+
 # API key dependency
-def verify_api_key(x_api_key: Optional[str] = Header(None)):
+def verify_api_key(x_api_key: str | None = Header(None)):
     expected = os.getenv("USERS_INTERNAL_API_KEY")
     if not expected:
         raise HTTPException(status_code=500, detail="API key not configured")
     if not x_api_key or not secrets.compare_digest(x_api_key, expected):
         raise HTTPException(status_code=401, detail="Invalid or missing API key")
-
 
 
 @router.post("/register", response_model=LoginResponse)
@@ -32,36 +40,42 @@ async def register(req: UserCreate, db: Session = Depends(get_db)):
     try:
         # Hash password
         hashed_pw = hash_password(req.password)
-        
+
         # Create user in DB
         user = User(email=req.email, password=hashed_pw, name=req.name)
         db.add(user)
         db.commit()
         db.refresh(user)
-        
+
         # Generate JWT
         token = generate_token(user.id, user.email)
-        
+
         return LoginResponse(token=token, user_id=user.id, email=user.email)
-    
-    except IntegrityError:
+
+    except IntegrityError as err:
         db.rollback()
-        raise HTTPException(status_code=409, detail="Email already exists")
+        raise HTTPException(
+            status_code=409, detail="Email already exists"
+        ) from err
+
 
 @router.post("/login", response_model=LoginResponse)
 async def login(req: LoginRequest, db: Session = Depends(get_db)):
     """Login with email/password"""
     # Fetch user from DB
     user = db.query(User).filter(User.email == req.email).first()
-    
-    if not user or not user.password or not verify_password(req.password, user.password):
+
+    if (
+        not user
+        or not user.password
+        or not verify_password(req.password, user.password)
+    ):
         raise HTTPException(status_code=401, detail="Invalid email or password")
-    
+
     # Generate JWT
     token = generate_token(user.id, user.email)
-    
-    return LoginResponse(token=token, user_id=user.id, email=user.email)
 
+    return LoginResponse(token=token, user_id=user.id, email=user.email)
 
 
 @router.get("/github/login")
@@ -83,26 +97,30 @@ async def github_login():
 
     return RedirectResponse(url=github_auth_url)
 
+
 @router.get("/github/callback")
 async def github_callback(code: str, state: str, db: Session = Depends(get_db)):
     """Handle GitHub OAuth2 callback"""
     if state not in oauth_states:
         raise HTTPException(status_code=400, detail="Invalid state")
-    
+
     oauth_states.discard(state)
-    
+
     # Read env vars
     github_client_id = os.getenv("GITHUB_CLIENT_ID")
-    github_client_secret = os.getenv("GITHUB_CLIENT_SECRET")    
+    github_client_secret = os.getenv("GITHUB_CLIENT_SECRET")
     external_url = os.getenv("EXTERNAL_URL")
     redirect_uri = os.getenv("GITHUB_REDIRECT_URI")
 
     # Ensure vars exist
     if not external_url or not redirect_uri:
-      raise HTTPException(status_code=500, detail="OAuth URL configuration is missing")
+        raise HTTPException(
+            status_code=500, detail="OAuth URL configuration is missing"
+        )
     if not github_client_id or not github_client_secret:
-      raise HTTPException(status_code=500, detail="GitHub OAuth configuration is missing")
-
+        raise HTTPException(
+            status_code=500, detail="GitHub OAuth configuration is missing"
+        )
 
     # Exchange code for GitHub access token
     async with httpx.AsyncClient() as client:
@@ -114,44 +132,51 @@ async def github_callback(code: str, state: str, db: Session = Depends(get_db)):
                 "client_secret": github_client_secret,
                 "redirect_uri": redirect_uri,
             },
-            headers={"Accept": "application/json"}
+            headers={"Accept": "application/json"},
         )
-    
+
     if token_response.status_code != 200:
-        raise HTTPException(status_code=400, detail="Failed to exchange authorization code")
-    
+        raise HTTPException(
+            status_code=400, detail="Failed to exchange authorization code"
+        )
+
     # Parse token data
     token_data = token_response.json()
     if "error" in token_data:
-        raise HTTPException(status_code=400, detail=token_data.get("error_description", "OAuth error"))
-    
+        raise HTTPException(
+            status_code=400, detail=token_data.get("error_description", "OAuth error")
+        )
+
     access_token = token_data["access_token"]
-    
+
     # Get user info from GitHub
     async with httpx.AsyncClient() as client:
         user_response = await client.get(
             "https://api.github.com/user",
-            headers={"Authorization": f"Bearer {access_token}"}
+            headers={"Authorization": f"Bearer {access_token}"},
         )
-    
+
     if user_response.status_code != 200:
-        raise HTTPException(status_code=400, detail="Failed to fetch user info from GitHub")
-    
+        raise HTTPException(
+            status_code=400, detail="Failed to fetch user info from GitHub"
+        )
+
     # Read user data from token
     github_user = user_response.json()
     github_id = str(github_user["id"])
     username = github_user.get("login")
     name = github_user.get("name") or username
-    
-    # GitHub may not always return email in user endpoint, need to fetch from emails endpoint
+
+    # GitHub may not always return email in user endpoint
+    # Fetch from emails endpoint
     email = github_user.get("email")
     if not email:
         async with httpx.AsyncClient() as client:
             emails_response = await client.get(
                 "https://api.github.com/user/emails",
-                headers={"Authorization": f"Bearer {access_token}"}
+                headers={"Authorization": f"Bearer {access_token}"},
             )
-        
+
         if emails_response.status_code == 200:
             emails = emails_response.json()
             # Get primary email
@@ -162,13 +187,13 @@ async def github_callback(code: str, state: str, db: Session = Depends(get_db)):
             # Fallback to first email if no primary
             if not email and emails:
                 email = emails[0]["email"]
-    
+
     if not email:
         raise HTTPException(status_code=400, detail="Could not get email from GitHub")
-    
+
     # Find or create user
     user = db.query(User).filter(User.email == email).first()
-    
+
     if not user:
         # Create new OAuth user
         user = User(email=email, name=name, oauth_provider="github", oauth_id=github_id)
@@ -181,56 +206,72 @@ async def github_callback(code: str, state: str, db: Session = Depends(get_db)):
             user.oauth_id = github_id
             user.oauth_provider = "github"
             db.commit()
-    
+
     # Generate JWT
     token = generate_token(user.id, user.email)
-    
-    # Redirect back to frontend with jwt 
+
+    # Redirect back to frontend with jwt
     frontend_url = f"{external_url}/oauth/callback?token={token}"
     return RedirectResponse(frontend_url)
 
 
 @router.get("/validate", response_model=TokenData)
-async def validate_token(authorization: Optional[str] = Header(None)):
+async def validate_token(authorization: str | None = Header(None)):
     """Validate JWT token (for other services)"""
     if not authorization:
         raise HTTPException(status_code=401, detail="Missing authorization header")
-    
+
     # Strip "Bearer " prefix
-    token = authorization.replace("Bearer ", "") if authorization.startswith("Bearer ") else authorization
-    
+    token = (
+        authorization.replace("Bearer ", "")
+        if authorization.startswith("Bearer ")
+        else authorization
+    )
+
     # Verify token
     payload = verify_token(token)
-    
+
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
-    
+
     return TokenData(user_id=payload["user_id"], email=payload["email"])
 
+
 @router.get("/me", response_model=UserResponse)
-async def get_current_user(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
+async def get_current_user(
+    authorization: str | None = Header(None), db: Session = Depends(get_db)
+):
     """Get current user info from token"""
     if not authorization:
         raise HTTPException(status_code=401, detail="Missing authorization header")
-    
-    token = authorization.replace("Bearer ", "") if authorization.startswith("Bearer ") else authorization
+
+    token = (
+        authorization.replace("Bearer ", "")
+        if authorization.startswith("Bearer ")
+        else authorization
+    )
     payload = verify_token(token)
-    
+
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
-    
+
     # Fetch user from DB to ensure they still exist
     user = db.query(User).filter(User.id == payload["user_id"]).first()
-    
+
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    
+
     return user
 
-@router.get("/internal/users", response_model=InternalUsersResponse, dependencies=[Depends(verify_api_key)])
+
+@router.get(
+    "/internal/users",
+    response_model=InternalUsersResponse,
+    dependencies=[Depends(verify_api_key)],
+)
 async def get_users_by_ids(
     user_ids: list[int] = Query(..., description="One or more user IDs"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """Internal endpoint: fetch users by IDs. Requires X-Api-Key header.
     Usage: /internal/users?user_ids=1&user_ids=2&user_ids=3
@@ -247,6 +288,7 @@ async def get_users_by_ids(
         users=[to_internal_user(u) for u in users],
         not_found=[str(uid) for uid in not_found],
     )
+
 
 def to_internal_user(u: User) -> InternalUserResponse:
     return InternalUserResponse(

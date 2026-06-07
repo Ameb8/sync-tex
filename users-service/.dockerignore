@@ -16,5 +16,4 @@ htmlcov
 
 Dockerfile.dev
 Makefile
-requirements-dev.txt
 tests
