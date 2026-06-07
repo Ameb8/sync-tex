@@ -1,0 +1,4 @@
+interface:
+  display_name: "Plan Integration Tests"
+  short_description: "Plan black-box REST integration test cases for SyncTeX services."
+  default_prompt: "Plan black-box integration test cases for a SyncTeX REST backend service after the test harness has been set up."
