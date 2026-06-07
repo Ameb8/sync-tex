@@ -1,0 +1,53 @@
+services:
+  postgres-test:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: testuser
+      POSTGRES_PASSWORD: testpassword
+      POSTGRES_DB: users_test
+    ports:
+      - "5501:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U testuser -d users_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - users-test-network
+
+  users-service-test:
+    build:
+      context: ../../users-service
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://testuser:testpassword@postgres-test:5432/users_test
+      SECRET_KEY: test-users-secret-key-for-integration-tests
+      USERS_INTERNAL_API_KEY: test-users-internal-api-key
+      GITHUB_CLIENT_ID: test-github-client-id
+      GITHUB_CLIENT_SECRET: test-github-client-secret
+      GITHUB_REDIRECT_URI: http://localhost:8101/auth/github/callback
+      EXTERNAL_URL: http://localhost:3000
+      FRONTEND_URL: http://localhost:3000
+      PORT: 8001
+    ports:
+      - "8101:8001"
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=5).read()",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+    networks:
+      - users-test-network
+
+networks:
+  users-test-network:
+    driver: bridge

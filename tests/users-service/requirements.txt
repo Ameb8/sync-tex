@@ -1,0 +1,5 @@
+pytest>=8.0
+requests>=2.31
+PyJWT>=2.8
+psycopg2-binary>=2.9
+pytest-timeout>=2.3
