@@ -94,7 +94,7 @@ def internal_api_key() -> str:
 
 @pytest.fixture
 def unique_email() -> str:
-    return f"user-{uuid.uuid4().hex}@example.test"
+    return f"user-{uuid.uuid4().hex}@users.sync-tex.dev"
 
 
 @pytest.fixture
