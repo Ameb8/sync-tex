@@ -13,11 +13,22 @@ Endpoints covered:
 """
 
 import uuid
-import pytest
 import requests
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
+def get_root_directory_id(base_url, proj_id, headers):
+    r = requests.get(
+        f"{base_url}/projects/v1/projects/{proj_id}/tree",
+        headers=headers,
+    )
+    assert r.status_code == 200, f"project tree setup failed: {r.status_code} {r.text}"
+
+    tree = r.json().get("tree", [])
+    assert tree, f"project tree has no root directory: {r.text}"
+    return tree[0]["id"]
+
 
 def create_file(base_url, proj_id, headers, filename="test.txt", directory_id=None, file_type="tex"):
     body = {"filename": filename, "file_type": file_type}
@@ -43,7 +54,14 @@ def create_directory(base_url, proj_id, headers, name="subdir", path="/"):
 class TestCreateFile:
     def test_create_file_returns_201_and_presigned_url(self, base_url, project):
         proj, headers = project
-        r = create_file(base_url, proj["id"], headers, filename="hello.txt")
+        directory_id = get_root_directory_id(base_url, proj["id"], headers)
+        r = create_file(
+            base_url,
+            proj["id"],
+            headers,
+            filename="hello.txt",
+            directory_id=directory_id,
+        )
         assert r.status_code == 201
         data = r.json()
         assert "id" in data
@@ -52,16 +70,30 @@ class TestCreateFile:
         assert upload_url is not None, f"Expected a presigned URL in response: {data}"
 
     def test_create_file_without_auth_returns_401(self, base_url, project):
-        proj, _ = project
-        r = create_file(base_url, proj["id"], headers={}, filename="nope.txt")
+        proj, headers = project
+        directory_id = get_root_directory_id(base_url, proj["id"], headers)
+        r = create_file(
+            base_url,
+            proj["id"],
+            headers={},
+            filename="nope.txt",
+            directory_id=directory_id,
+        )
         assert r.status_code == 401
 
     def test_create_file_non_member_returns_403_or_404(
         self, base_url, project, second_user
     ):
-        proj, _ = project
+        proj, headers = project
         _, headers_b = second_user
-        r = create_file(base_url, proj["id"], headers_b, filename="intruder.txt")
+        directory_id = get_root_directory_id(base_url, proj["id"], headers)
+        r = create_file(
+            base_url,
+            proj["id"],
+            headers_b,
+            filename="intruder.txt",
+            directory_id=directory_id,
+        )
         assert r.status_code in (403, 404)
 
 
@@ -69,7 +101,14 @@ class TestGetFile:
     def test_get_file_metadata(self, base_url, project):
         proj, headers = project
         # Create a file first
-        r = create_file(base_url, proj["id"], headers, filename="readable.txt")
+        directory_id = get_root_directory_id(base_url, proj["id"], headers)
+        r = create_file(
+            base_url,
+            proj["id"],
+            headers,
+            filename="readable.txt",
+            directory_id=directory_id,
+        )
         assert r.status_code == 201
         file_id = r.json()["id"]
 
@@ -92,7 +131,14 @@ class TestGetFile:
 class TestUpdateFile:
     def test_rename_file(self, base_url, project):
         proj, headers = project
-        r = create_file(base_url, proj["id"], headers, filename="original.txt")
+        directory_id = get_root_directory_id(base_url, proj["id"], headers)
+        r = create_file(
+            base_url,
+            proj["id"],
+            headers,
+            filename="original.txt",
+            directory_id=directory_id,
+        )
         assert r.status_code == 201
         file_id = r.json()["id"]
 
@@ -109,12 +155,20 @@ class TestUpdateFile:
     ):
         proj, headers = project
         _, headers_b = second_user
-        r = create_file(base_url, proj["id"], headers, filename="mine.txt")
+        directory_id = get_root_directory_id(base_url, proj["id"], headers)
+        r = create_file(
+            base_url,
+            proj["id"],
+            headers,
+            filename="mine.txt",
+            directory_id=directory_id,
+        )
+        assert r.status_code == 201, f"file setup failed: {r.status_code} {r.text}"
         file_id = r.json()["id"]
 
         r = requests.patch(
             f"{base_url}/projects/v1/projects/{proj['id']}/files/{file_id}",
-            json={"name": "stolen.txt"},
+            json={"filename": "stolen.txt"},
             headers=headers_b,
         )
         assert r.status_code in (403, 404)
@@ -123,7 +177,14 @@ class TestUpdateFile:
 class TestDeleteFile:
     def test_delete_file(self, base_url, project):
         proj, headers = project
-        r = create_file(base_url, proj["id"], headers, filename="bye.txt")
+        directory_id = get_root_directory_id(base_url, proj["id"], headers)
+        r = create_file(
+            base_url,
+            proj["id"],
+            headers,
+            filename="bye.txt",
+            directory_id=directory_id,
+        )
         assert r.status_code == 201
         file_id = r.json()["id"]
 
@@ -144,7 +205,14 @@ class TestDeleteFile:
 class TestUploadURL:
     def test_get_upload_url_for_existing_file(self, base_url, project):
         proj, headers = project
-        r = create_file(base_url, proj["id"], headers, filename="uploadme.txt")
+        directory_id = get_root_directory_id(base_url, proj["id"], headers)
+        r = create_file(
+            base_url,
+            proj["id"],
+            headers,
+            filename="uploadme.txt",
+            directory_id=directory_id,
+        )
         assert r.status_code == 201
         file_id = r.json()["id"]
 
@@ -162,7 +230,15 @@ class TestUploadURL:
     ):
         proj, headers = project
         _, headers_b = second_user
-        r = create_file(base_url, proj["id"], headers, filename="secure.txt")
+        directory_id = get_root_directory_id(base_url, proj["id"], headers)
+        r = create_file(
+            base_url,
+            proj["id"],
+            headers,
+            filename="secure.txt",
+            directory_id=directory_id,
+        )
+        assert r.status_code == 201, f"file setup failed: {r.status_code} {r.text}"
         file_id = r.json()["id"]
 
         r = requests.post(
