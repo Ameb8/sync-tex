@@ -226,12 +226,24 @@ Never do these:
 
 ## Validation
 
-After writing the test file, run collection for that file:
+After writing the test file, always use the service test virtualenv at:
 
-```bash
-python -m pytest -c tests/<service>/pytest.ini tests/<service>/test_<file>.py --collect-only
+```text
+tests/<service>/.venv
 ```
 
-Collection must succeed with zero errors before the task is done. If collection fails, fix import, syntax, or fixture errors and re-run collection.
+First run collection for that file:
 
-Do not run the full test file unless the harness stack is already running. If the stack is not running, successful `--collect-only` is sufficient.
+```bash
+tests/<service>/.venv/bin/python -m pytest -c tests/<service>/pytest.ini tests/<service>/test_<file>.py --collect-only
+```
+
+Collection must succeed with zero errors. If collection fails, fix import, syntax, or fixture errors and re-run collection.
+
+Then run the actual target test file with the same virtualenv:
+
+```bash
+tests/<service>/.venv/bin/python -m pytest -c tests/<service>/pytest.ini tests/<service>/test_<file>.py -vv -x
+```
+
+This runtime check is required before the task is done. If it fails because of a test implementation mistake, fix the test and re-run both validation commands. If it fails because the integration stack is not running, an external service is unavailable, the harness is misconfigured, or the implemented plan appears to disagree with actual service behavior, do not rewrite the test to match source behavior. Report the failure clearly, including the command run and the relevant error or assertion.
