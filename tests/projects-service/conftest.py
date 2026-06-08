@@ -19,6 +19,7 @@ import requests
 # ── Config ────────────────────────────────────────────────────────────────────
 
 COMPOSE_FILE = os.path.join(os.path.dirname(__file__), "docker-compose.test.yml")
+COMPOSE_PROJECT_NAME = f"sync-tex-projects-service-test-{uuid.uuid4().hex[:8]}"
 SERVICE_URL = "http://localhost:8099"
 HEALTH_URL = f"{SERVICE_URL}/health"
 JWT_SECRET = "test-jwt-secret-for-integration-tests"  # must match compose env
@@ -32,11 +33,13 @@ STACK_STARTUP_TIMEOUT = 120
 
 def _compose(*args):
     """Run a docker compose command against the test compose file."""
+    env = {**os.environ, "COMPOSE_PROJECT_NAME": COMPOSE_PROJECT_NAME}
     return subprocess.run(
         ["docker", "compose", "-f", COMPOSE_FILE, *args],
         check=True,
         capture_output=True,
         text=True,
+        env=env,
     )
 
 
@@ -75,11 +78,7 @@ def docker_stack():
     """
     print("\n[conftest] Building and starting test stack...")
     try:
-        subprocess.run(
-            ["docker", "compose", "-f", COMPOSE_FILE, "up", "--build", "--detach"],
-            check=True,
-            text=True,
-        )
+        _compose("up", "--build", "--detach")
     except subprocess.CalledProcessError as e:
         raise
 
