@@ -22,6 +22,7 @@ COMPOSE_FILE = os.path.join(os.path.dirname(__file__), "docker-compose.test.yml"
 SERVICE_URL = "http://localhost:8099"
 HEALTH_URL = f"{SERVICE_URL}/health"
 JWT_SECRET = "test-jwt-secret-for-integration-tests"  # must match compose env
+MINIO_BUCKETS = ("uploads", "snapshot", "text")
 
 # How long to wait for the stack to become healthy (seconds)
 STACK_STARTUP_TIMEOUT = 120
@@ -57,6 +58,14 @@ def _wait_healthy(url: str, timeout: int = STACK_STARTUP_TIMEOUT):
     )
 
 
+def _ensure_minio_buckets():
+    """Create object-storage buckets required by projects-service handlers."""
+    from helpers.minio import ensure_bucket
+
+    for bucket in MINIO_BUCKETS:
+        ensure_bucket(bucket)
+
+
 @pytest.fixture(scope="session", autouse=True)
 def docker_stack():
     """
@@ -77,6 +86,7 @@ def docker_stack():
     try:
         print(f"[conftest] Waiting for {HEALTH_URL} ...")
         _wait_healthy(HEALTH_URL)
+        _ensure_minio_buckets()
         print("[conftest] Stack is healthy — running tests.")
         yield
     finally:
