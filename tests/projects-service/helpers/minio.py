@@ -32,6 +32,18 @@ def minio_client():
     )
 
 
+def ensure_bucket(bucket: str):
+    """Create the bucket if it does not already exist."""
+    client = minio_client()
+    try:
+        client.head_bucket(Bucket=bucket)
+    except ClientError as e:
+        code = e.response["Error"].get("Code")
+        if code not in ("404", "NoSuchBucket"):
+            raise
+        client.create_bucket(Bucket=bucket)
+
+
 def object_exists(bucket: str, key: str) -> bool:
     """Return True if the object exists in the given bucket."""
     client = minio_client()

@@ -3,7 +3,6 @@ version: "3.8"
 services:
   postgres-test:
     image: postgres:16-alpine
-    container_name: postgres-projects-test
     environment:
       POSTGRES_USER: testuser
       POSTGRES_PASSWORD: testpassword
@@ -20,7 +19,6 @@ services:
 
   minio-test:
     image: minio/minio:latest
-    container_name: minio-test
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: testaccess
@@ -39,7 +37,6 @@ services:
   # Run projects-service-db migrations
   migrate-test:
     image: migrate/migrate
-    container_name: migrate-projects-test
     volumes:
       - ../../projects-service/db/migrations:/migrations
     command: >
@@ -58,7 +55,6 @@ services:
     build:
       context: ../../projects-service
       dockerfile: Dockerfile
-    container_name: projects-service-test
     environment:
       # Dummy values used for testing
       DATABASE_URL: postgres://testuser:testpassword@postgres-test:5432/projects_test?sslmode=disable

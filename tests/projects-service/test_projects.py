@@ -8,11 +8,10 @@ Endpoints covered:
     PATCH  /projects/v1/projects/{projectID}
     DELETE /projects/v1/projects/{projectID}
     GET    /projects/v1/projects/{projectID}/tree
-    GET    /projects/v1/access
+    GET    /projects/v1/projects/{projectID}/access
 """
 
 import uuid
-import pytest
 import requests
 
 
@@ -189,15 +188,13 @@ class TestAccess:
     def test_owner_has_owner_role(self, base_url, project):
         proj, headers = project
         r = requests.get(
-            f"{base_url}/projects/v1/access",
-            params={"project_id": proj["id"]},
+            f"{base_url}/projects/v1/projects/{proj['id']}/access",
             headers=headers,
         )
         assert r.status_code == 200
         data = r.json()
-        # Adjust key name to match actual API response shape
-        role = data.get("role") or data.get("permission")
-        assert role is not None
+        assert data["allowed"] is True
+        assert data["role"] == "owner"
 
     def test_non_member_access_returns_403_or_404(
         self, base_url, project, second_user
@@ -205,8 +202,9 @@ class TestAccess:
         proj, _ = project
         _, headers_b = second_user
         r = requests.get(
-            f"{base_url}/projects/v1/access",
-            params={"project_id": proj["id"]},
+            f"{base_url}/projects/v1/projects/{proj['id']}/access",
             headers=headers_b,
         )
         assert r.status_code in (403, 404)
+        if r.status_code == 403:
+            assert r.json()["allowed"] is False

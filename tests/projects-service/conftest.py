@@ -19,9 +19,11 @@ import requests
 # ── Config ────────────────────────────────────────────────────────────────────
 
 COMPOSE_FILE = os.path.join(os.path.dirname(__file__), "docker-compose.test.yml")
+COMPOSE_PROJECT_NAME = f"sync-tex-projects-service-test-{uuid.uuid4().hex[:8]}"
 SERVICE_URL = "http://localhost:8099"
 HEALTH_URL = f"{SERVICE_URL}/health"
 JWT_SECRET = "test-jwt-secret-for-integration-tests"  # must match compose env
+MINIO_BUCKETS = ("uploads", "snapshot", "text")
 
 # How long to wait for the stack to become healthy (seconds)
 STACK_STARTUP_TIMEOUT = 120
@@ -31,11 +33,13 @@ STACK_STARTUP_TIMEOUT = 120
 
 def _compose(*args):
     """Run a docker compose command against the test compose file."""
+    env = {**os.environ, "COMPOSE_PROJECT_NAME": COMPOSE_PROJECT_NAME}
     return subprocess.run(
         ["docker", "compose", "-f", COMPOSE_FILE, *args],
         check=True,
         capture_output=True,
         text=True,
+        env=env,
     )
 
 
@@ -57,6 +61,14 @@ def _wait_healthy(url: str, timeout: int = STACK_STARTUP_TIMEOUT):
     )
 
 
+def _ensure_minio_buckets():
+    """Create object-storage buckets required by projects-service handlers."""
+    from helpers.minio import ensure_bucket
+
+    for bucket in MINIO_BUCKETS:
+        ensure_bucket(bucket)
+
+
 @pytest.fixture(scope="session", autouse=True)
 def docker_stack():
     """
@@ -66,17 +78,14 @@ def docker_stack():
     """
     print("\n[conftest] Building and starting test stack...")
     try:
-        subprocess.run(
-            ["docker", "compose", "-f", COMPOSE_FILE, "up", "--build", "--detach"],
-            check=True,
-            text=True,
-        )
+        _compose("up", "--build", "--detach")
     except subprocess.CalledProcessError as e:
         raise
 
     try:
         print(f"[conftest] Waiting for {HEALTH_URL} ...")
         _wait_healthy(HEALTH_URL)
+        _ensure_minio_buckets()
         print("[conftest] Stack is healthy — running tests.")
         yield
     finally:
