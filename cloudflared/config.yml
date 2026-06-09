@@ -1,0 +1,7 @@
+tunnel: ffab8018-a347-428e-8bac-e1c74a7cde3d
+credentials-file: /etc/cloudflared/ffab8018-a347-428e-8bac-e1c74a7cde3d.json
+
+ingress:
+  - hostname: sync-tex.com
+    service: http://nginx:80
+  - service: http_status:404

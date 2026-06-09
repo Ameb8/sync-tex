@@ -11,7 +11,7 @@ const JoinProjectModal = ({ onClose }) => {
 
   const extractTokenFromLink = (link) => {
     // Handle various link formats:
-    // Full URL: http://localhost:3000/join/token123
+    // Full URL: https://sync-tex.com/join/token123
     // Partial: /join/token123
     // Just token: token123
     const urlMatch = link.match(/\/join\/([a-zA-Z0-9_-]+)$/);
@@ -73,7 +73,7 @@ const JoinProjectModal = ({ onClose }) => {
               id="invite-link"
               type="text"
               className="form-input"
-              placeholder="e.g., http://localhost:3000/join/abc123xyz"
+              placeholder="e.g., https://sync-tex.com/join/abc123xyz"
               value={inviteLink}
               onChange={(e) => setInviteLink(e.target.value)}
               disabled={loading}

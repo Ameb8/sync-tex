@@ -1,7 +1,5 @@
 import { authFetch } from '../contexts/AuthContext';
 
-const API_HOST = import.meta.env.VITE_API_HOST || 'http://localhost:3000';
-
 export const fetchProjectTree = async (projectId) => {
   const response = await authFetch(`/projects/v1/projects/${projectId}/tree`);
   if (!response.ok) {

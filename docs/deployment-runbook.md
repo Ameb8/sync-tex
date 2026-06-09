@@ -17,6 +17,8 @@ docker stack deploy --with-registry-auth --resolve-image always -c docker-compos
 
 - Docker Engine and Docker Compose plugin installed.
 - Single-node Swarm initialized.
+- Cloudflare owns `sync-tex.com` and `cloudflared` is installed on the
+  production host.
 - Self-hosted GitHub Actions runner installed with labels:
   `self-hosted`, `linux`, `ARM64`, `synctex-prod`.
 - Runner user can execute Docker commands.
@@ -85,7 +87,8 @@ chmod 600 .env
 
 Production values must include at least:
 
-- `FRONTEND_URL` and `EXTERNAL_URL` set to the public origin.
+- `FRONTEND_URL=https://sync-tex.com`.
+- `EXTERNAL_URL=https://sync-tex.com`.
 - Strong database passwords for all three Postgres services.
 - `USERS_SECRET_KEY`, `USERS_INTERNAL_API_KEY`, and
   `PROJECTS_INTERNAL_API_KEY`.
@@ -103,6 +106,12 @@ USERS_INTERNAL_API_URL=http://users-service:8001
 PROJECTS_SERVICE_URL=http://projects-service:8003
 FILE_DATA_ADDR=file-data-service:50051
 MINIO_ENDPOINT=minio:9000
+```
+
+Keep browser-facing MinIO URLs on the public HTTPS origin:
+
+```env
+MINIO_EXTERNAL_ENDPOINT=https://sync-tex.com/minio/api
 ```
 
 Do not commit `.env`, copy it into GitHub secrets, or expose it to
@@ -136,7 +145,68 @@ If images are public and the workflow passes registry auth during deploy, this
 manual login may not be necessary. It is still useful for manual recovery and
 manual deploys.
 
-### 6. Install The Self-Hosted GitHub Runner
+### 6. Create The Named Cloudflare Tunnel
+
+Create the named tunnel once on the production Pi. This can be run from any
+directory; `cloudflared` writes the credentials JSON under the home directory
+of the user running the command.
+
+```sh
+cloudflared tunnel login
+cloudflared tunnel create synctex
+```
+
+Record the tunnel UUID from the command output. The UUID is not a secret, but
+the generated credentials JSON is a secret. The credentials file is normally:
+
+```text
+~/.cloudflared/<tunnel-uuid>.json
+```
+
+Before deploying, the repository version of these files must contain the real
+UUID, not `<tunnel-id>`:
+
+- `cloudflared/config.yml`
+- `docker-compose.swarm.yml`, in the `cloudflared_creds` secret target path
+
+The committed config should look like this, with the real UUID in both paths:
+
+```yaml
+tunnel: <tunnel-uuid>
+credentials-file: /etc/cloudflared/<tunnel-uuid>.json
+
+ingress:
+  - hostname: sync-tex.com
+    service: http://nginx:80
+  - service: http_status:404
+```
+
+Create the DNS route in Cloudflare:
+
+```sh
+cloudflared tunnel route dns synctex sync-tex.com
+```
+
+The stack uses externally managed Swarm objects for the tunnel config and
+credentials. Create them before the first deploy from the production checkout:
+
+```sh
+cd /opt/synctex
+docker config create cloudflared_config ./cloudflared/config.yml
+docker secret create cloudflared_creds ~/.cloudflared/<tunnel-uuid>.json
+```
+
+Validate that both objects exist:
+
+```sh
+docker config ls | grep cloudflared_config
+docker secret ls | grep cloudflared_creds
+```
+
+Do not commit the credentials JSON, copy it into `.env`, or store it in GitHub
+secrets. Only the UUID and `cloudflared/config.yml` are tracked.
+
+### 7. Install The Self-Hosted GitHub Runner
 
 In GitHub, create a repository self-hosted runner and follow GitHub's generated
 installation commands on the Pi. Configure it with these labels:
@@ -169,7 +239,7 @@ docker stack ls
 The self-hosted runner is for deployment only. Build jobs must run on
 GitHub-hosted `ubuntu-latest` runners.
 
-### 7. Ensure Initial Images Exist
+### 8. Ensure Initial Images Exist
 
 Before the first stack deploy, GHCR must contain ARM64 images tagged `latest`
 for:
@@ -200,7 +270,7 @@ Repeat for each deployable image. `file-data-service` needs the root proto
 additional build context, so prefer the GitHub workflow for the first full
 image bootstrap.
 
-### 8. Run The First Deploy
+### 9. Run The First Deploy
 
 From the production checkout, run:
 
@@ -226,23 +296,25 @@ If the first deploy fails, inspect task errors before retrying:
 docker stack services synctex
 docker stack ps synctex --no-trunc
 docker service logs synctex_projects-service
+docker service logs synctex_cloudflared
 ```
 
 Do not delete volumes during troubleshooting unless you intentionally want to
 discard production data.
 
-### 9. Validate The First Deploy
+### 10. Validate The First Deploy
 
 From the Pi:
 
 ```sh
 docker stack services synctex
 docker stack ps synctex
-curl -fsS http://127.0.0.1/health
 ```
 
 Then validate the public route through cloudflared:
 
+- Gateway health:
+  `curl -fsS https://sync-tex.com/health`
 - GitHub OAuth login and redirect.
 - Authenticated project listing.
 - File upload/download through presigned MinIO URLs.
@@ -285,6 +357,107 @@ For the first bootstrap, the script deploys the stack once to create the Swarm
 network and databases, waits for stateful services, runs migrations, then
 redeploys and waits for the full stack.
 
+The deploy script does not create or update the external Swarm objects used by
+`cloudflared`. `cloudflared_config` and `cloudflared_creds` must already exist
+before `scripts/deploy-stack.sh` runs.
+
+## Cloudflare Tunnel Management
+
+The named tunnel has three separate pieces:
+
+- Cloudflare tunnel identity: the UUID created by `cloudflared tunnel create`.
+- Swarm config: `cloudflared_config`, created from `cloudflared/config.yml`.
+- Swarm secret: `cloudflared_creds`, created from
+  `~/.cloudflared/<tunnel-uuid>.json`.
+
+The UUID is safe to track in Git. The credentials JSON is secret and must stay
+on the production host only.
+
+### Inspect Current State
+
+Run these commands on the production Pi:
+
+```sh
+cloudflared tunnel list
+docker config ls | grep cloudflared_config
+docker secret ls | grep cloudflared_creds
+docker service logs synctex_cloudflared --tail 100
+```
+
+To inspect the deployed config content:
+
+```sh
+docker config inspect cloudflared_config --pretty
+```
+
+### Updating `cloudflared/config.yml`
+
+Swarm configs are immutable. If `cloudflared/config.yml` changes in Git, a
+normal `git pull` and `scripts/deploy-stack.sh` is not enough; the external
+Docker config must be recreated.
+
+Because the current stack references the fixed external name
+`cloudflared_config`, recreate it during a planned maintenance window:
+
+```sh
+cd /opt/synctex
+docker stack rm synctex
+
+until [ -z "$(docker stack ps synctex 2>/dev/null)" ]; do
+  sleep 2
+done
+
+docker config rm cloudflared_config
+docker config create cloudflared_config ./cloudflared/config.yml
+scripts/deploy-stack.sh
+```
+
+Use this flow for ingress rule changes, hostname changes, or a changed tunnel
+UUID in `cloudflared/config.yml`.
+
+### Rotating Tunnel Credentials
+
+If the tunnel credentials JSON changes but the tunnel UUID remains the same,
+recreate the Swarm secret during a planned maintenance window:
+
+```sh
+cd /opt/synctex
+docker stack rm synctex
+
+until [ -z "$(docker stack ps synctex 2>/dev/null)" ]; do
+  sleep 2
+done
+
+docker secret rm cloudflared_creds
+docker secret create cloudflared_creds ~/.cloudflared/<tunnel-uuid>.json
+scripts/deploy-stack.sh
+```
+
+If creating a completely new tunnel, update the UUID in Git first, merge the
+change, pull it on the Pi, recreate both `cloudflared_config` and
+`cloudflared_creds`, then redeploy.
+
+### DNS And OAuth
+
+The DNS route should point the apex hostname at the named tunnel:
+
+```sh
+cloudflared tunnel route dns synctex sync-tex.com
+```
+
+The GitHub OAuth app callback URL must match the public origin:
+
+```text
+https://sync-tex.com/auth/github/callback
+```
+
+After any domain or tunnel change, validate:
+
+```sh
+curl -fsS https://sync-tex.com/health
+docker service logs synctex_cloudflared --tail 100
+```
+
 ## Migrations
 
 `scripts/deploy-stack.sh` runs:
@@ -313,7 +486,7 @@ docker stack ps synctex
 Check gateway health from the production host:
 
 ```sh
-curl -fsS http://127.0.0.1/health
+curl -fsS https://sync-tex.com/health
 ```
 
 Service convergence is checked by:
