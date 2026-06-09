@@ -123,6 +123,15 @@ body {
   min-height: 100vh;
 }
 
+.route-loading {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  color: var(--text-secondary);
+  background: var(--background);
+  font-size: 0.95rem;
+}
+
 /* Button styles */
 .btn {
   padding: 0.5rem 1rem;

@@ -2,7 +2,7 @@ import React from 'react';
 import ProjectCard from './ProjectCard';
 import './RecentProjects.css';
 
-function RecentProjects({ projects, loading }) {
+function RecentProjects({ projects, loading, onProjectIntent }) {
   if (loading) {
     return (
       <section className="recent-projects">
@@ -32,7 +32,11 @@ function RecentProjects({ projects, loading }) {
       <h2 className="section-title">Recent Projects</h2>
       <div className="projects-grid">
         {projects.map(project => (
-          <ProjectCard key={project.id} project={project} />
+          <ProjectCard
+            key={project.id}
+            project={project}
+            onProjectIntent={onProjectIntent}
+          />
         ))}
       </div>
     </section>

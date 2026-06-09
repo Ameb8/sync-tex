@@ -2,10 +2,11 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import './ProjectCard.css';
 
-function ProjectCard({ project }) {
+function ProjectCard({ project, onProjectIntent }) {
   const navigate = useNavigate();
 
   const handleClick = () => {
+    onProjectIntent?.();
     navigate(`/project/${project.id}`);
   };
 
@@ -37,7 +38,21 @@ function ProjectCard({ project }) {
   const { label, className } = getRoleBadge(project.role);
 
   return (
-    <div className="project-card" onClick={handleClick}>
+    <div
+      className="project-card"
+      onClick={handleClick}
+      onMouseEnter={onProjectIntent}
+      onFocus={onProjectIntent}
+      onPointerDown={onProjectIntent}
+      tabIndex={0}
+      role="button"
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          handleClick();
+        }
+      }}
+    >
       <div className="project-card-icon">
         📄
       </div>

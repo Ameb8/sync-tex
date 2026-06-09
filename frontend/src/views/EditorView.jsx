@@ -1,10 +1,5 @@
-import { useEffect, useState, useCallback } from 'react';
+import { lazy, Suspense, useEffect, useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { loader } from '@monaco-editor/react';
-
-import { registerLatexLanguage } from '../monaco/monarchLatex';
-import darkTheme from '../monaco/themes/monokai.json';
-import lightTheme from '../monaco/themes/github-light.json';
 
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -12,25 +7,26 @@ import { useCollabSessions } from '../hooks/useCollabSessions';
 import { useTabManager } from '../hooks/useTabManager';
 import { useFileManager } from '../hooks/useFileManager';
 import { useChatManager } from '../hooks/useChatManager';
+import { setupMonaco } from '../monaco/setupMonaco';
+import { scheduleIdleWarmup } from '../prefetch/scheduleIdleWarmup';
+import { warmAIPanel } from '../prefetch/warmups';
 
 import ActivityBar from '../components/Editor/ActivityBar';
 import FileTree from '../components/Editor/FileTree';
 import TabBar from '../components/Editor/TabBar';
 import EditorPane from '../components/Editor/EditorPane';
 import RightSidebar from '../components/Editor/RightSidebar';
-import ChatSidebar from '../components/Editor/AIPanel/ChatSidebar';
-import ChatWindow from '../components/Editor/AIPanel/ChatWindow';
 import LLMPanel from '../components/Editor/LLMPanel/LLMPanel';
 import CollaboratorsPanel from '../components/Editor/CollaboratorsPanel';
 
 import './EditorView.css';
 
-// Monaco setup (runs once at module load)
-loader.init().then((monaco) => {
-  registerLatexLanguage(monaco);
-  monaco.editor.defineTheme('app-dark', darkTheme);
-  monaco.editor.defineTheme('app-light', lightTheme);
-});
+const ChatSidebar = lazy(() => import('../components/Editor/AIPanel/ChatSidebar'));
+const ChatWindow = lazy(() => import('../components/Editor/AIPanel/ChatWindow'));
+
+function PanelFallback() {
+  return <div className="panel-loading">Loading...</div>;
+}
 
 // Constants
 const FILE_LANGUAGE_MAP = {
@@ -100,8 +96,35 @@ const EditorView = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mainPanel, setMainPanel] = useState(null); // Show editor when null
 
+  useEffect(() => {
+    setupMonaco().catch((error) => {
+      console.error('Monaco setup failed:', error);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (loading) return undefined;
+
+    return scheduleIdleWarmup(() => {
+      warmAIPanel().catch((error) => {
+        console.warn('AI panel prefetch failed:', error);
+      });
+    }, {
+      timeout: 5000,
+      fallbackDelay: 2500,
+    });
+  }, [loading]);
+
+  const warmAssistantPanel = useCallback(() => {
+    warmAIPanel().catch(() => {});
+  }, []);
+
   // Toggle/switch sidebar panels
   const handlePanelToggle = useCallback((panelId, type) => {
+    if (panelId === 'ai') {
+      warmAssistantPanel();
+    }
+
     if (type === 'sidebar') {
       setMainPanel(null);
       setSidebarOpen((open) => {
@@ -112,7 +135,7 @@ const EditorView = () => {
     } else if (type === 'main') { // Return to editor clicking active main panel
       setMainPanel((current) => current === panelId ? null : panelId);
     }
-  }, [sidebarPanel]);
+  }, [sidebarPanel, warmAssistantPanel]);
 
   // Hooks
   const {
@@ -252,6 +275,8 @@ const EditorView = () => {
   }, [openTabs, isCollab, addTab, handleTabSelect, setFileUrl, openCollabSession, loadFileContent, setError]);
 
   const handleOpenChatTab = useCallback((chatId) => {
+    warmAssistantPanel();
+
     const chat = chats.find((item) => item.id === chatId);
     if (!chat) return;
 
@@ -263,16 +288,18 @@ const EditorView = () => {
     }
 
     ensureChatMessages(chat.id);
-  }, [addTab, chats, ensureChatMessages, handleTabSelect, openTabs]);
+  }, [addTab, chats, ensureChatMessages, handleTabSelect, openTabs, warmAssistantPanel]);
 
   const handleCreateChatTab = useCallback(async () => {
+    warmAssistantPanel();
+
     try {
       const chat = await createNewChat();
       addTab(makeChatTab(chat));
     } catch (err) {
       console.error('Failed to create chat:', err);
     }
-  }, [addTab, createNewChat]);
+  }, [addTab, createNewChat, warmAssistantPanel]);
 
   const handleDeleteChat = useCallback(async (chatId) => {
     try {
@@ -350,6 +377,9 @@ const EditorView = () => {
         activeSidebarPanel={sidebarOpen ? sidebarPanel : null}
         activeMainPanel={mainPanel}
         onPanelToggle={handlePanelToggle}
+        onPanelIntent={(panelId) => {
+          if (panelId === 'ai') warmAssistantPanel();
+        }}
       />
       <div
         className="side-panel"
@@ -378,14 +408,16 @@ const EditorView = () => {
         className="side-panel"
         style={{ display: sidebarOpen && sidebarPanel === 'ai' ? 'flex' : 'none' }}
       >
-        <ChatSidebar
-          chats={chats}
-          loading={chatsLoading}
-          activeChatId={activeChatId}
-          onSelectChat={handleOpenChatTab}
-          onDeleteChat={handleDeleteChat}
-          onNewChat={handleCreateChatTab}
-        />
+        <Suspense fallback={<PanelFallback />}>
+          <ChatSidebar
+            chats={chats}
+            loading={chatsLoading}
+            activeChatId={activeChatId}
+            onSelectChat={handleOpenChatTab}
+            onDeleteChat={handleDeleteChat}
+            onNewChat={handleCreateChatTab}
+          />
+        </Suspense>
       </div>
 
       {/* Main editor column — or a full-area non-chat main panel if one is active */}
@@ -409,16 +441,18 @@ const EditorView = () => {
             />
             <div className="editor-content">
               {activeChatTab ? (
-                <ChatWindow
-                  projectId={projectId}
-                  contextFile={lastActiveFile}
-                  chat={activeChat}
-                  messages={activeMessages}
-                  messagesLoading={messagesLoading}
-                  onNewChat={handleCreateChatTab}
-                  onMessagesUpdate={handleActiveChatMessagesUpdate}
-                  onChatTitleUpdate={handleChatTitleUpdate}
-                />
+                <Suspense fallback={<PanelFallback />}>
+                  <ChatWindow
+                    projectId={projectId}
+                    contextFile={lastActiveFile}
+                    chat={activeChat}
+                    messages={activeMessages}
+                    messagesLoading={messagesLoading}
+                    onNewChat={handleCreateChatTab}
+                    onMessagesUpdate={handleActiveChatMessagesUpdate}
+                    onChatTitleUpdate={handleChatTitleUpdate}
+                  />
+                </Suspense>
               ) : (
                 <EditorPane
                   activeTab={activeFile}

@@ -8,6 +8,8 @@ import ImportModal from '../components/Dashboard/ImportModal';
 import JoinProjectModal from '../components/Dashboard/JoinProjectModal';
 import { fetchProjects } from '../api/projects';
 import { useAuth } from '../contexts/AuthContext';
+import { scheduleIdleWarmup } from '../prefetch/scheduleIdleWarmup';
+import { warmEditorRoute } from '../prefetch/warmups';
 import './DashboardView.css';
 
 function DashboardView() {
@@ -25,6 +27,17 @@ function DashboardView() {
 
   useEffect(() => {
     loadProjects();
+  }, []);
+
+  useEffect(() => {
+    return scheduleIdleWarmup(() => {
+      warmEditorRoute().catch((error) => {
+        console.warn('Editor prefetch failed:', error);
+      });
+    }, {
+      timeout: 4000,
+      fallbackDelay: 1500,
+    });
   }, []);
 
   useEffect(() => {
@@ -61,6 +74,9 @@ function DashboardView() {
     setShowJoinModal(true);
   };
 
+  const handleProjectIntent = () => {
+    warmEditorRoute().catch(() => {});
+  };
 
   const handleProjectCreated = () => {
     setShowNewProjectModal(false);
@@ -115,6 +131,7 @@ function DashboardView() {
         <RecentProjects 
           projects={recentProjects}
           loading={loading}
+          onProjectIntent={handleProjectIntent}
         />
         
         <AllProjects 
@@ -124,6 +141,7 @@ function DashboardView() {
           onFilterChange={setFilter}
           sortBy={sortBy}
           onSortChange={setSortBy}
+          onProjectIntent={handleProjectIntent}
         />
       </div>
 

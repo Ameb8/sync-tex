@@ -2,7 +2,15 @@ import React from 'react';
 import ProjectListItem from './ProjectListItem';
 import './AllProjects.css';
 
-function AllProjects({ projects, loading, filter, onFilterChange, sortBy, onSortChange }) {
+function AllProjects({
+  projects,
+  loading,
+  filter,
+  onFilterChange,
+  sortBy,
+  onSortChange,
+  onProjectIntent,
+}) {
   const filters = [
     { id: 'all', label: 'All Projects' },
     { id: 'my', label: 'My Projects' },
@@ -58,7 +66,11 @@ function AllProjects({ projects, loading, filter, onFilterChange, sortBy, onSort
         ) : (
           <ul className="project-items">
             {projects.map(project => (
-              <ProjectListItem key={project.id} project={project} />
+              <ProjectListItem
+                key={project.id}
+                project={project}
+                onProjectIntent={onProjectIntent}
+              />
             ))}
           </ul>
         )}
