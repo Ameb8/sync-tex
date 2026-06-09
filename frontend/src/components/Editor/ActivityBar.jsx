@@ -96,7 +96,12 @@ const HomeIcon = () => (
   </svg>
 );
 
-const ActivityBar = ({ activeSidebarPanel, activeMainPanel, onPanelToggle }) => {
+const ActivityBar = ({
+  activeSidebarPanel,
+  activeMainPanel,
+  onPanelToggle,
+  onPanelIntent,
+}) => {
   const navigate = useNavigate();
 
   return (
@@ -112,6 +117,9 @@ const ActivityBar = ({ activeSidebarPanel, activeMainPanel, onPanelToggle }) => 
             key={id}
             className={`activity-bar-btn ${isActive ? 'active' : ''}`}
             onClick={() => onPanelToggle(id, type)}
+            onMouseEnter={() => onPanelIntent?.(id, type)}
+            onFocus={() => onPanelIntent?.(id, type)}
+            onPointerDown={() => onPanelIntent?.(id, type)}
             title={title}
             aria-label={title}
             aria-pressed={isActive}

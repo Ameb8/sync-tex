@@ -43,6 +43,36 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: 'dist',
       emptyOutDir: true,
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (!id.includes('node_modules')) return undefined;
+
+            if (id.includes('monaco-editor') || id.includes('@monaco-editor')) {
+              return 'vendor-monaco';
+            }
+
+            if (
+              id.includes('/yjs/') ||
+              id.includes('/y-monaco/') ||
+              id.includes('/y-protocols/') ||
+              id.includes('/y-websocket/')
+            ) {
+              return 'vendor-yjs';
+            }
+
+            if (
+              id.includes('/react/') ||
+              id.includes('/react-dom/') ||
+              id.includes('/react-router-dom/')
+            ) {
+              return 'vendor-react';
+            }
+
+            return undefined;
+          },
+        },
+      },
     },
   };
 });

@@ -2,10 +2,11 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import './ProjectListItem.css';
 
-function ProjectListItem({ project }) {
+function ProjectListItem({ project, onProjectIntent }) {
   const navigate = useNavigate();
 
   const handleClick = () => {
+    onProjectIntent?.();
     navigate(`/project/${project.id}`);
   };
 
@@ -36,7 +37,21 @@ function ProjectListItem({ project }) {
   };
 
   return (
-    <li className="project-list-item" onClick={handleClick}>
+    <li
+      className="project-list-item"
+      onClick={handleClick}
+      onMouseEnter={onProjectIntent}
+      onFocus={onProjectIntent}
+      onPointerDown={onProjectIntent}
+      tabIndex={0}
+      role="button"
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          handleClick();
+        }
+      }}
+    >
       <div className="project-list-icon">📄</div>
       <div className="project-list-content">
         <span className="project-list-name">{project.name}</span>

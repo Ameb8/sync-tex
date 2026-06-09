@@ -54,6 +54,16 @@
   color: var(--danger);
 }
 
+.panel-loading {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  min-height: 100%;
+  color: var(--text-secondary);
+  background: var(--bg-primary);
+  font-size: 13px;
+}
+
 .editor-sidebar-right {
   width: 240px;
   border-left: 0.5px solid var(--border-color);
