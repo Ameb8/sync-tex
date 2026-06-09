@@ -1,8 +1,7 @@
 import { authFetch } from '../contexts/AuthContext';
 
 // API endpoint configuration
-//const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
-const API_BASE_URL = 'http://localhost:3001/api';
+const API_BASE_URL = '/projects/v1';
 
 /**
  * Fetch all projects for the current user
@@ -113,7 +112,7 @@ export async function createProject(projectData) {
 export async function importProject(formData) {
   // For file uploads, don't set Content-Type - let browser set it with boundary
   const token = localStorage.getItem('auth_token');
-  
+
   const response = await fetch(`${API_BASE_URL}/projects/import`, {
     method: 'POST',
     headers: {

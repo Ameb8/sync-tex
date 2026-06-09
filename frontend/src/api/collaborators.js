@@ -1,8 +1,6 @@
 // src/api/collaborators.js
 import { authFetch } from '../contexts/AuthContext';
 
-const API_HOST = import.meta.env.VITE_API_HOST || 'http://localhost:3000';
-
 // Generate a new collaborator link
 export const generateCollaboratorLink = async (projectId, accessLevel) => {
   const response = await authFetch(
