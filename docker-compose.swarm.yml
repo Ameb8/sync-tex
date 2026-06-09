@@ -1,11 +1,6 @@
 services:
   nginx:
     image: ${REGISTRY_IMAGE_PREFIX:-ghcr.io/ameb8/sync-tex}/nginx:${NGINX_TAG:-latest}
-    ports:
-      - target: 80
-        published: 80
-        protocol: tcp
-        mode: ingress
     networks:
       - gateway-network
     stop_grace_period: 30s
@@ -276,9 +271,17 @@ services:
 
   cloudflared:
     image: cloudflare/cloudflared:latest
-    command: tunnel --no-autoupdate --url http://nginx:80
+    command: tunnel --no-autoupdate --config /etc/cloudflared/config.yml run
     networks:
       - gateway-network
+    configs:
+      - source: cloudflared_config
+        target: /etc/cloudflared/config.yml
+        mode: 0444
+    secrets:
+      - source: cloudflared_creds
+        target: /etc/cloudflared/ffab8018-a347-428e-8bac-e1c74a7cde3d.json
+        mode: 0400
     deploy:
       replicas: 1
       restart_policy:
@@ -292,6 +295,14 @@ volumes:
   postgres_projects_data:
   postgres_assistant_data:
   minio_data:
+
+configs:
+  cloudflared_config:
+    external: true
+
+secrets:
+  cloudflared_creds:
+    external: true
 
 networks:
   gateway-network:
