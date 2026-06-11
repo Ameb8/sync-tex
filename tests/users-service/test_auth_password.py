@@ -25,7 +25,7 @@ def _fetch_user_auth_fields(database_url, email):
         with conn.cursor() as cursor:
             cursor.execute(
                 """
-                SELECT id, email, password, name, oauth_provider, oauth_id
+                SELECT id, email, password, name
                 FROM users
                 WHERE email = %s
                 """,
@@ -41,8 +41,6 @@ def _fetch_user_auth_fields(database_url, email):
         "email": row[1],
         "password": row[2],
         "name": row[3],
-        "oauth_provider": row[4],
-        "oauth_id": row[5],
     }
 
 
@@ -59,13 +57,28 @@ def _insert_oauth_user(database_url, email):
         with conn.cursor() as cursor:
             cursor.execute(
                 """
-                INSERT INTO users (email, password, name, oauth_provider, oauth_id)
-                VALUES (%s, NULL, %s, %s, %s)
+                INSERT INTO users (email, password, name)
+                VALUES (%s, NULL, %s)
                 RETURNING id
                 """,
-                (email, "OAuth User", "github", f"github-{uuid.uuid4().hex}"),
+                (email, "OAuth User"),
             )
             user_id = cursor.fetchone()[0]
+            cursor.execute(
+                """
+                INSERT INTO oauth_identities (
+                    user_id, provider, provider_user_id, email, email_verified, name
+                )
+                VALUES (%s, %s, %s, %s, true, %s)
+                """,
+                (
+                    user_id,
+                    "github",
+                    f"github-{uuid.uuid4().hex}",
+                    email,
+                    "OAuth User",
+                ),
+            )
         conn.commit()
     return user_id
 
@@ -95,8 +108,6 @@ def test_post_auth_register_happy_path(base_url, database_url, unique_email):
     assert row["email"] == unique_email
     assert row["name"] == "Test User"
     assert row["password"] is not None
-    assert row["oauth_provider"] is None
-    assert row["oauth_id"] is None
 
 
 @pytest.mark.parametrize("missing_field", ["email", "password"])
