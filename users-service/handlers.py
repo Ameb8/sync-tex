@@ -1,13 +1,18 @@
 import os
 import secrets
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from urllib.parse import urlencode
 
 import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from fastapi.responses import RedirectResponse
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from models import User, get_db
+from models import OAuthIdentity, OAuthState, User, get_db
 from schemas import (
     InternalUserResponse,
     InternalUsersResponse,
@@ -21,8 +26,327 @@ from security import generate_token, hash_password, verify_password, verify_toke
 
 router = APIRouter()
 
-# OAuth2 state storage (use Redis in production)
-oauth_states = set()
+OAUTH_STATE_TTL_MINUTES = 10
+
+
+@dataclass(frozen=True)
+class OAuthProfile:
+    provider: str
+    provider_user_id: str
+    email: str
+    email_verified: bool
+    name: str | None = None
+
+
+def create_oauth_state(db: Session) -> str:
+    now = datetime.utcnow()
+    db.query(OAuthState).filter(OAuthState.expires_at <= now).delete(
+        synchronize_session=False
+    )
+
+    for _ in range(3):
+        state = secrets.token_urlsafe(32)
+        db.add(
+            OAuthState(
+                state=state,
+                expires_at=now + timedelta(minutes=OAUTH_STATE_TTL_MINUTES),
+            )
+        )
+        try:
+            db.commit()
+            return state
+        except IntegrityError:
+            db.rollback()
+
+    raise HTTPException(status_code=500, detail="Failed to create OAuth state")
+
+
+def consume_oauth_state(db: Session, state: str) -> None:
+    now = datetime.utcnow()
+    deleted = (
+        db.query(OAuthState)
+        .filter(
+            OAuthState.state == state,
+            OAuthState.expires_at > now,
+        )
+        .delete(synchronize_session=False)
+    )
+    if deleted != 1:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Invalid state")
+
+    db.commit()
+
+
+def require_query_param(value: str | None, field: str) -> str:
+    if value is None:
+        raise HTTPException(
+            status_code=422,
+            detail=[
+                {
+                    "type": "missing",
+                    "loc": ["query", field],
+                    "msg": "Field required",
+                    "input": None,
+                }
+            ],
+        )
+    return value
+
+
+def redirect_oauth_error(external_url: str, error: str) -> RedirectResponse:
+    params = urlencode({"error": error})
+    return RedirectResponse(f"{external_url}/oauth/callback?{params}")
+
+
+def normalize_oauth_email(email: str | None) -> str | None:
+    if not email:
+        return None
+    normalized = email.strip().lower()
+    return normalized or None
+
+
+async def exchange_google_code_for_token(code: str, redirect_uri: str) -> dict:
+    google_client_id = os.getenv("GOOGLE_CLIENT_ID")
+    google_client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
+    google_token_url = os.getenv(
+        "GOOGLE_TOKEN_URL", "https://oauth2.googleapis.com/token"
+    )
+
+    if not google_client_id or not google_client_secret:
+        raise HTTPException(
+            status_code=500, detail="Google OAuth configuration is missing"
+        )
+
+    async with httpx.AsyncClient() as client:
+        token_response = await client.post(
+            google_token_url,
+            data={
+                "code": code,
+                "client_id": google_client_id,
+                "client_secret": google_client_secret,
+                "redirect_uri": redirect_uri,
+                "grant_type": "authorization_code",
+            },
+            headers={"Accept": "application/json"},
+        )
+
+    if token_response.status_code != 200:
+        raise HTTPException(
+            status_code=400, detail="Failed to exchange authorization code"
+        )
+
+    return token_response.json()
+
+
+def verify_google_id_token(id_token_value: str, audience: str) -> dict:
+    request = google_requests.Request()
+    return id_token.verify_oauth2_token(id_token_value, request, audience)
+
+
+async def fetch_google_profile(token_data: dict) -> OAuthProfile:
+    google_client_id = os.getenv("GOOGLE_CLIENT_ID")
+    if not google_client_id:
+        raise HTTPException(
+            status_code=500, detail="Google OAuth configuration is missing"
+        )
+
+    id_token_value = token_data.get("id_token")
+    if not id_token_value:
+        raise HTTPException(status_code=400, detail="Invalid Google identity token")
+
+    try:
+        claims = verify_google_id_token(id_token_value, google_client_id)
+    except Exception as err:
+        raise HTTPException(
+            status_code=400, detail="Invalid Google identity token"
+        ) from err
+
+    email = claims.get("email")
+    if not email:
+        raise HTTPException(status_code=400, detail="Could not get email from Google")
+
+    if claims.get("email_verified") is not True:
+        raise HTTPException(status_code=400, detail="Google email is not verified")
+
+    if not claims.get("sub"):
+        raise HTTPException(status_code=400, detail="Invalid Google identity token")
+
+    return OAuthProfile(
+        provider="google",
+        provider_user_id=str(claims["sub"]),
+        email=email,
+        email_verified=True,
+        name=claims.get("name"),
+    )
+
+
+async def exchange_github_code_for_token(code: str, redirect_uri: str) -> dict:
+    github_client_id = os.getenv("GITHUB_CLIENT_ID")
+    github_client_secret = os.getenv("GITHUB_CLIENT_SECRET")
+    github_token_url = os.getenv(
+        "GITHUB_TOKEN_URL", "https://github.com/login/oauth/access_token"
+    )
+
+    if not github_client_id or not github_client_secret:
+        raise HTTPException(
+            status_code=500, detail="GitHub OAuth configuration is missing"
+        )
+
+    async with httpx.AsyncClient() as client:
+        token_response = await client.post(
+            github_token_url,
+            data={
+                "code": code,
+                "client_id": github_client_id,
+                "client_secret": github_client_secret,
+                "redirect_uri": redirect_uri,
+            },
+            headers={"Accept": "application/json"},
+        )
+
+    if token_response.status_code != 200:
+        raise HTTPException(
+            status_code=400, detail="Failed to exchange authorization code"
+        )
+
+    token_data = token_response.json()
+    if "error" in token_data:
+        raise HTTPException(
+            status_code=400, detail=token_data.get("error_description", "OAuth error")
+        )
+
+    return token_data
+
+
+def choose_github_email(github_user: dict, emails: list[dict]) -> str | None:
+    email = normalize_oauth_email(github_user.get("email"))
+    if email:
+        return email
+
+    def email_from(predicate):
+        for email_obj in emails:
+            if predicate(email_obj):
+                return normalize_oauth_email(email_obj.get("email"))
+        return None
+
+    return (
+        email_from(
+            lambda email_obj: email_obj.get("primary") is True
+            and email_obj.get("verified") is True
+        )
+        or email_from(lambda email_obj: email_obj.get("verified") is True)
+        or email_from(lambda email_obj: email_obj.get("primary") is True)
+        or email_from(lambda email_obj: True)
+    )
+
+
+async def fetch_github_profile(access_token: str) -> OAuthProfile:
+    github_user_url = os.getenv("GITHUB_USER_URL", "https://api.github.com/user")
+    github_emails_url = os.getenv(
+        "GITHUB_EMAILS_URL", "https://api.github.com/user/emails"
+    )
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    async with httpx.AsyncClient() as client:
+        user_response = await client.get(github_user_url, headers=headers)
+
+    if user_response.status_code != 200:
+        raise HTTPException(
+            status_code=400, detail="Failed to fetch user info from GitHub"
+        )
+
+    github_user = user_response.json()
+    emails = []
+
+    if not github_user.get("email"):
+        async with httpx.AsyncClient() as client:
+            emails_response = await client.get(github_emails_url, headers=headers)
+
+        if emails_response.status_code == 200:
+            emails = emails_response.json()
+
+    email = choose_github_email(github_user, emails)
+    if not email:
+        raise HTTPException(status_code=400, detail="Could not get email from GitHub")
+
+    return OAuthProfile(
+        provider="github",
+        provider_user_id=str(github_user["id"]),
+        email=email,
+        email_verified=True,
+        name=github_user.get("name") or github_user.get("login"),
+    )
+
+
+def find_or_create_oauth_user(db: Session, profile: OAuthProfile) -> User:
+    provider_name = profile.provider.title()
+    identity = (
+        db.query(OAuthIdentity)
+        .filter(
+            OAuthIdentity.provider == profile.provider,
+            OAuthIdentity.provider_user_id == profile.provider_user_id,
+        )
+        .first()
+    )
+
+    normalized_email = normalize_oauth_email(profile.email)
+
+    if identity:
+        identity.email = normalized_email
+        identity.email_verified = profile.email_verified
+        identity.name = profile.name
+        identity.updated_at = datetime.utcnow()
+        db.commit()
+        return identity.user
+
+    if not normalized_email:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Could not get email from {provider_name}",
+        )
+
+    if profile.provider == "google" and profile.email_verified is not True:
+        raise HTTPException(status_code=400, detail="Google email is not verified")
+
+    user = db.query(User).filter(User.email == normalized_email).first()
+    if not user:
+        user = User(email=normalized_email, name=profile.name, password=None)
+        db.add(user)
+        db.flush()
+    elif (
+        db.query(OAuthIdentity)
+        .filter(
+            OAuthIdentity.user_id == user.id,
+            OAuthIdentity.provider == profile.provider,
+        )
+        .first()
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail=f"User already has a linked {provider_name} account",
+        )
+
+    identity = OAuthIdentity(
+        user_id=user.id,
+        provider=profile.provider,
+        provider_user_id=profile.provider_user_id,
+        email=normalized_email,
+        email_verified=profile.email_verified,
+        name=profile.name,
+    )
+    db.add(identity)
+
+    try:
+        db.commit()
+    except IntegrityError as err:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail=f"User already has a linked {provider_name} account",
+        ) from err
+
+    return user
 
 
 # API key dependency
@@ -79,133 +403,143 @@ async def login(req: LoginRequest, db: Session = Depends(get_db)):
 
 
 @router.get("/github/login")
-async def github_login():
+async def github_login(db: Session = Depends(get_db)):
     """Start GitHub OAuth2 flow"""
-    state = secrets.token_urlsafe(32)
-    oauth_states.add(state)
-
     github_client_id = os.getenv("GITHUB_CLIENT_ID")
     redirect_uri = os.getenv("GITHUB_REDIRECT_URI")
 
-    github_auth_url = (
-        f"https://github.com/login/oauth/authorize?"
-        f"client_id={github_client_id}&"
-        f"redirect_uri={redirect_uri}&"
-        f"scope=user:email&"
-        f"state={state}"
+    if not github_client_id or not redirect_uri:
+        raise HTTPException(
+            status_code=500, detail="GitHub OAuth configuration is missing"
+        )
+
+    state = create_oauth_state(db)
+    params = urlencode(
+        {
+            "client_id": github_client_id,
+            "redirect_uri": redirect_uri,
+            "scope": "user:email",
+            "state": state,
+        }
     )
+    github_auth_url = f"https://github.com/login/oauth/authorize?{params}"
 
     return RedirectResponse(url=github_auth_url)
 
 
 @router.get("/github/callback")
-async def github_callback(code: str, state: str, db: Session = Depends(get_db)):
+async def github_callback(
+    code: str | None = Query(None),
+    state: str | None = Query(None),
+    error: str | None = Query(None),
+    error_description: str | None = Query(None),
+    db: Session = Depends(get_db),
+):
     """Handle GitHub OAuth2 callback"""
-    if state not in oauth_states:
-        raise HTTPException(status_code=400, detail="Invalid state")
-
-    oauth_states.discard(state)
-
-    # Read env vars
-    github_client_id = os.getenv("GITHUB_CLIENT_ID")
-    github_client_secret = os.getenv("GITHUB_CLIENT_SECRET")
     external_url = os.getenv("EXTERNAL_URL")
     redirect_uri = os.getenv("GITHUB_REDIRECT_URI")
 
-    # Ensure vars exist
-    if not external_url or not redirect_uri:
+    if not external_url:
         raise HTTPException(
             status_code=500, detail="OAuth URL configuration is missing"
         )
-    if not github_client_id or not github_client_secret:
+
+    state = require_query_param(state, "state")
+
+    if error:
+        consume_oauth_state(db, state)
+        return redirect_oauth_error(
+            external_url, error_description or error or "OAuth failed"
+        )
+
+    code = require_query_param(code, "code")
+    consume_oauth_state(db, state)
+
+    if not redirect_uri:
         raise HTTPException(
-            status_code=500, detail="GitHub OAuth configuration is missing"
+            status_code=500, detail="OAuth URL configuration is missing"
         )
 
-    # Exchange code for GitHub access token
-    async with httpx.AsyncClient() as client:
-        token_response = await client.post(
-            "https://github.com/login/oauth/access_token",
-            data={
-                "code": code,
-                "client_id": github_client_id,
-                "client_secret": github_client_secret,
-                "redirect_uri": redirect_uri,
-            },
-            headers={"Accept": "application/json"},
-        )
+    token_data = await exchange_github_code_for_token(code, redirect_uri)
+    profile = await fetch_github_profile(token_data["access_token"])
+    user = find_or_create_oauth_user(db, profile)
 
-    if token_response.status_code != 200:
+    # Generate JWT
+    token = generate_token(user.id, user.email)
+
+    # Redirect back to frontend with jwt
+    frontend_url = f"{external_url}/oauth/callback?token={token}"
+    return RedirectResponse(frontend_url)
+
+
+@router.get("/google/login")
+async def google_login(db: Session = Depends(get_db)):
+    """Start Google OAuth2 flow"""
+    google_client_id = os.getenv("GOOGLE_CLIENT_ID")
+    redirect_uri = os.getenv("GOOGLE_REDIRECT_URI")
+
+    if not google_client_id or not redirect_uri:
         raise HTTPException(
-            status_code=400, detail="Failed to exchange authorization code"
+            status_code=500, detail="Google OAuth configuration is missing"
         )
 
-    # Parse token data
-    token_data = token_response.json()
-    if "error" in token_data:
+    state = create_oauth_state(db)
+    params = urlencode(
+        {
+            "client_id": google_client_id,
+            "redirect_uri": redirect_uri,
+            "response_type": "code",
+            "scope": "openid email profile",
+            "state": state,
+        }
+    )
+    google_auth_url = f"https://accounts.google.com/o/oauth2/v2/auth?{params}"
+
+    return RedirectResponse(url=google_auth_url)
+
+
+@router.get("/google/callback")
+async def google_callback(
+    code: str | None = Query(None),
+    state: str | None = Query(None),
+    error: str | None = Query(None),
+    error_description: str | None = Query(None),
+    db: Session = Depends(get_db),
+):
+    """Handle Google OAuth2 callback"""
+    external_url = os.getenv("EXTERNAL_URL")
+    redirect_uri = os.getenv("GOOGLE_REDIRECT_URI")
+    google_client_id = os.getenv("GOOGLE_CLIENT_ID")
+    google_client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
+
+    if not external_url:
         raise HTTPException(
-            status_code=400, detail=token_data.get("error_description", "OAuth error")
+            status_code=500, detail="OAuth URL configuration is missing"
         )
 
-    access_token = token_data["access_token"]
+    state = require_query_param(state, "state")
 
-    # Get user info from GitHub
-    async with httpx.AsyncClient() as client:
-        user_response = await client.get(
-            "https://api.github.com/user",
-            headers={"Authorization": f"Bearer {access_token}"},
+    if error:
+        consume_oauth_state(db, state)
+        return redirect_oauth_error(
+            external_url, error_description or error or "OAuth failed"
         )
 
-    if user_response.status_code != 200:
+    code = require_query_param(code, "code")
+    consume_oauth_state(db, state)
+
+    if not redirect_uri:
         raise HTTPException(
-            status_code=400, detail="Failed to fetch user info from GitHub"
+            status_code=500, detail="OAuth URL configuration is missing"
+        )
+    if not google_client_id or not google_client_secret:
+        raise HTTPException(
+            status_code=500, detail="Google OAuth configuration is missing"
         )
 
-    # Read user data from token
-    github_user = user_response.json()
-    github_id = str(github_user["id"])
-    username = github_user.get("login")
-    name = github_user.get("name") or username
-
-    # GitHub may not always return email in user endpoint
-    # Fetch from emails endpoint
-    email = github_user.get("email")
-    if not email:
-        async with httpx.AsyncClient() as client:
-            emails_response = await client.get(
-                "https://api.github.com/user/emails",
-                headers={"Authorization": f"Bearer {access_token}"},
-            )
-
-        if emails_response.status_code == 200:
-            emails = emails_response.json()
-            # Get primary email
-            for email_obj in emails:
-                if email_obj.get("primary"):
-                    email = email_obj["email"]
-                    break
-            # Fallback to first email if no primary
-            if not email and emails:
-                email = emails[0]["email"]
-
-    if not email:
-        raise HTTPException(status_code=400, detail="Could not get email from GitHub")
-
-    # Find or create user
-    user = db.query(User).filter(User.email == email).first()
-
-    if not user:
-        # Create new OAuth user
-        user = User(email=email, name=name, oauth_provider="github", oauth_id=github_id)
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-    else:
-        # Update existing user with OAuth info if not already set
-        if not user.oauth_id:
-            user.oauth_id = github_id
-            user.oauth_provider = "github"
-            db.commit()
+    token_data = await exchange_google_code_for_token(code, redirect_uri)
+    profile = await fetch_google_profile(token_data)
+    user = find_or_create_oauth_user(db, profile)
 
     # Generate JWT
     token = generate_token(user.id, user.email)
