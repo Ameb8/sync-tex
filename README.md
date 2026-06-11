@@ -127,7 +127,7 @@ Collab-Service ensures users have write access to a document before joining. Thi
 
 ## Users-Service
 
-Users-Service allows the system to authenticate users, as well as storing and managing user-centric data. It supports password-based accounts, as well as OAuth2-based login. Currently, Users-Service only supports GitHub authentication, but there are future plans to integrate more providers.
+Users-Service allows the system to authenticate users, as well as storing and managing user-centric data. It supports password-based accounts, as well as OAuth2-based login with GitHub and Google.
 
 Users-Service utilizes JWT tokens for authentication. When a user logs in, they are provided with a JWT tokens, containing a unique identifier for that user. Thus, once a user is logged in, additional calls to Users-Service are not required. Furthermore, other services are able to authenticate and identify a user independently. While they are not able to access the full user data without calling Users-Service, they are able to store and access their own data relative to individual users. 
 

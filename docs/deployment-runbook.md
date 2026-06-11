@@ -93,6 +93,7 @@ Production values must include at least:
 - `USERS_SECRET_KEY`, `USERS_INTERNAL_API_KEY`, and
   `PROJECTS_INTERNAL_API_KEY`.
 - GitHub OAuth `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`.
+- Google OAuth `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
 - MinIO root and application credentials.
 - `ASSISTANT_ENCRYPTION_KEY` and provider keys such as `VOYAGE_API_KEY`.
 - `REGISTRY_IMAGE_PREFIX=ghcr.io/ameb8/sync-tex`.
@@ -302,6 +303,12 @@ docker service logs synctex_cloudflared
 Do not delete volumes during troubleshooting unless you intentionally want to
 discard production data.
 
+The Google OAuth identity-table rollout is a fresh-schema cutover. The current
+users-service uses `oauth_identities` and `oauth_states` tables and does not
+read the legacy `users.oauth_provider` / `users.oauth_id` columns. For that
+deployment, intentionally wipe/recreate the users-service database volume before
+validating OAuth sign-in.
+
 ### 10. Validate The First Deploy
 
 From the Pi:
@@ -445,10 +452,11 @@ The DNS route should point the apex hostname at the named tunnel:
 cloudflared tunnel route dns synctex sync-tex.com
 ```
 
-The GitHub OAuth app callback URL must match the public origin:
+The GitHub and Google OAuth app callback URLs must match the public origin:
 
 ```text
 https://sync-tex.com/auth/github/callback
+https://sync-tex.com/auth/google/callback
 ```
 
 After any domain or tunnel change, validate:
