@@ -197,3 +197,23 @@
 .toggle-password:hover {
   color: var(--text-primary);
 }
+
+.login-legal-links {
+  align-items: center;
+  color: rgba(255, 255, 255, 0.82);
+  display: flex;
+  font-size: 0.875rem;
+  gap: 0.65rem;
+  justify-content: center;
+  margin-top: 1.25rem;
+}
+
+.login-legal-links a {
+  color: white;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.login-legal-links a:hover {
+  text-decoration: underline;
+}

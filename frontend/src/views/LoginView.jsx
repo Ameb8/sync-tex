@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { FaEye, FaEyeSlash, FaGoogle } from 'react-icons/fa';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import './LoginView.css';
 
@@ -195,6 +195,12 @@ function LoginView() {
               Continue with Google
             </button>
           </div>
+        </div>
+
+        <div className="login-legal-links" aria-label="Legal links">
+          <Link to="/privacy">Privacy Policy</Link>
+          <span aria-hidden="true">·</span>
+          <Link to="/terms">Terms of Service</Link>
         </div>
       </div>
     </div>

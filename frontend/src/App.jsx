@@ -10,6 +10,7 @@ import './App.css';
 const DashboardView = lazy(() => import('./views/DashboardView'));
 const EditorView = lazy(() => import('./views/EditorView'));
 const JoinView = lazy(() => import('./views/JoinView'));
+const LegalView = lazy(() => import('./views/LegalView'));
 const OAuthCallback = lazy(() => import('./views/OAuthCallback'));
 const SettingsView = lazy(() => import('./views/SettingsView'));
 
@@ -26,6 +27,9 @@ function App() {
             <Suspense fallback={<RouteFallback />}>
               <Routes>
                 <Route path="/login" element={<LoginView />} />
+                <Route path="/privacy" element={<LegalView document="privacy" />} />
+                <Route path="/terms" element={<LegalView document="terms" />} />
+                <Route path="/tos" element={<LegalView document="terms" />} />
                 <Route path="/oauth/callback" element={<OAuthCallback />} />
                 <Route path="/join" element={<JoinView />} />
                 <Route

@@ -1,5 +1,9 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const parseList = (value) =>
   value
@@ -32,6 +36,9 @@ export default defineConfig(({ mode }) => {
       host: env.DEV_SERVER_HOST || '0.0.0.0',
       port: parseInteger(env.DEV_SERVER_PORT, 5173),
       strictPort: true,
+      fs: {
+        allow: [path.resolve(__dirname, '..')],
+      },
       // The nginx dev config proxies browser traffic to Vite on the host.
       hmr: {
         clientPort: parseInteger(env.DEV_HMR_CLIENT_PORT, 80),
