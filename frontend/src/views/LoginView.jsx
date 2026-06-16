@@ -195,12 +195,11 @@ function LoginView() {
               Continue with Google
             </button>
           </div>
-        </div>
 
-        <div className="login-legal-links" aria-label="Legal links">
-          <Link to="/privacy">Privacy Policy</Link>
-          <span aria-hidden="true">·</span>
-          <Link to="/terms">Terms of Service</Link>
+          <p className="login-legal-links" aria-label="Legal notice">
+            By continuing, you agree to our <Link to="/terms">Terms</Link> and acknowledge our{' '}
+            <Link to="/privacy">Privacy Policy</Link>.
+          </p>
         </div>
       </div>
     </div>

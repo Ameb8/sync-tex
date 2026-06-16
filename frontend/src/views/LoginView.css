@@ -199,21 +199,29 @@
 }
 
 .login-legal-links {
-  align-items: center;
-  color: rgba(255, 255, 255, 0.82);
-  display: flex;
-  font-size: 0.875rem;
-  gap: 0.65rem;
-  justify-content: center;
-  margin-top: 1.25rem;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  margin: 1.25rem 0 0;
+  text-align: center;
 }
 
 .login-legal-links a {
-  color: white;
+  color: var(--text-primary);
   font-weight: 500;
-  text-decoration: none;
+  text-decoration-color: rgba(0, 0, 0, 0.22);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.14em;
+  transition: color 0.2s ease, text-decoration-color 0.2s ease;
 }
 
 .login-legal-links a:hover {
-  text-decoration: underline;
+  color: var(--primary-color);
+  text-decoration-color: currentColor;
+}
+
+.login-legal-links a:focus-visible {
+  border-radius: 0.2rem;
+  outline: 2px solid rgba(102, 126, 234, 0.28);
+  outline-offset: 2px;
 }
