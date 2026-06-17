@@ -46,7 +46,7 @@ function DashboardView() {
       setJoinError(
         err === 'missing_token' ? 'Invalid invite link.' : 'Invite link is invalid or has expired.'
       );
-      navigate('/', { replace: true }); // clear query param
+      navigate('/projects', { replace: true }); // clear query param
     }
   }, []);
 

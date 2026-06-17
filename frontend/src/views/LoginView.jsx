@@ -22,8 +22,8 @@ function LoginView() {
   useEffect(() => {
     console.log('[LoginView] isAuthenticated changed:', isAuthenticated);
     if (isAuthenticated) {
-      console.log('[LoginView] navigating to /');
-      navigate('/');
+      console.log('[LoginView] navigating to /projects');
+      navigate('/projects');
     }
   }, [isAuthenticated, navigate]);
 
@@ -50,7 +50,6 @@ function LoginView() {
 
       if (result.success) {
         console.log("Login Result Successful...")
-        //navigate('/');
       } else {
         setError(result.error);
       }

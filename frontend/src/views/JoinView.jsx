@@ -10,7 +10,7 @@ export default function JoinView() {
     const token = searchParams.get('token');
 
     if (!token) {
-      navigate('/?join_error=missing_token');
+      navigate('/projects?join_error=missing_token');
       return;
     }
 
@@ -19,7 +19,7 @@ export default function JoinView() {
         navigate(`/project/${data.project_id}`);
       })
       .catch(() => {
-        navigate('/?join_error=invalid_or_expired');
+        navigate('/projects?join_error=invalid_or_expired');
       });
   }, []);
 
