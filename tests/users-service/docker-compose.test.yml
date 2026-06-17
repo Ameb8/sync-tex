@@ -26,6 +26,9 @@ services:
       GITHUB_CLIENT_ID: test-github-client-id
       GITHUB_CLIENT_SECRET: test-github-client-secret
       GITHUB_REDIRECT_URI: http://localhost:8101/auth/github/callback
+      GOOGLE_CLIENT_ID: test-google-client-id
+      GOOGLE_CLIENT_SECRET: test-google-client-secret
+      GOOGLE_REDIRECT_URI: http://localhost:8101/auth/google/callback
       EXTERNAL_URL: http://localhost:3000
       FRONTEND_URL: http://localhost:3000
       PORT: 8001

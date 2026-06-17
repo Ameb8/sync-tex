@@ -10,6 +10,9 @@ import requests
 from helpers.db import db_connection
 
 
+FRONTEND_URL = "http://localhost:3000"
+
+
 def _count_users(database_url):
     with db_connection(database_url) as conn:
         with conn.cursor() as cursor:
@@ -22,6 +25,17 @@ def _assert_validation_error_for_query_field(response, field):
     assert response.status_code == 422
     errors = response.json()["detail"]
     assert any(error.get("loc") == ["query", field] for error in errors), errors
+
+
+def _login_state(base_url):
+    response = requests.get(
+        f"{base_url}/auth/github/login",
+        allow_redirects=False,
+        timeout=5,
+    )
+    assert response.status_code == 307
+    query = parse_qs(urlparse(response.headers["Location"]).query)
+    return query["state"][0]
 
 
 # -- GET /auth/github/login --------------------------------------------------
@@ -113,6 +127,53 @@ def test_get_auth_github_callback_invalid_state(base_url, database_url):
     assert _count_users(database_url) == user_count_before
 
 
+def test_get_auth_github_callback_provider_error_redirects_to_frontend(
+    base_url,
+    database_url,
+):
+    user_count_before = _count_users(database_url)
+    state = _login_state(base_url)
+
+    response = requests.get(
+        f"{base_url}/auth/github/callback",
+        params={
+            "state": state,
+            "error": "access_denied",
+            "error_description": "Access denied by user",
+        },
+        allow_redirects=False,
+        timeout=5,
+    )
+
+    assert response.status_code == 307
+    location = response.headers["Location"]
+    assert location.startswith(f"{FRONTEND_URL}/oauth/callback")
+    assert parse_qs(urlparse(location).query)["error"] == ["Access denied by user"]
+    assert _count_users(database_url) == user_count_before
+
+
+def test_get_auth_github_callback_consumes_state_after_provider_error(base_url):
+    state = _login_state(base_url)
+
+    first_response = requests.get(
+        f"{base_url}/auth/github/callback",
+        params={"state": state, "error": "access_denied"},
+        allow_redirects=False,
+        timeout=5,
+    )
+    assert first_response.status_code == 307
+
+    second_response = requests.get(
+        f"{base_url}/auth/github/callback",
+        params={"state": state, "error": "access_denied"},
+        allow_redirects=False,
+        timeout=5,
+    )
+
+    assert second_response.status_code == 400
+    assert second_response.json()["detail"] == "Invalid state"
+
+
 @pytest.mark.skip(reason="requires GitHub OAuth HTTPS interception for token endpoint")
 def test_get_auth_github_callback_token_exchange_non_200(base_url, database_url):
     pass
@@ -143,14 +204,15 @@ def test_get_auth_github_callback_missing_oauth_configuration(base_url, database
 # -- Coverage Gaps -----------------------------------------------------------
 
 # Coverage Gaps:
-# - GET /auth/github/login: Happy path cannot assert the in-memory oauth_states
+# - GET /auth/github/login: Happy path cannot assert the database oauth_states
 #   insertion directly because the harness exposes no state inspection helper.
 # - GET /auth/github/callback: Happy path, new user with email from /user skipped
 #   because the harness has no fake/stub API for the hardcoded GitHub HTTPS URLs.
 # - GET /auth/github/callback: Happy path, email from /user/emails skipped
 #   because the harness has no fake/stub API for the hardcoded GitHub HTTPS URLs.
 # - GET /auth/github/callback: Existing password user links GitHub skipped
-#   because the harness has no fake/stub API for the hardcoded GitHub HTTPS URLs.
+#   because the harness has no fake/stub API for the hardcoded GitHub HTTPS URLs;
+#   this leaves oauth_identities creation/linking unverified for GitHub.
 # - GET /auth/github/callback: Missing required query parameter cannot assert
 #   absence of upstream calls because the harness has no upstream call recorder.
 # - GET /auth/github/callback: Invalid state cannot assert absence of upstream

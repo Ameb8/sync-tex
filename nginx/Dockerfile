@@ -11,6 +11,7 @@ COPY frontend/package*.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci
 
 COPY frontend ./
+COPY docs/legal /docs/legal
 RUN npm run build
 
 # Runtime gateway image: nginx config plus the compiled frontend assets. No

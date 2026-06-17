@@ -131,12 +131,14 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const loginWithGithub = () => {
-    // Store the current URL to redirect back after OAuth
+  const loginWithOAuth = (provider) => {
     localStorage.setItem('oauth_redirect', window.location.pathname);
-    // Redirect to your backend's GitHub OAuth endpoint
-    window.location.href = `${API_BASE_URL}/github/login`;
+    window.location.href = `${API_BASE_URL}/${provider}/login`;
   };
+
+  const loginWithGithub = () => loginWithOAuth('github');
+
+  const loginWithGoogle = () => loginWithOAuth('google');
 
   const logout = async () => {
     try {
@@ -161,6 +163,7 @@ export function AuthProvider({ children }) {
     login,
     signup,
     loginWithGithub,
+    loginWithGoogle,
     logout,
     checkAuth,
     getToken
