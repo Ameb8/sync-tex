@@ -30,7 +30,10 @@
 }
 
 .login-card {
-  background-color: var(--surface);
+  --login-card-bg: #f3f4f6;
+
+  background-color: var(--login-card-bg);
+  border: 1px solid rgba(17, 24, 39, 0.08);
   border-radius: 0.75rem;
   box-shadow: var(--shadow-lg);
   padding: 2rem;
@@ -125,21 +128,14 @@
   min-height: 2.75rem;
 }
 
-.btn-github {
-  background-color: #24292e;
-  color: white;
-}
-
-.btn-github:hover:not(:disabled) {
-  background-color: #1b1f23;
-}
-
+.btn-github,
 .btn-google {
   background-color: #ffffff;
   color: #3c4043;
   border: 1px solid var(--border);
 }
 
+.btn-github:hover:not(:disabled),
 .btn-google:hover:not(:disabled) {
   background-color: #f8fafd;
 }
@@ -167,7 +163,7 @@
 
 .divider span {
   position: relative;
-  background-color: var(--surface);
+  background-color: var(--login-card-bg);
   padding: 0 1rem;
   color: var(--text-secondary);
   font-size: 0.875rem;

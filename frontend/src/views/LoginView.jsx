@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { FaEye, FaEyeSlash, FaGoogle } from 'react-icons/fa';
+import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import GoogleIcon from '../components/icons/GoogleIcon';
 import { useAuth } from '../contexts/AuthContext';
 import './LoginView.css';
 
@@ -191,7 +192,7 @@ function LoginView() {
               onClick={handleGoogleLogin}
               disabled={loading}
             >
-              <FaGoogle aria-hidden="true" />
+              <GoogleIcon />
               Continue with Google
             </button>
           </div>
