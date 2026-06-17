@@ -18,14 +18,23 @@ function LoginView() {
   const [searchParams] = useSearchParams();
   const { login, signup, loginWithGithub, loginWithGoogle, isAuthenticated } = useAuth();
 
+  const getRedirectTarget = () => {
+    const redirect = searchParams.get('redirect');
+    if (redirect && redirect.startsWith('/') && !redirect.startsWith('//')) {
+      return redirect;
+    }
+    return '/dashboard';
+  };
+
   // Redirect if already authenticated
   useEffect(() => {
     console.log('[LoginView] isAuthenticated changed:', isAuthenticated);
     if (isAuthenticated) {
-      console.log('[LoginView] navigating to /projects');
-      navigate('/projects');
+      const redirectTo = getRedirectTarget();
+      console.log('[LoginView] navigating to', redirectTo);
+      navigate(redirectTo);
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, navigate, searchParams]);
 
   // Handle OAuth callback error
   useEffect(() => {
@@ -61,11 +70,11 @@ function LoginView() {
   };
 
   const handleGithubLogin = () => {
-    loginWithGithub();
+    loginWithGithub(getRedirectTarget());
   };
 
   const handleGoogleLogin = () => {
-    loginWithGoogle();
+    loginWithGoogle(getRedirectTarget());
   };
 
   return (

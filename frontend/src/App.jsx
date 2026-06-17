@@ -79,7 +79,7 @@ function App() {
                 }
               />
               <Route
-                path="/projects"
+                path="/dashboard"
                 element={
                   <AuthRoute>
                     <ProtectedRoute>

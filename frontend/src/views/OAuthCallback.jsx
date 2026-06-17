@@ -27,7 +27,7 @@ function OAuthCallback() {
         await checkAuth();
         
         // Redirect to original location or dashboard
-        const redirectTo = localStorage.getItem('oauth_redirect') || '/projects';
+        const redirectTo = localStorage.getItem('oauth_redirect') || '/dashboard';
         localStorage.removeItem('oauth_redirect');
         navigate(redirectTo);
       } else {

@@ -38,7 +38,7 @@ const RightSidebar = ({
         {/* Tab nav */}
         <div style={{ display: 'flex', borderBottom: '0.5px solid var(--border-color, #e0e0e0)' }}>
           <button
-            onClick={() => navigate('/projects')}
+            onClick={() => navigate('/dashboard')}
             className="home-button"
             title="Back to dashboard"
           >

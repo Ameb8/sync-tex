@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -130,7 +132,7 @@ func (h *Handler) CreateInvite(c *gin.Context) {
 	}
 
 	// Generate sharable URL
-	shareableURL := fmt.Sprintf("%s/join?token=%s", h.externalURL, token)
+	shareableURL := h.frontendJoinURL(token)
 
 	c.JSON(http.StatusCreated, gin.H{
 		"invite_id":  invite.ID,
@@ -350,7 +352,12 @@ func (h *Handler) JoinViaInvite(c *gin.Context) {
 	}
 
 	// Redirect to frontend with token
-	c.Redirect(http.StatusFound, fmt.Sprintf("http://100.79.49.102/join?token=%s", token))
+	c.Redirect(http.StatusFound, h.frontendJoinURL(token))
+}
+
+func (h *Handler) frontendJoinURL(token string) string {
+	baseURL := strings.TrimRight(h.externalURL, "/")
+	return fmt.Sprintf("%s/join?token=%s", baseURL, url.QueryEscape(token))
 }
 
 // GetRole handles:

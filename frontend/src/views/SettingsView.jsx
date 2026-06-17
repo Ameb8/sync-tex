@@ -25,7 +25,7 @@ function SettingsView() {
   return (
     <main className="settings-view">
       <header className="settings-header">
-        <button type="button" className="btn btn-secondary" onClick={() => navigate('/projects')}>
+        <button type="button" className="btn btn-secondary" onClick={() => navigate('/dashboard')}>
           Dashboard
         </button>
       </header>

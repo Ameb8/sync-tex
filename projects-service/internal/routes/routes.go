@@ -14,6 +14,9 @@ func SetupRoutes(r *gin.Engine, h *handlers.Handler, authMiddleware *middleware.
 		c.JSON(200, gin.H{"status": "ok"})
 	})
 
+	publicAPI := r.Group("/projects/v1")
+	publicAPI.GET("/invites/join", h.JoinViaInvite)
+
 	// Protected API routes
 	api := r.Group("/projects/v1")
 	api.Use(authMiddleware.ValidateJWT())
@@ -43,7 +46,6 @@ func SetupRoutes(r *gin.Engine, h *handlers.Handler, authMiddleware *middleware.
 	api.POST("/projects/:projectID/invites", h.CreateInvite)
 	api.POST("/invites/accept", h.AcceptInvite)
 	api.GET("/projects/:projectID/collaborators", h.ListCollaborators)
-	api.GET("/invites/join")
 	api.DELETE("/projects/:projectID/collaborators/:userID", h.RemoveCollaborator)
 	api.GET("/access", h.GetRole)
 

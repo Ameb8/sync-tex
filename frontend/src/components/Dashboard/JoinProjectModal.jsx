@@ -11,11 +11,22 @@ const JoinProjectModal = ({ onClose }) => {
 
   const extractTokenFromLink = (link) => {
     // Handle various link formats:
-    // Full URL: https://sync-tex.com/join/token123
-    // Partial: /join/token123
+    // Full URL: https://sync-tex.com/join?token=token123
+    // Path URL: /join/token123
     // Just token: token123
+    try {
+      const url = new URL(link, window.location.origin);
+      const token = url.searchParams.get('token');
+      if (token) return token;
+    } catch (_) {
+      // Fall through to path/token parsing for partial links and raw tokens.
+    }
+
     const urlMatch = link.match(/\/join\/([a-zA-Z0-9_-]+)$/);
     if (urlMatch) return urlMatch[1];
+
+    const queryMatch = link.match(/[?&]token=([a-zA-Z0-9_-]+)/);
+    if (queryMatch) return queryMatch[1];
     
     const lastSegment = link.split('/').pop();
     if (lastSegment && lastSegment.length > 10) return lastSegment;
@@ -73,7 +84,7 @@ const JoinProjectModal = ({ onClose }) => {
               id="invite-link"
               type="text"
               className="form-input"
-              placeholder="e.g., https://sync-tex.com/join/abc123xyz"
+              placeholder="e.g., https://sync-tex.com/join?token=abc123xyz"
               value={inviteLink}
               onChange={(e) => setInviteLink(e.target.value)}
               disabled={loading}
