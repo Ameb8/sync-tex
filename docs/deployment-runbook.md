@@ -466,6 +466,12 @@ curl -fsS https://sync-tex.com/health
 docker service logs synctex_cloudflared --tail 100
 ```
 
+If `cloudflared` logs a permission error when reading the credentials file,
+confirm the `cloudflared_creds` secret mount in `docker-compose.swarm.yml` uses
+mode `0444`. Recent `cloudflare/cloudflared` images run as a non-root user, so
+a root-only `0400` secret mount can make the tunnel credentials unreadable even
+though the Swarm secret exists.
+
 ## Migrations
 
 `scripts/deploy-stack.sh` runs:

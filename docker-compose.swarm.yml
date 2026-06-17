@@ -284,7 +284,7 @@ services:
     secrets:
       - source: cloudflared_creds
         target: /etc/cloudflared/ffab8018-a347-428e-8bac-e1c74a7cde3d.json
-        mode: 0400
+        mode: 0444
     deploy:
       replicas: 1
       restart_policy:
