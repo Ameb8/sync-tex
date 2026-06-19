@@ -134,7 +134,7 @@ const ActivityBar = ({
 
       <button
         className="activity-bar-btn"
-        onClick={() => navigate('/')}
+        onClick={() => navigate('/dashboard')}
         title="Back to dashboard"
         aria-label="Back to dashboard"
       >

@@ -131,14 +131,17 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const loginWithOAuth = (provider) => {
-    localStorage.setItem('oauth_redirect', window.location.pathname);
+  const loginWithOAuth = (provider, redirectTo) => {
+    localStorage.setItem(
+      'oauth_redirect',
+      redirectTo || `${window.location.pathname}${window.location.search}`
+    );
     window.location.href = `${API_BASE_URL}/${provider}/login`;
   };
 
-  const loginWithGithub = () => loginWithOAuth('github');
+  const loginWithGithub = (redirectTo) => loginWithOAuth('github', redirectTo);
 
-  const loginWithGoogle = () => loginWithOAuth('google');
+  const loginWithGoogle = (redirectTo) => loginWithOAuth('google', redirectTo);
 
   const logout = async () => {
     try {
