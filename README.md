@@ -1,135 +1,183 @@
-# SyncTex
+# SyncTeX
 
-![SyncTex Logo](https://github.com/Ameb8/sync-tex/blob/master/docs/SyncTex.png)
+<img src="docs/SyncTex.png" alt="SyncTeX Logo" width="220" />
 
-SyncTex is a web-based LaTeX project editor. It allows users to store and save full-fledged projects, containing various file types and resources. Users can collaborate in real time, allowing teams to work together to produce clean and professional documentation. Get advice, ask questions, or generate content with built-in LLM assistant. Login with your GitHub or email and start editing now!
+SyncTeX is a browser-based collaborative LaTeX editor for creating, organizing,
+and editing LaTeX projects online.
 
-## Features
+The public service is available at [https://sync-tex.com](https://sync-tex.com).
 
-- Real-Time collaborative document editing
+## What It Does
 
-- Multi-file and directory project support
+- Edit LaTeX projects in the browser with a Monaco-based editor.
+- Organize projects with files, directories, and project metadata.
+- Collaborate in real time using Yjs document synchronization.
+- Share projects through collaborator roles and invite links.
+- Sign in with email/password, GitHub OAuth, or Google OAuth.
+- Use an optional AI assistant with streamed chat responses.
+- Store project content through MinIO-backed object storage.
+- Maintain legal and privacy documentation for the public service.
 
-- Gemini LLM assistant integration
+## Status
 
-- Collaborators with editor and read-only privileges
+SyncTeX is an active personal project and public web service. It is not currently
+maintained as a contributor-driven open-source project, and the repository is
+optimized for development, deployment, and operational clarity rather than a
+large external contributor workflow.
 
-- Login with GitHub or email/password
+The service is operated on a best-effort basis. Important documents should still
+be backed up outside the application.
 
-## Planned Features
+## Using The Web App
 
-- Project compilation to PDF
+1. Visit [sync-tex.com](https://sync-tex.com).
+2. Create an account or sign in with GitHub or Google.
+3. Create a project from the dashboard.
+4. Add LaTeX files and directories to the project.
+5. Open a file in the editor and edit it in the browser.
+6. Invite collaborators when a project should be shared.
+7. Use the assistant panel when AI help or document context is needed.
 
-- Login with Google
+The production service policies are kept in [docs/legal/privacy.md](docs/legal/privacy.md)
+and [docs/legal/tos.md](docs/legal/tos.md).
 
-- Additional LLM provider support
+## Architecture
 
-- Project source/bibliography management
+SyncTeX is split into focused services behind nginx. Each service owns its own
+runtime concerns and, where applicable, its own PostgreSQL database.
 
-- Auto-context for LLM assistant
+![SyncTeX Architecture](docs/sync-tex-architecture.png)
 
-## Running
+| Component | Stack | Responsibility |
+| --- | --- | --- |
+| `frontend/` | React, Vite, Monaco, Yjs | Browser UI, editor shell, project dashboard, collaboration panels |
+| `nginx/` | nginx | Static frontend serving, API gateway, WebSocket routing |
+| `users-service/` | Python, FastAPI, PostgreSQL | Accounts, OAuth, password auth, JWT issuance |
+| `projects-service/` | Go, Gin, PostgreSQL, sqlc | Project/file metadata, collaborators, invites, presigned object URLs |
+| `collab-service/` | Go, WebSocket, Yjs protocol relay | Real-time editing rooms and raw Yjs update broadcasting |
+| `file-data-service/` | Rust, tonic, yrs | Yjs compaction and plain-text export over gRPC |
+| `assistant-service/` | Python, FastAPI, PostgreSQL, pgvector | BYOK keys, chat history, SSE streaming, auto-context/RAG support |
+| `minio` | MinIO | Object storage for document snapshots, update logs, and exports |
 
-Prerequisites: Docker Compose for the service stack, Node.js/npm for the React frontend, and a populated `.env` file. Start from `.env.example`:
+### Design Notes
+
+- JWTs are issued by `users-service` and independently validated by backend
+  services.
+- Project metadata and object-storage access are owned by `projects-service`.
+- Collaborative editing uses Yjs; the collaboration relay forwards binary Yjs
+  frames rather than implementing a custom CRDT.
+- `file-data-service` owns document compaction and text export so other services
+  do not need to understand Yjs internals.
+- The assistant service keeps LLM keys, chat history, usage data, and
+  auto-context state separate from project metadata.
+- Presigned MinIO URLs are generated internally and rewritten for browser-facing
+  access at the public origin.
+
+## Repository Layout
+
+```text
+.
+|-- assistant-service/      # AI assistant, provider keys, chat, auto-context
+|-- collab-service/         # WebSocket/Yjs collaboration relay
+|-- docs/                   # Diagrams, legal docs, generated API references
+|-- file-data-service/      # Yjs compaction and text export service
+|-- frontend/               # React web application
+|-- nginx/                  # API gateway and production frontend image
+|-- projects-service/       # Project/file metadata and MinIO URL orchestration
+|-- proto/                  # Shared gRPC definitions
+|-- tests/                  # Service integration test harnesses
+|-- users-service/          # Authentication and user identity service
+|-- docker-compose.yml      # Base Compose stack
+|-- docker-compose.dev.yml  # Development overrides
+|-- docker-compose.prod.yml # Manual production overrides
+`-- docker-compose.swarm.yml
+```
+
+## Local Development
+
+Prerequisites:
+
+- Docker Compose
+- Node.js and npm for the Vite frontend dev server
+- A populated `.env` file based on `.env.example`
+
+Create the environment file:
 
 ```sh
 cp .env.example .env
 ```
 
-For production, replace all example secrets, database passwords, OAuth credentials, API keys, and public URLs before starting the stack.
+For local development, replace example secrets and set public origins in `.env`
+to match the local environment you are testing. OAuth sign-in also requires
+matching callback URLs in the GitHub and Google OAuth app configuration.
 
-### Development
-
-Development mode uses `docker-compose.yml` plus `docker-compose.dev.yml`. Backend services run in containers with reload/watch commands, while nginx proxies the frontend route to the local Vite dev server.
+Start the backend stack:
 
 ```sh
 make dev-build
 make dev-up
+```
 
+Start the frontend dev server:
+
+```sh
 cd frontend
 npm install
 npm run dev
 ```
 
-Open `http://localhost`. Useful dev endpoints are exposed locally: users service on `8001`, projects service on `8003`, assistant service on `8000`, file-data gRPC on `50051`, MinIO API on `9000`, and MinIO console on `9001`.
+Open `http://localhost`.
 
-Common commands:
+Useful development commands:
 
 ```sh
-make dev-logs                 # follow all service logs
-make dev-logs SERVICE=minio   # follow one service
-make dev-ps                   # list containers
-make dev-down                 # stop and remove dev containers
-make dev-reset                # also remove dev volumes
+make dev-logs
+make dev-logs SERVICE=projects-service
+make dev-ps
+make dev-down
+make dev-reset
 ```
 
-### Production
+Common local endpoints:
 
-Production Compose mode uses `docker-compose.yml` plus `docker-compose.prod.yml`. It builds production service images, packages the Vite frontend into the nginx gateway image, and starts the Cloudflare tunnel sidecar.
+| Endpoint | Purpose |
+| --- | --- |
+| `http://localhost` | nginx gateway |
+| `http://localhost:8001` | users service |
+| `http://localhost:8003` | projects service |
+| `http://localhost:8000` | assistant service |
+| `localhost:50051` | file-data gRPC service |
+| `http://localhost:9000` | MinIO API |
+| `http://localhost:9001` | MinIO console |
+
+## Deployment
+
+The production path uses Docker images, Docker Swarm, a self-hosted GitHub
+Actions runner, and a Cloudflare Tunnel sidecar. The deployment runbook is kept
+in [docs/deployment-runbook.md](docs/deployment-runbook.md).
+
+Manual production Compose commands are still available:
 
 ```sh
 make prod-build
 make prod-up
-```
-
-The continuous deployment path uses GHCR images and the Swarm stack in `docker-compose.swarm.yml`; see `docs/deployment-runbook.md`. Keep `docker-compose.prod.yml` as the legacy/manual production path while Swarm is being validated.
-
-Set `FRONTEND_URL` and `EXTERNAL_URL` in `.env` to the public origin clients should use. The app is served by nginx on port `80`; production object URLs and OAuth redirects depend on those external URL values.
-
-Common commands:
-
-```sh
 make prod-logs
-make prod-ps
 make prod-down
-make prod-reset    # removes production containers and volumes
 ```
 
+For production, all example secrets, database passwords, OAuth credentials,
+MinIO credentials, encryption keys, and public URL values must be replaced before
+starting the stack.
 
-# Software Design
+## API And Service References
 
-SyncTex is built on a microservice architecture to support independent scaling and separation of concerns. 
+- [Projects service OpenAPI reference](docs/projects-service/openapi.yaml)
+- [Generated projects service HTML reference](docs/projects-service-api.html)
+- [Collaboration service AsyncAPI reference](docs/collab-service/asyncapi.yaml)
+- [Users service database diagram](docs/users-service/users-db-erd.png)
+- [Projects service database diagram](docs/projects-service/projects-db-erd.png)
 
-![Architecture Diagram](https://github.com/Ameb8/sync-tex/blob/master/docs/sync-tex-architecture.png)
+## License
 
-## Webpage
-
-## Projects-Service
-
-Projects-Service is responsible for managing user's projects and files. The system stores all projects and their file structures and provide access through a Rest-API. 
-
-
-### Projects-Service Rest-API
-
-Projects-Service provides a set of CRUD operations allowing for easy access and management of project-centric resources by both clients and other backend services. Project-Service's API schema can be [found here](https://ameb8.github.io/sync-tex/projects-service-api.html). 
-
-
-### Projects-Service Database
-
-![Projects-Service-DB ERD](https://github.com/Ameb8/sync-tex/blob/master/docs/projects-service/projects-db-erd.png)
-
-### Projects-Service File Store
-
-## Collab-Service
-
-Collab-Service enables real-time collaborative editing between users, allowing multiple users to edit a document simultaneously. A user connects by utilizing two query parameters, the primary key fo the file being edited and the user's authentication token. This allows Collab-Service to ensure users can only edit documents for which they have permission. The Yjs library allows straightforward implementation of CRDT-style collaborative editing. Thus, SyncTex does not implement its' own CRDT system, instead utilizing a highly reliable and performant existing system.
-
-### Collab-Service Websocket Server
-
-Collab-Service primarily uses the websocket protocol to enable collaborative editing. The server stores an in-memory map of files to connected users. When an edit is received by a server, it is broadcasted to all other users connected to that document. The payload of each update consists of Yjs's binary CRDT protocol. Thus, Collab-Service does not understand, parse, or analyze any file updates, simply broadcasting them to other users.
-
-In order to ensure consistent states between users, Collab-Service provides an initial seed state for connecting users. When the first user connects to a document, Collab-Service fetches the Yjs-formatted state of a document. This is done by fetching a presigned download URL from Projects-Service, then downloading the file. It is the responsibility of Projects-Service to ensure the download URL links to the Yjs binary version of the document. This document is sent as-is to the first connecting user. However, as new users join, the initial document state no longer suffices, as it has been edited. To handle this, Collab-Service keeps a log of all edits applied to the document. These updates can then be sent to connecting users, ensuring they have the most up-to-date version. When all users disconnect on a given document, these changes will be uploaded to filestore and evicted from Collab-Service memory. 
-
-In order to avoid saving collisions and mismatching document states, clients do not save documents when editing collaboratively. Instead, Collab-Service is responsible for document persistence. Collab-Service utilizes configurable debounce saving, as well as ensuring a final upload when all users disconnect from a given document. The saved document will be in Yjs-binary form. It may be compacted into a more memory-efficient format, but this is not Collab-Service's responsibility. 
-
-Collab-Service ensures users have write access to a document before joining. This is done by first collecting their authentication token from query parameters. Next, a http request is made to projects-service, specifying whether the given user is allowed to edit the document. If write-access is not allowed, the websocket connection is dropped. 
-
-
-## Users-Service
-
-Users-Service allows the system to authenticate users, as well as storing and managing user-centric data. It supports password-based accounts, as well as OAuth2-based login with GitHub and Google.
-
-Users-Service utilizes JWT tokens for authentication. When a user logs in, they are provided with a JWT tokens, containing a unique identifier for that user. Thus, once a user is logged in, additional calls to Users-Service are not required. Furthermore, other services are able to authenticate and identify a user independently. While they are not able to access the full user data without calling Users-Service, they are able to store and access their own data relative to individual users. 
-
-### Users-Service Rest-API
-### Users-Service Database
+No open-source license is currently provided. Unless a license is added, all
+rights are reserved by the project owner.
