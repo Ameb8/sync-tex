@@ -1,0 +1,71 @@
+file-data-service/SERVICE_DESIGN.md
+  s_89214545b8c10b::t_371d3afc2166e9 1-352
+collab-service/SERVICE_DESIGN.md
+  s_cf9610f0a26d17::t_cb34fae23da8df 1-101,103,108-283
+  s_cf9610f0a26d17::t_8ec2a3cbfc594c 102,104-107
+users-service/SERVICE_DESIGN.md
+  s_e0d53c6bab817f::t_c01f9742d66f83 1-203,208-260
+  s_e0d53c6bab817f::t_a47ec4a9348846 204-207
+projects-service/SERVICE_DESIGN.md
+  s_09207750ad4422::t_105a6c88e2f85a 1-648
+frontend/SERVICE_DESIGN.md
+  s_1f281765855a17::t_670f27f67369a1 1-400
+assistant-service/SERVICE_DESIGN.md
+  s_ba3a2757425186::t_8e2831d027eb63 1-422
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "development:1.4.12",
+  "base_commit_sha": "6b87119948decc4492e0dba366742871ad928b7c",
+  "prompts": {},
+  "sessions": {
+    "s_09207750ad4422": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a05c3a-080f-72dd-9703-bbcfefd2cfac",
+        "model": "vx-gemini-3.7-f"
+      },
+      "human_author": "Alex Buckley <alexmeb81@outlook.com>"
+    },
+    "s_1f281765855a17": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a05c45-7419-7542-9523-b17144f6a0eb",
+        "model": "vx-gemini-3.7-f"
+      },
+      "human_author": "Alex Buckley <alexmeb81@outlook.com>"
+    },
+    "s_89214545b8c10b": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a05c43-a6a8-726d-a0cd-85a4f52bdb92",
+        "model": "vx-gemini-3.7-f"
+      },
+      "human_author": "Alex Buckley <alexmeb81@outlook.com>"
+    },
+    "s_ba3a2757425186": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a05c32-d604-7323-a425-7ab554bc8bd9",
+        "model": "vx-gemini-3.7-f"
+      },
+      "human_author": "Alex Buckley <alexmeb81@outlook.com>"
+    },
+    "s_cf9610f0a26d17": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a05c3a-7f63-721d-bfa2-7652311b8036",
+        "model": "vx-gemini-3.7-f"
+      },
+      "human_author": "Alex Buckley <alexmeb81@outlook.com>"
+    },
+    "s_e0d53c6bab817f": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a05c44-452c-76b8-a9d1-cffdaee227d0",
+        "model": "vx-gemini-3.7-f"
+      },
+      "human_author": "Alex Buckley <alexmeb81@outlook.com>"
+    }
+  }
+}
