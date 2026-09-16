@@ -1,5 +1,20 @@
 import { authFetch } from '../contexts/AuthContext';
 
+const responseError = async (response, fallback) => {
+  let message = '';
+  try {
+    const body = await response.clone().json();
+    message = body?.error || body?.message || '';
+  } catch {
+    try {
+      message = (await response.text()).trim();
+    } catch {
+      // Keep the useful fallback below when an error response has no body.
+    }
+  }
+  return new Error(message || response.statusText || fallback);
+};
+
 export const fetchProjectTree = async (projectId) => {
   const response = await authFetch(`/projects/v1/projects/${projectId}/tree`);
   if (!response.ok) {
@@ -61,7 +76,7 @@ export const createFile = async (projectId, parentFolderId, filename) => {
     }),
   });
   if (!response.ok) {
-    throw new Error(`Failed to create file: ${response.statusText}`);
+    throw await responseError(response, 'Failed to create file');
   }
   return response.json();
 };
@@ -78,7 +93,7 @@ export const createFolder = async (projectId, parentFolderId, folderName) => {
     }),
   });
   if (!response.ok) {
-    throw new Error(`Failed to create folder: ${response.statusText}`);
+    throw await responseError(response, 'Failed to create folder');
   }
   return response.json();
 };
@@ -91,8 +106,9 @@ export const deleteItem = async (projectId, itemId, itemType) => {
     method: 'DELETE',
   });
   if (!response.ok) {
-    throw new Error(`Failed to delete ${itemType}: ${response.statusText}`);
+    throw await responseError(response, `Failed to delete ${itemType}`);
   }
+  if (response.status === 204) return { success: true };
   return response.json();
 };
 
@@ -108,7 +124,7 @@ export const renameItem = async (projectId, itemId, itemType, newName) => {
     body: body,
   });
   if (!response.ok) {
-    throw new Error(`Failed to rename ${itemType}: ${response.statusText}`);
+    throw await responseError(response, `Failed to rename ${itemType}`);
   }
   return response.json();
 };
@@ -128,7 +144,7 @@ export const uploadImageFile = async (projectId, parentFolderId, file) => {
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to register image: ${response.statusText}`);
+    throw await responseError(response, 'Failed to register image');
   }
 
   const data = await response.json();
@@ -141,7 +157,7 @@ export const uploadImageFile = async (projectId, parentFolderId, file) => {
   });
 
   if (!uploadResponse.ok) {
-    throw new Error(`Failed to upload image: ${uploadResponse.statusText}`);
+    throw await responseError(uploadResponse, 'Failed to upload image');
   }
 
   return data; // { file: { id, filename, file_type, download_url, ... }, upload_url }
