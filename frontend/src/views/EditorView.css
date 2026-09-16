@@ -1,4 +1,8 @@
 .editor-container {
+  --explorer-ink: #17302c;
+  --explorer-panel: #eef2ed;
+  --explorer-line: #d6ddd7;
+  --explorer-brand: #237966;
   display: flex;
   position: relative;
   z-index: 0;
@@ -9,7 +13,15 @@
   overflow: hidden;
 }
 
+[data-theme='dark'] .editor-container {
+  --explorer-ink: #eef6f2;
+  --explorer-panel: #17211e;
+  --explorer-line: #34423d;
+  --explorer-brand: #65c7ac;
+}
+
 .editor-main {
+  min-width: 0;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -296,13 +308,43 @@
 }
 
 .side-panel {
+  position: relative;
   flex-direction: column;
+  display: flex;
   height: 100%;
   overflow: hidden;
-  width: 220px;
-  min-width: 220px;
-  flex-shrink: 0;
+  min-width: 260px;
+  max-width: 520px;
+  flex: none;
+  border-right: 1px solid var(--explorer-line);
+  background: var(--explorer-panel);
 }
+
+.sidebar-resize-handle {
+  width: 8px;
+  position: absolute;
+  z-index: 50;
+  top: 0;
+  right: -4px;
+  bottom: 0;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.sidebar-resize-handle::after {
+  content: '';
+  width: 2px;
+  position: absolute;
+  inset: 0 3px;
+  background: transparent;
+}
+
+.sidebar-resize-handle:hover::after,
+.sidebar-resize-handle.is-resizing::after,
+.sidebar-resize-handle:focus-visible::after {
+  background: var(--explorer-brand);
+}
+
 
 @media (max-width: 1024px) {
   .editor-sidebar-right {
@@ -310,16 +352,23 @@
   }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 720px) {
   .editor-container {
-    flex-direction: column;
+    flex-direction: row;
   }
 
-  .file-tree {
-    width: 100%;
-    height: 200px;
-    border-right: none;
-    border-bottom: 0.5px solid var(--border-color);
+  .side-panel {
+    width: calc(100% - 50px) !important;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .sidebar-resize-handle {
+    display: none;
+  }
+
+  .editor-container.files-panel-open .editor-main {
+    display: none;
   }
 
   .editor-sidebar-right {
