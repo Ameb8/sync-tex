@@ -10,6 +10,16 @@ import {
 } from '../api/editor';
 import { uploadImageFile } from '../api/editor';
 
+const findFile = (nodes, fileId) => {
+  for (const directory of nodes) {
+    const file = directory.files?.find((candidate) => candidate.id === fileId);
+    if (file) return file;
+    const nested = findFile(directory.children ?? [], fileId);
+    if (nested) return nested;
+  }
+  return null;
+};
+
 /**
  * Manages file content, unsaved state, tree data, and all file CRUD.
  *
@@ -101,75 +111,53 @@ export function useFileManager({ projectId, collabSessions }) {
 
   /**
    * Creates a file and returns the new file object so the caller can open a tab.
-   * Returns null on failure.
+   * Rejects on failure so inline callers can keep their editor open.
    */
   const handleCreateFile = useCallback(async (parentFolderId, filename) => {
-    try {
-      const response = await createFile(projectId, parentFolderId, filename);
-      await refreshTree();
-
-      if (response.file) {
-        const f = response.file;
-        setFileContents((prev) => ({ ...prev, [f.id]: '' }));
-        setUnsavedFiles((prev) => new Set(prev).add(f.id));
-        originalContentsRef.current[f.id] = '';
-        return f; // caller opens the tab and collab session
-      }
-      return null;
-    } catch (err) {
-      setError(`Error creating file: ${err.message}`);
-      return null;
-    }
+    const response = await createFile(projectId, parentFolderId, filename);
+    const refreshed = await refreshTree();
+    const returned = response.file ?? response;
+    const file = findFile(refreshed.tree, returned?.id) ?? returned;
+    if (!file?.id) throw new Error('The server did not return the created file');
+    setFileContents((prev) => ({ ...prev, [file.id]: '' }));
+    setUnsavedFiles((prev) => new Set(prev).add(file.id));
+    originalContentsRef.current[file.id] = '';
+    return file;
   }, [projectId, refreshTree]);
 
   const handleCreateFolder = useCallback(async (parentFolderId, folderName) => {
-    try {
-      await createFolder(projectId, parentFolderId, folderName);
-      await refreshTree();
-    } catch (err) {
-      setError(`Error creating folder: ${err.message}`);
-    }
+    const response = await createFolder(projectId, parentFolderId, folderName);
+    await refreshTree();
+    const folder = response.directory ?? response;
+    if (!folder?.id) throw new Error('The server did not return the created folder');
+    return folder;
   }, [projectId, refreshTree]);
 
   const handleDeleteItem = useCallback(async (itemId, itemType) => {
-    try {
-      await deleteItem(projectId, itemId, itemType);
-      await refreshTree();
-      if (itemType === 'file') clearFileContent(itemId);
-      return true;
-    } catch (err) {
-      setError(`Error deleting ${itemType}: ${err.message}`);
-      return false;
-    }
+    await deleteItem(projectId, itemId, itemType);
+    await refreshTree();
+    if (itemType === 'file') clearFileContent(itemId);
+    return true;
   }, [projectId, refreshTree, clearFileContent]);
 
   const handleRenameItem = useCallback(async (itemId, itemType, newName) => {
-    try {
-      await renameItem(projectId, itemId, itemType, newName);
-      await refreshTree();
-    } catch (err) {
-      setError(`Error renaming ${itemType}: ${err.message}`);
-    }
+    const response = await renameItem(projectId, itemId, itemType, newName);
+    await refreshTree();
+    return response;
   }, [projectId, refreshTree]);
 
   /**
    * Uploads an image, refreshes the tree, and returns the new file object.
-   * Returns null on failure.
+   * Rejects on failure so the explorer can display a real failed operation.
    */
   const handleImageUpload = useCallback(async (parentFolderId, file) => {
-    try {
-      const response = await uploadImageFile(projectId, parentFolderId, file);
-      await refreshTree();
-      if (response.file) {
-        const f = response.file;
-        setFileContents((prev) => ({ ...prev, [f.id]: f.download_url }));
-        return f; // caller opens the tab
-      }
-      return null;
-    } catch (err) {
-      setError(`Error uploading image: ${err.message}`);
-      return null;
-    }
+    const response = await uploadImageFile(projectId, parentFolderId, file);
+    const refreshed = await refreshTree();
+    const returned = response.file ?? response;
+    const uploaded = findFile(refreshed.tree, returned?.id) ?? returned;
+    if (!uploaded?.id) throw new Error('The server did not return the uploaded image');
+    setFileContents((prev) => ({ ...prev, [uploaded.id]: uploaded.download_url }));
+    return uploaded;
   }, [projectId, refreshTree]);
 
   return {

@@ -6,30 +6,33 @@
  */
 
 .activity-bar {
-  width: 48px;
-  min-width: 48px;
+  width: 50px;
+  min-width: 50px;
   height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 8px 0;
-  background: var(--sidebar-bg, #bcbcbc);
-  border-right: 1px solid var(--border-color, #333);
-  gap: 4px;
+  padding: 10px 6px 8px;
+  background: var(--explorer-panel, #eef2ed);
+  background: color-mix(in srgb, var(--explorer-panel, #eef2ed) 80%, var(--explorer-ink, #17302c) 20%);
+  border-right: 1px solid var(--explorer-line, #d6ddd7);
+  gap: 6px;
   z-index: 10;
 }
 
 .activity-bar-btn {
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   border: none;
-  border-left: 2px solid transparent;
+  border: 0;
   background: transparent;
   color: var(--text-secondary, #888);
-  border-radius: 6px;
+  border-radius: 10px;
   cursor: pointer;
   transition: color 0.15s ease, background 0.15s ease;
 }
@@ -41,21 +44,22 @@
 
 /* Active panel: bright colour + left-border accent (VSCode style) */
 .activity-bar-btn.active {
-  color: var(--text-primary, #fff);
-  border-left-color: var(--text-info, #1f80dd);
-
+  color: var(--explorer-brand, #237966);
+  background: var(--bg-primary, #fff);
+  box-shadow: 0 4px 15px #00000012;
 }
 
 .activity-bar-btn.active::before {
   content: '';
   position: absolute;
-  left: -8px; /* sits flush against the bar's left edge */
-  top: 8px;
-  bottom: 8px;
-  width: 2px;
-  background: var(--text-info, #1f80dd);
-  border-radius: 0 2px 2px 0;
+  left: -6px;
+  top: 9px;
+  bottom: 9px;
+  width: 3px;
+  background: var(--explorer-brand, #237966);
+  border-radius: 0 3px 3px 0;
 }
+
 
 .activity-bar-spacer {
   flex: 1;

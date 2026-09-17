@@ -3,6 +3,14 @@ import { authFetch } from '../contexts/AuthContext';
 // API endpoint configuration
 const API_BASE_URL = '/projects/v1';
 
+export async function fetchProject(projectId) {
+  const response = await authFetch(`${API_BASE_URL}/projects/${projectId}`);
+  if (!response.ok) {
+    throw new Error(`Failed to load project: ${response.statusText}`);
+  }
+  return response.json();
+}
+
 /**
  * Fetch all projects for the current user
  * @returns {Promise<Array>} Array of project objects

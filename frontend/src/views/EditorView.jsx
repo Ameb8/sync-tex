@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState, useCallback } from 'react';
+import { lazy, Suspense, useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 
 import { useAuth } from '../contexts/AuthContext';
@@ -10,6 +10,7 @@ import { useChatManager } from '../hooks/useChatManager';
 import { setupMonaco } from '../monaco/setupMonaco';
 import { scheduleIdleWarmup } from '../prefetch/scheduleIdleWarmup';
 import { warmAIPanel } from '../prefetch/warmups';
+import { fetchProject } from '../api/projects';
 
 import ActivityBar from '../components/Editor/ActivityBar';
 import FileTree from '../components/Editor/FileTree';
@@ -40,6 +41,10 @@ const isImageType = (fileType) => IMAGE_TYPES.has(fileType?.toLowerCase());
 
 const fileTabId = (fileId) => `file:${fileId}`;
 const chatTabId = (chatId) => `chat:${chatId}`;
+const SIDEBAR_MIN = 260;
+const SIDEBAR_MAX = 520;
+const SIDEBAR_DEFAULT = 350;
+const clampSidebarWidth = (width) => Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, width));
 
 const resourceIdFromTabId = (tabId, prefix) => (
   typeof tabId === 'string' && tabId.startsWith(prefix)
@@ -87,6 +92,7 @@ const EditorView = () => {
   // Project/loading state 
   const [isCollab, setIsCollab] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [projectName, setProjectName] = useState('Project');
 
   // User role
   const [userRole, setUserRole] = useState(null);
@@ -95,6 +101,29 @@ const EditorView = () => {
   const [sidebarPanel, setSidebarPanel] = useState('files'); // Which panel is shown
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mainPanel, setMainPanel] = useState(null); // Show editor when null
+  const sidebarRef = useRef(null);
+  const resizePointerRef = useRef(null);
+  const [isResizing, setIsResizing] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT);
+
+  useEffect(() => {
+    try {
+      const stored = Number.parseInt(localStorage.getItem(`editor-sidebar-width:${projectId}`), 10);
+      setSidebarWidth(Number.isFinite(stored) ? clampSidebarWidth(stored) : SIDEBAR_DEFAULT);
+    } catch {
+      setSidebarWidth(SIDEBAR_DEFAULT);
+    }
+  }, [projectId]);
+
+  const updateSidebarWidth = useCallback((width) => {
+    const next = clampSidebarWidth(width);
+    setSidebarWidth(next);
+    try {
+      localStorage.setItem(`editor-sidebar-width:${projectId}`, String(next));
+    } catch {
+      // The browser may deny storage in hardened/private contexts.
+    }
+  }, [projectId]);
 
   useEffect(() => {
     setupMonaco().catch((error) => {
@@ -212,9 +241,11 @@ const EditorView = () => {
     const load = async () => {
       try {
         setLoading(true);
-        const data = await refreshTree();
+        setProjectName('Project');
+        const [data, project] = await Promise.all([refreshTree(), fetchProject(projectId)]);
+        setProjectName(project.name || 'Project');
         setUserRole(data.role);
-        setIsCollab(true);
+        setIsCollab(Boolean(data.is_collab));
       } catch (err) {
         setError(err.message);
       } finally {
@@ -329,23 +360,38 @@ const EditorView = () => {
   // File CRUD handlers
   const handleCreateFileAndOpen = useCallback(async (parentFolderId, filename) => {
     const newFile = await handleCreateFile(parentFolderId, filename);
-    if (newFile) {
-      addTab(makeFileTab(newFile));
-      if (isCollab) openCollabSession(newFile);
-    }
+    addTab(makeFileTab(newFile));
+    if (isCollab) openCollabSession(newFile);
+    return newFile;
   }, [handleCreateFile, addTab, isCollab, openCollabSession]);
 
   const handleDeleteItemAndClose = useCallback(async (itemId, itemType) => {
-    const ok = await handleDeleteItem(itemId, itemType);
-    if (ok && itemType === 'file') {
+    await handleDeleteItem(itemId, itemType);
+    if (itemType === 'file') {
       handleTabClose(fileTabId(itemId));
       setLastActiveFile((current) => current?.id === itemId ? null : current);
     }
+    return true;
   }, [handleDeleteItem, handleTabClose]);
+
+  const handleRenameItemAndUpdateTab = useCallback(async (itemId, itemType, newName) => {
+    const updated = await handleRenameItem(itemId, itemType, newName);
+    if (itemType === 'file') {
+      const existingFile = openTabs.find((tab) => tab.id === fileTabId(itemId))?.file ?? {};
+      updateTab(fileTabId(itemId), {
+        title: newName,
+        filename: newName,
+        file: { ...existingFile, ...(updated || {}), id: itemId, filename: newName },
+      });
+      setLastActiveFile((current) => current?.id === itemId ? { ...current, ...(updated || {}), filename: newName } : current);
+    }
+    return updated;
+  }, [handleRenameItem, openTabs, updateTab]);
 
   const handleImageUploadAndOpen = useCallback(async (parentFolderId, file) => {
     const newFile = await handleImageUpload(parentFolderId, file);
-    if (newFile) addTab(makeFileTab(newFile));
+    addTab(makeFileTab(newFile));
+    return newFile;
   }, [handleImageUpload, addTab]);
 
   // Derived state
@@ -370,7 +416,7 @@ const EditorView = () => {
   if (error)   return <div className="editor-error"><p>Error: {error}</p></div>;
 
   return (
-    <div className="editor-container">
+    <div className={`editor-container${sidebarOpen && sidebarPanel === 'files' ? ' files-panel-open' : ''}`}>
 
       {/* Far-left icon strip */}
       <ActivityBar
@@ -381,44 +427,60 @@ const EditorView = () => {
           if (panelId === 'ai') warmAssistantPanel();
         }}
       />
-      <div
-        className="side-panel"
-        style={{ display: sidebarOpen && sidebarPanel === 'files' ? 'flex' : 'none' }}
-      >
-        <FileTree
-          treeData={treeData}
-          onFileSelect={handleFileSelect}
-          activeFileId={activeFileId}
-          onCreateFile={handleCreateFileAndOpen}
-          onCreateFolder={handleCreateFolder}
-          onDeleteItem={handleDeleteItemAndClose}
-          onRenameItem={handleRenameItem}
-          onTabClose={(fileId) => handleTabClose(fileTabId(fileId))}
-          onImageUpload={handleImageUploadAndOpen}
-          readOnly={isReadOnly}
-        />
-      </div>
-      <div
-        className="side-panel"
-        style={{ display: sidebarOpen && sidebarPanel === 'collaborators' ? 'flex' : 'none' }}
-      >
-        <CollaboratorsPanel projectId={projectId} liveEditors={activeLiveEditors} />
-      </div>
-      <div
-        className="side-panel"
-        style={{ display: sidebarOpen && sidebarPanel === 'ai' ? 'flex' : 'none' }}
-      >
-        <Suspense fallback={<PanelFallback />}>
-          <ChatSidebar
-            chats={chats}
-            loading={chatsLoading}
-            activeChatId={activeChatId}
-            onSelectChat={handleOpenChatTab}
-            onDeleteChat={handleDeleteChat}
-            onNewChat={handleCreateChatTab}
+      {sidebarOpen && (
+        <aside ref={sidebarRef} className="side-panel" style={{ width: sidebarWidth }} aria-label="Active side panel">
+          {sidebarPanel === 'files' && <FileTree
+            projectName={projectName}
+            treeData={treeData}
+            onFileSelect={handleFileSelect}
+            activeFileId={activeFileId}
+            onCreateFile={handleCreateFileAndOpen}
+            onCreateFolder={handleCreateFolder}
+            onDeleteItem={handleDeleteItemAndClose}
+            onRenameItem={handleRenameItemAndUpdateTab}
+            onImageUpload={handleImageUploadAndOpen}
+            readOnly={isReadOnly}
+          />}
+          {sidebarPanel === 'collaborators' && <CollaboratorsPanel projectId={projectId} liveEditors={activeLiveEditors} />}
+          {sidebarPanel === 'ai' && <Suspense fallback={<PanelFallback />}>
+            <ChatSidebar chats={chats} loading={chatsLoading} activeChatId={activeChatId}
+              onSelectChat={handleOpenChatTab} onDeleteChat={handleDeleteChat} onNewChat={handleCreateChatTab} />
+          </Suspense>}
+          <div
+            className={`sidebar-resize-handle${isResizing ? ' is-resizing' : ''}`}
+            role="separator"
+            tabIndex={0}
+            aria-label="Resize side panel"
+            aria-orientation="vertical"
+            aria-valuemin={SIDEBAR_MIN}
+            aria-valuemax={SIDEBAR_MAX}
+            aria-valuenow={sidebarWidth}
+            onPointerDown={(event) => {
+              resizePointerRef.current = event.pointerId;
+              event.currentTarget.setPointerCapture(event.pointerId);
+              setIsResizing(true);
+            }}
+            onPointerMove={(event) => {
+              if (resizePointerRef.current !== event.pointerId || !sidebarRef.current) return;
+              updateSidebarWidth(event.clientX - sidebarRef.current.getBoundingClientRect().left);
+            }}
+            onPointerUp={(event) => {
+              if (resizePointerRef.current !== event.pointerId) return;
+              resizePointerRef.current = null;
+              setIsResizing(false);
+            }}
+            onPointerCancel={() => {
+              resizePointerRef.current = null;
+              setIsResizing(false);
+            }}
+            onKeyDown={(event) => {
+              if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+              event.preventDefault();
+              updateSidebarWidth(sidebarWidth + (event.key === 'ArrowRight' ? 14 : -14));
+            }}
           />
-        </Suspense>
-      </div>
+        </aside>
+      )}
 
       {/* Main editor column — or a full-area non-chat main panel if one is active */}
       <div className="editor-main">
