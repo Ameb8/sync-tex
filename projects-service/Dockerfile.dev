@@ -4,7 +4,7 @@ WORKDIR /app
 
 # Install dependencies
 RUN apk add --no-cache git && \
-    go install github.com/air-verse/air@latest
+    go install github.com/air-verse/air@v1.64.5
 
 # Copy go mod files
 COPY go.mod go.sum ./
