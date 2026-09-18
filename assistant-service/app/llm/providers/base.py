@@ -17,6 +17,8 @@ class LLMClient(ABC):
     Add a new provider by subclassing this and registering it in registry.py.
     """
 
+    model: str
+
     @abstractmethod
     async def chat(
         self,
