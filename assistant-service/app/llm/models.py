@@ -10,9 +10,10 @@ class UserLLMKey(Base):
     # user_id is the PK — one key per provider per user
     # We use a composite PK so users can have keys for multiple providers
     user_id  = Column(String, primary_key=True)       # UUID from JWT, stored as string
-    provider = Column(String, primary_key=True)       # 'anthropic' | 'openai' | 'gemini'
+    provider = Column(String, primary_key=True)
 
     encrypted_key = Column(LargeBinary, nullable=False)  # AES-GCM encrypted bytes
+    base_url = Column(String, nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(),

@@ -8,15 +8,24 @@ from app.core.crypto import decrypt_api_key
 
 
 
-async def get_client_for_user(user_id: str, db: AsyncSession):
-    result = await db.execute(
-        select(models.UserLLMKey)
-        .where(models.UserLLMKey.user_id == user_id)
-        .limit(1)
-    )
+async def get_client_for_user(
+    user_id: str,
+    db: AsyncSession,
+    provider: str | None = None,
+):
+    query = select(models.UserLLMKey).where(models.UserLLMKey.user_id == user_id)
+    if provider is not None:
+        query = query.where(models.UserLLMKey.provider == provider)
+    query = query.order_by(models.UserLLMKey.created_at).limit(1)
+    result = await db.execute(query)
     key = result.scalar_one_or_none()
     if not key:
-        raise HTTPException(400, "No LLM API key configured")
+        detail = (
+            f"No API key configured for provider '{provider}'"
+            if provider
+            else "No LLM API key configured"
+        )
+        raise HTTPException(400, detail)
 
     try:
         api_key = decrypt_api_key(key.encrypted_key)
@@ -35,5 +44,6 @@ async def get_client_for_user(user_id: str, db: AsyncSession):
         provider=provider,
         api_key=api_key,
         preferred_model=settings.preferred_model if settings else None,
+        base_url=key.base_url,
     )
-    return client, settings, provider 
+    return client, settings, provider

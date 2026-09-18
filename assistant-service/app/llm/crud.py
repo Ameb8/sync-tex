@@ -9,7 +9,11 @@ from app.core.crypto import encrypt_api_key, decrypt_api_key   # noqa: F401 (dec
 # LLM Keys
 
 async def upsert_llm_key(
-    db: AsyncSession, user_id: str, provider: str, plaintext_key: str
+    db: AsyncSession,
+    user_id: str,
+    provider: str,
+    plaintext_key: str,
+    base_url: str | None = None,
 ) -> models.UserLLMKey:
     encrypted = encrypt_api_key(plaintext_key)
     result = await db.execute(
@@ -18,9 +22,15 @@ async def upsert_llm_key(
     row = result.scalar_one_or_none()
     if row:
         row.encrypted_key = encrypted
+        row.base_url = base_url
         row.updated_at = datetime.utcnow()
     else:
-        row = models.UserLLMKey(user_id=user_id, provider=provider, encrypted_key=encrypted)
+        row = models.UserLLMKey(
+            user_id=user_id,
+            provider=provider,
+            encrypted_key=encrypted,
+            base_url=base_url,
+        )
         db.add(row)
     await db.commit()
     await db.refresh(row)

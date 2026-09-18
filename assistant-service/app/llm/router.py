@@ -22,10 +22,17 @@ async def upsert_key(
     db: AsyncSession = Depends(get_db),
 ):
     """Store or replace an API key for the given provider. Idempotent."""
-    row = await crud.upsert_llm_key(db, user_id, body.provider, body.api_key)
+    row = await crud.upsert_llm_key(
+        db,
+        user_id,
+        body.provider,
+        body.api_key,
+        body.base_url,
+    )
     return schemas.LLMKeyResponse(
         provider=row.provider,
         has_key=True,
+        base_url=row.base_url,
         created_at=row.created_at,
         updated_at=row.updated_at,
     )
@@ -43,6 +50,7 @@ async def list_keys(
             schemas.LLMKeyResponse(
                 provider=r.provider,
                 has_key=True,
+                base_url=r.base_url,
                 created_at=r.created_at,
                 updated_at=r.updated_at,
             )
@@ -193,7 +201,11 @@ async def chat_stream(
     if not chat:
         raise HTTPException(404, "Chat not found")
 
-    client, settings, provider = await get_client_for_user(user_id, db)
+    client, settings, provider = await get_client_for_user(
+        user_id,
+        db,
+        provider=body.provider,
+    )
 
     # Load message history
     msg_result = await db.execute(
@@ -254,13 +266,13 @@ async def chat_stream(
                 user_id=user_id,
                 project_id=chat.project_id,
                 operation="query",
-                model=provider,
+                model=client.model,
                 tokens_in=estimated,
                 tokens_out=tokens_out_est,
             )
             await db.commit()
 
-            yield f"data: {json.dumps({'done': True, 'model': provider, 'usage': {'tokens_in': estimated, 'tokens_out': tokens_out_est}})}\n\n"
+            yield f"data: {json.dumps({'done': True, 'provider': provider, 'model': client.model, 'usage': {'tokens_in': estimated, 'tokens_out': tokens_out_est}})}\n\n"
 
         except Exception as e:
             await db.rollback()
