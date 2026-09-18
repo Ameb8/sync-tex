@@ -10,6 +10,15 @@ RETURNING *;
 -- name: GetProjectInviteByToken :one
 SELECT * FROM project_invites WHERE token = $1;
 
+-- name: ListActiveProjectInvites :many
+SELECT * FROM project_invites
+WHERE project_id = $1 AND expires_at > NOW()
+ORDER BY created_at DESC;
+
+-- name: DeleteProjectInvite :execrows
+DELETE FROM project_invites
+WHERE project_id = $1 AND id = $2;
+
 -- name: CreateProjectCollaborator :one
 INSERT INTO project_collaborators (project_id, user_id, role, invited_by, invited_at)
 VALUES ($1, $2, $3, $4, $5)

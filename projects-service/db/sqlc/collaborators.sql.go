@@ -73,6 +73,19 @@ func (q *Queries) CreateProjectInvite(ctx context.Context, arg CreateProjectInvi
 	return i, err
 }
 
+const deleteProjectInvite = `-- name: DeleteProjectInvite :execrows
+DELETE FROM project_invites
+WHERE project_id = $1 AND id = $2
+`
+
+func (q *Queries) DeleteProjectInvite(ctx context.Context, projectID pgtype.UUID, id pgtype.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteProjectInvite, projectID, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getCollaborator = `-- name: GetCollaborator :one
 SELECT project_id, user_id, role, invited_by, invited_at FROM project_collaborators
 WHERE project_id = $1 AND user_id = $2
@@ -108,6 +121,40 @@ func (q *Queries) GetProjectInviteByToken(ctx context.Context, token string) (Pr
 		&i.ExpiresAt,
 	)
 	return i, err
+}
+
+const listActiveProjectInvites = `-- name: ListActiveProjectInvites :many
+SELECT id, project_id, token, role, created_by, created_at, expires_at FROM project_invites
+WHERE project_id = $1 AND expires_at > NOW()
+ORDER BY created_at DESC
+`
+
+func (q *Queries) ListActiveProjectInvites(ctx context.Context, projectID pgtype.UUID) ([]ProjectInvite, error) {
+	rows, err := q.db.Query(ctx, listActiveProjectInvites, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ProjectInvite{}
+	for rows.Next() {
+		var i ProjectInvite
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.Token,
+			&i.Role,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.ExpiresAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listProjectCollaborators = `-- name: ListProjectCollaborators :many

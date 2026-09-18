@@ -16,6 +16,7 @@ type Querier interface {
 	CreateProject(ctx context.Context, iD pgtype.UUID, ownerID string, name pgtype.Text) (Project, error)
 	CreateProjectCollaborator(ctx context.Context, projectID pgtype.UUID, userID string, role string, invitedBy pgtype.Text, invitedAt pgtype.Timestamp) (ProjectCollaborator, error)
 	CreateProjectInvite(ctx context.Context, arg CreateProjectInviteParams) (ProjectInvite, error)
+	DeleteProjectInvite(ctx context.Context, projectID pgtype.UUID, id pgtype.UUID) (int64, error)
 	DeleteDirectory(ctx context.Context, id pgtype.UUID) error
 	DeleteFile(ctx context.Context, id pgtype.UUID) error
 	DeleteProject(ctx context.Context, id pgtype.UUID) error
@@ -33,6 +34,7 @@ type Querier interface {
 	ListDirectoriesByProject(ctx context.Context, projectID pgtype.UUID) ([]Directory, error)
 	ListFilesByDirectory(ctx context.Context, directoryID pgtype.UUID) ([]File, error)
 	ListFilesByProject(ctx context.Context, projectID pgtype.UUID) ([]File, error)
+	ListActiveProjectInvites(ctx context.Context, projectID pgtype.UUID) ([]ProjectInvite, error)
 	ListProjectCollaborators(ctx context.Context, projectID pgtype.UUID) ([]ProjectCollaborator, error)
 	ListProjectsByOwner(ctx context.Context, ownerID string) ([]ListProjectsByOwnerRow, error)
 	ListProjectsByUser(ctx context.Context, ownerID string) ([]ListProjectsByUserRow, error)

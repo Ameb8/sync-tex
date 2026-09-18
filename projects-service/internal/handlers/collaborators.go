@@ -25,6 +25,15 @@ type AccessResponse struct {
 	Role    string `json:"role,omitempty"`
 }
 
+type InviteLinkResponse struct {
+	InviteID  string    `json:"invite_id"`
+	Token     string    `json:"token"`
+	Link      string    `json:"link"`
+	Role      string    `json:"role"`
+	CreatedAt time.Time `json:"created_at"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
 // GetAccess - GET /projects/v1/projects/:projectID/access
 func (h *Handler) GetAccess(c *gin.Context) {
 	// Get user ID from JWT
@@ -134,13 +143,92 @@ func (h *Handler) CreateInvite(c *gin.Context) {
 	// Generate sharable URL
 	shareableURL := h.frontendJoinURL(token)
 
-	c.JSON(http.StatusCreated, gin.H{
-		"invite_id":  invite.ID,
-		"token":      token,
-		"link":       shareableURL,
-		"role":       invite.Role,
-		"expires_at": invite.ExpiresAt,
+	c.JSON(http.StatusCreated, InviteLinkResponse{
+		InviteID:  pgUUIDToString(invite.ID),
+		Token:     token,
+		Link:      shareableURL,
+		Role:      invite.Role,
+		CreatedAt: invite.CreatedAt.Time,
+		ExpiresAt: invite.ExpiresAt.Time,
 	})
+}
+
+// ListInviteLinks - GET /projects/v1/projects/:projectID/collaborators/links
+func (h *Handler) ListInviteLinks(c *gin.Context) {
+	userID, err := h.getUserID(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	projectID, err := stringToPgUUID(c.Param("projectID"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid project ID"})
+		return
+	}
+
+	if ok, err := h.authorizer.IsOwner(c.Request.Context(), projectID, userID); !ok || err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Only project owner can view invite links"})
+		return
+	}
+
+	invites, err := h.queries.ListActiveProjectInvites(c.Request.Context(), projectID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list invite links"})
+		return
+	}
+
+	links := make([]InviteLinkResponse, 0, len(invites))
+	for _, invite := range invites {
+		links = append(links, InviteLinkResponse{
+			InviteID:  pgUUIDToString(invite.ID),
+			Token:     invite.Token,
+			Link:      h.frontendJoinURL(invite.Token),
+			Role:      invite.Role,
+			CreatedAt: invite.CreatedAt.Time,
+			ExpiresAt: invite.ExpiresAt.Time,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"links": links})
+}
+
+// RevokeInviteLink - DELETE /projects/v1/projects/:projectID/collaborators/links/:inviteID
+func (h *Handler) RevokeInviteLink(c *gin.Context) {
+	userID, err := h.getUserID(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	projectID, err := stringToPgUUID(c.Param("projectID"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid project ID"})
+		return
+	}
+
+	inviteID, err := stringToPgUUID(c.Param("inviteID"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid invite ID"})
+		return
+	}
+
+	if ok, err := h.authorizer.IsOwner(c.Request.Context(), projectID, userID); !ok || err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Only project owner can revoke invite links"})
+		return
+	}
+
+	deleted, err := h.queries.DeleteProjectInvite(c.Request.Context(), projectID, inviteID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to revoke invite link"})
+		return
+	}
+	if deleted == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Invite link not found"})
+		return
+	}
+
+	c.Status(http.StatusNoContent)
 }
 
 // AcceptInvite - POST /projects/v1/invites/accept
