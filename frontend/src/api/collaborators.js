@@ -56,7 +56,7 @@ export const removeCollaborator = async (projectId, collaboratorId) => {
     throw new Error(`Failed to remove collaborator: ${response.statusText}`);
   }
 
-  return response.json();
+  return response.status === 204 ? null : response.json();
 };
 
 // Revoke a specific collaborator link
@@ -70,7 +70,7 @@ export const revokeCollaboratorLink = async (projectId, linkId) => {
     throw new Error(`Failed to revoke link: ${response.statusText}`);
   }
 
-  return response.json();
+  return response.status === 204 ? null : response.json();
 };
 
 export const acceptCollaboratorLink = async (token) => {

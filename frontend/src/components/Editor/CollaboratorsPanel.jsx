@@ -58,7 +58,7 @@ const CollaboratorsPanel = ({ projectId, liveEditors = [] }) => {
   const [collaborators, setCollaborators] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [selectedAccessLevel, setSelectedAccessLevel] = useState('read');
+  const [selectedAccessLevel, setSelectedAccessLevel] = useState('viewer');
   const [copiedLinkId, setCopiedLinkId] = useState(null);
 
   // Load data when panel mounts or tab changes
@@ -104,7 +104,7 @@ const CollaboratorsPanel = ({ projectId, liveEditors = [] }) => {
   const handleCopyLink = async (item) => {
     try {
       await navigator.clipboard.writeText(item.link);
-      setCopiedLinkId(item.id);
+      setCopiedLinkId(item.invite_id);
       setTimeout(() => setCopiedLinkId(null), 2000);
     } catch (err) {
       console.error('Failed to copy link:', err);
@@ -275,7 +275,7 @@ const CollaboratorsPanel = ({ projectId, liveEditors = [] }) => {
                           className="collab-btn collab-btn-secondary"
                           title="Copy link to clipboard"
                         >
-                          {copiedLinkId === item.id ? '✓ Copied' : 'Copy'}
+                          {copiedLinkId === item.invite_id ? '✓ Copied' : 'Copy'}
                         </button>
                         <button
                           onClick={() => handleRevokeLink(item.invite_id)}
