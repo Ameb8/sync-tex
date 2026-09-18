@@ -1,0 +1,231 @@
+version: '3'
+
+dotenv: ['.env']
+
+vars:
+  COMPOSE_PROJECT_NAME: '{{default "sync-tex" .COMPOSE_PROJECT_NAME}}'
+  COMPOSE: 'docker compose -p {{.COMPOSE_PROJECT_NAME}} -f docker-compose.yml -f docker-compose.dev.yml'
+  SERVICE: '{{default "" .SERVICE}}'
+  CMD: '{{default "sh" .CMD}}'
+  LOG_TAIL: '{{default "100" .LOG_TAIL}}'
+  HEALTH_URL: '{{default "http://localhost/health" .HEALTH_URL}}'
+  MIGRATE_IMAGE: '{{default "migrate/migrate:4" .MIGRATE_IMAGE}}'
+  MINIO_MC_IMAGE: '{{default "minio/mc:latest" .MINIO_MC_IMAGE}}'
+
+tasks:
+  default:
+    desc: Show available development tasks
+    cmds:
+      - task --list
+
+  dev:
+    desc: Start the development stack
+    cmds:
+      - task: dev:up
+
+  dev:bootstrap:
+    desc: Initialize databases and MinIO, then start the development stack
+    cmds:
+      - task: dev:build
+      - task: migrate
+      - task: minio:init
+      - task: dev:up
+
+  dev:up:
+    desc: Start the development stack using existing images
+    cmds:
+      - '{{.COMPOSE}} up -d --wait'
+
+  dev:frontend:
+    desc: Start the Vite frontend development server
+    dir: frontend
+    cmds:
+      - npm run dev
+
+  dev:all:
+    desc: Start the backend stack and frontend development server
+    deps:
+      - dev:up
+      - dev:frontend
+
+  dev:build:
+    desc: Build development images
+    cmds:
+      - '{{.COMPOSE}} build'
+
+  dev:rebuild:
+    desc: Rebuild development images without cache
+    cmds:
+      - '{{.COMPOSE}} build --no-cache'
+
+  dev:down:
+    desc: Stop and remove development containers
+    cmds:
+      - '{{.COMPOSE}} down --remove-orphans'
+
+  dev:reset:
+    desc: Destroy development containers, networks, and volumes, then bootstrap again
+    prompt: This will delete all development database and MinIO data. Continue?
+    cmds:
+      - '{{.COMPOSE}} down --volumes --remove-orphans'
+      - task: dev:bootstrap
+
+  dev:restart:
+    desc: Restart the development stack or SERVICE=<service>
+    cmds:
+      - '{{.COMPOSE}} restart {{.SERVICE}}'
+
+  dev:status:
+    desc: Show development container status
+    cmds:
+      - '{{.COMPOSE}} ps'
+
+  dev:logs:
+    desc: Follow development logs, optionally SERVICE=<service>
+    cmds:
+      - '{{.COMPOSE}} logs -f --tail={{.LOG_TAIL}} {{.SERVICE}}'
+
+  dev:config:
+    desc: Render the merged development Compose configuration
+    cmds:
+      - '{{.COMPOSE}} config'
+
+  dev:ready:
+    desc: Check the gateway health endpoint
+    cmds:
+      - 'curl --fail --silent --show-error {{.HEALTH_URL}}'
+
+  dev:shell:
+    desc: Open a shell in a running service; requires SERVICE=<service>
+    preconditions:
+      - sh: test -n "{{.SERVICE}}"
+        msg: Set SERVICE=<service>, for example SERVICE=assistant-service
+    cmds:
+      - '{{.COMPOSE}} exec {{.SERVICE}} sh'
+
+  dev:exec:
+    desc: Execute CMD in a running service; requires SERVICE=<service>
+    preconditions:
+      - sh: test -n "{{.SERVICE}}"
+        msg: Set SERVICE=<service>, for example SERVICE=assistant-service
+    cmds:
+      - '{{.COMPOSE}} exec {{.SERVICE}} {{.CMD}}'
+
+  test:
+    desc: Run the development integration test suites
+    cmds:
+      - task: test:users
+      - task: test:projects
+      - task: test:assistant
+
+  test:users:
+    desc: Run users-service integration tests
+    cmds:
+      - python3 -m pytest tests/users-service
+
+  test:projects:
+    desc: Run projects-service integration tests
+    cmds:
+      - python3 -m pytest tests/projects-service
+
+  test:assistant:
+    desc: Run assistant-service tests in its development container
+    cmds:
+      - '{{.COMPOSE}} run --rm assistant-service python -m pytest'
+
+  migrate:
+    desc: Initialize the projects and assistant databases and apply all migrations
+    deps:
+      - migrate:databases
+    cmds:
+      - task: migrate:projects
+      - task: migrate:assistant
+
+  migrate:databases:
+    internal: true
+    cmds:
+      - '{{.COMPOSE}} up -d --wait postgres-projects postgres-assistant'
+
+  migrate:projects:
+    internal: true
+    cmds:
+      - >-
+        docker run --rm
+        --network {{.COMPOSE_PROJECT_NAME}}_gateway-network
+        -v "{{.TASKFILE_DIR}}/projects-service/db/migrations:/migrations:ro"
+        {{.MIGRATE_IMAGE}}
+        -path=/migrations/
+        -database "postgres://{{.PROJECTS_DB_USER}}:{{.PROJECTS_DB_PASSWORD}}@postgres-projects:5432/{{.PROJECTS_DB}}?sslmode=disable"
+        up
+
+  migrate:assistant:
+    internal: true
+    cmds:
+      - '{{.COMPOSE}} run --rm --build --no-deps assistant-service alembic upgrade head'
+
+  migrate:assistant:current:
+    desc: Show the current assistant-service migration revision
+    cmds:
+      - '{{.COMPOSE}} run --rm --build --no-deps assistant-service alembic current'
+
+  migrate:assistant:history:
+    desc: Show assistant-service migration history
+    cmds:
+      - '{{.COMPOSE}} run --rm --build --no-deps assistant-service alembic history'
+
+  migrate:assistant:create:
+    desc: Create an assistant-service migration; use MSG="description"
+    vars:
+      MSG: '{{default "auto" .MSG}}'
+    cmds:
+      - '{{.COMPOSE}} run --rm --build --no-deps assistant-service alembic revision --autogenerate -m "{{.MSG}}"'
+
+  migrate:projects:version:
+    desc: Show the current projects-service migration version
+    cmds:
+      - >-
+        docker run --rm
+        --network {{.COMPOSE_PROJECT_NAME}}_gateway-network
+        -v "{{.TASKFILE_DIR}}/projects-service/db/migrations:/migrations:ro"
+        {{.MIGRATE_IMAGE}}
+        -path=/migrations/
+        -database "postgres://{{.PROJECTS_DB_USER}}:{{.PROJECTS_DB_PASSWORD}}@postgres-projects:5432/{{.PROJECTS_DB}}?sslmode=disable"
+        version
+
+  migrate:projects:create:
+    desc: Create a projects-service migration; use NAME="description"
+    vars:
+      NAME: '{{default "migration" .NAME}}'
+    cmds:
+      - >-
+        docker run --rm
+        -v "{{.TASKFILE_DIR}}/projects-service/db/migrations:/migrations"
+        {{.MIGRATE_IMAGE}}
+        create -ext sql -dir /migrations -seq "{{.NAME}}"
+
+  minio:init:
+    desc: Initialize the MinIO buckets used for uploads, snapshots, and text exports
+    cmds:
+      - '{{.COMPOSE}} up -d --wait minio'
+      - >-
+        docker run --rm
+        --network {{.COMPOSE_PROJECT_NAME}}_gateway-network
+        -e MINIO_ROOT_USER
+        -e MINIO_ROOT_PASSWORD
+        {{.MINIO_MC_IMAGE}}
+        sh -c 'mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" &&
+        mc mb --ignore-existing local/uploads &&
+        mc mb --ignore-existing local/snapshot &&
+        mc mb --ignore-existing local/text'
+
+  minio:list:
+    desc: List configured MinIO buckets
+    cmds:
+      - '{{.COMPOSE}} up -d --wait minio'
+      - >-
+        docker run --rm
+        --network {{.COMPOSE_PROJECT_NAME}}_gateway-network
+        -e MINIO_ROOT_USER
+        -e MINIO_ROOT_PASSWORD
+        {{.MINIO_MC_IMAGE}}
+        sh -c 'mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" && mc ls local'
