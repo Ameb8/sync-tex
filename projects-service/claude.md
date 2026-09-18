@@ -50,6 +50,8 @@ Uploads and Snapshots both serve as source of truth for document. Full document 
 | POST   | /projects/v1/projects/{projectID}/files/{fileID}/upload  | Get presigned upload URL for an existing file        |
 | GET    | /projects/v1/projects/{projectID}/collaborators          | List project collaborators                           |
 | DELETE | /projects/v1/projects/{projectID}/collaborators/{userID} | Remove a collaborator (owner only)                   |
+| GET    | /projects/v1/projects/{projectID}/collaborators/links    | List active invite links (owner only)                |
+| DELETE | /projects/v1/projects/{projectID}/collaborators/links/{inviteID} | Revoke an invite link (owner only)          |
 | POST   | /projects/v1/projects/{projectID}/invites                | Create a collaboration invite                        |
 | POST   | /projects/v1/invites/accept                              | Accept a collaboration invite                        |
 | GET    | /projects/v1/invites/join                                | Join via invite link (redirects to frontend)         |
