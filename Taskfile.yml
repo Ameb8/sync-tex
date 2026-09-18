@@ -3,7 +3,7 @@ version: '3'
 dotenv: ['.env']
 
 vars:
-  COMPOSE_PROJECT_NAME: '{{default "sync-tex" .COMPOSE_PROJECT_NAME}}'
+  COMPOSE_PROJECT_NAME: '{{default (base .TASKFILE_DIR) .COMPOSE_PROJECT_NAME}}'
   COMPOSE: 'docker compose -p {{.COMPOSE_PROJECT_NAME}} -f docker-compose.yml -f docker-compose.dev.yml'
   SERVICE: '{{default "" .SERVICE}}'
   CMD: '{{default "sh" .CMD}}'
