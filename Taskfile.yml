@@ -63,6 +63,12 @@ tasks:
     cmds:
       - '{{.COMPOSE}} down --remove-orphans'
 
+  dev:destroy:
+    desc: Permanently remove this worktree's development containers, networks, and volumes
+    prompt: This will delete this worktree's databases, MinIO objects, and build volumes. Continue?
+    cmds:
+      - '{{.COMPOSE}} down --volumes --remove-orphans'
+
   dev:reset:
     desc: Destroy development containers, networks, and volumes, then bootstrap again
     prompt: This will delete all development database and MinIO data. Continue?
