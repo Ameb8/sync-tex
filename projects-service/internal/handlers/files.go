@@ -271,9 +271,14 @@ func (h *Handler) CreateFile(c *gin.Context) {
 	// Generate storage key
 	storageKey := projectIDStr + "/" + fileID.String()
 
-	// Assign file type
-	if req.FileType == "" {
-		req.FileType = "other"
+	// file_type is a persisted content-classification decision. Do this at the
+	// creation boundary: export code must never infer it from a filename or MIME
+	// type. The normal website creation flow always opens the new file in the
+	// collaborative editor, while the only current raw upload flow sends image.
+	fileType, err := creationFileType(req.FileType)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported file type"})
+		return
 	}
 
 	// Create file in database
@@ -283,7 +288,7 @@ func (h *Handler) CreateFile(c *gin.Context) {
 		ProjectID:   projectID,
 		Filename:    req.Filename,
 		StorageKey:  storageKey,
-		FileType:    db.FileType(req.FileType),
+		FileType:    fileType,
 	})
 
 	// Error creating file in database
@@ -309,6 +314,20 @@ func (h *Handler) CreateFile(c *gin.Context) {
 		"project_id":   file.ProjectID,
 		"upload_url":   uploadURL,
 	})
+}
+
+// creationFileType centralizes the contract between website creation paths and
+// persisted classification. Existing tex rows are collaborative legacy rows;
+// newly-created editable documents use the explicit collaborative_text class.
+func creationFileType(requested string) (db.FileType, error) {
+	switch db.FileType(requested) {
+	case "", db.FileTypeCollaborativeText, db.FileTypeTex:
+		return db.FileTypeCollaborativeText, nil
+	case db.FileTypeImage, db.FileTypePdf:
+		return db.FileType(requested), nil
+	default:
+		return "", fmt.Errorf("unsupported persisted file type %q", requested)
+	}
 }
 
 // GetFile handles:

@@ -18,6 +18,7 @@ import (
 	"projects-service/internal/auth"
 	"projects-service/internal/compaction"
 	"projects-service/internal/config"
+	"projects-service/internal/download"
 	"projects-service/internal/storage"
 	"projects-service/internal/users"
 )
@@ -25,13 +26,14 @@ import (
 // Handlers contains all HTTP handlers
 // Stores database and auth dependencies
 type Handler struct {
-	db             *pgxpool.Pool
-	queries        *db.Queries
-	authorizer     *auth.Authorizer
-	minioClient    *minio.Client
-	fileDataClient *compaction.Client
-	usersClient    *users.Client
-	externalURL		string
+	db               *pgxpool.Pool
+	queries          *db.Queries
+	authorizer       *auth.Authorizer
+	minioClient      *minio.Client
+	fileDataClient   *compaction.Client
+	usersClient      *users.Client
+	externalURL      string
+	downloadResolver *download.Resolver
 }
 
 // NewHandler initializes a new Handler object
@@ -53,15 +55,20 @@ func NewHandler(pool *pgxpool.Pool, queries *db.Queries, cfg *config.Config) (*H
 		log.Println("File Data Client initialized")
 	}
 
-	return &Handler{ // Initialize handler
+	h := &Handler{ // Initialize handler
 		db:             pool,
 		queries:        queries,
 		authorizer:     auth.NewAuthorizer(queries),
 		minioClient:    minioClient,
 		fileDataClient: fileDataClient,
 		usersClient:    users.NewClient(),
-		externalURL:	cfg.ExternalURL,
-	}, nil
+		externalURL:    cfg.ExternalURL,
+	}
+	// The resolver owns object selection; this adapter retains the existing
+	// freshness-aware materialization implementation until its internals move
+	// behind the same service boundary.
+	h.downloadResolver = download.NewResolver(storage.NewObjectStore(minioClient), handlerMaterializer{h: h})
+	return h, nil
 }
 
 // getUserID extracts the authenticated user's ID from the Gin context.

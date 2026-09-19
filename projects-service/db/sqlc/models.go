@@ -18,6 +18,7 @@ const (
 	FileTypeTex   FileType = "tex"
 	FileTypePdf   FileType = "pdf"
 	FileTypeOther FileType = "other"
+	FileTypeCollaborativeText FileType = "collaborative_text"
 )
 
 func (e *FileType) Scan(src interface{}) error {
