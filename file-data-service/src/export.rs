@@ -23,20 +23,27 @@ use crate::compaction::decode_length_prefixed;
 ///   `const yText = ydoc.getText("content")`
 const TEXT_KEY: &str = "content";
 
-/// Reconstruct a Yjs document from `snapshot_bytes` (required) and
-/// `pending_bytes` (optional length-prefixed update log), then extract the
+/// Reconstruct a Yjs document from independently optional `snapshot_bytes` and
+/// `pending_bytes` (a length-prefixed update log), then extract the
 /// shared Text value as a UTF-8 string.
-pub fn extract_text(snapshot_bytes: &[u8], pending_bytes: Option<&[u8]>) -> Result<String> {
+///
+/// An absent source is intentionally distinct from an empty or malformed one:
+/// a supplied snapshot is always decoded, while a supplied empty pending log is
+/// a valid log with zero frames.
+pub fn extract_text(snapshot_bytes: Option<&[u8]>, pending_bytes: Option<&[u8]>) -> Result<String> {
     let doc = Doc::new();
 
     {
         let mut txn = doc.transact_mut();
 
-        // Apply the compacted snapshot first — this is the authoritative base.
-        let snapshot =
-            Update::decode_v1(snapshot_bytes).context("Failed to decode compacted snapshot")?;
-        txn.apply_update(snapshot)
-            .context("Failed to apply compacted snapshot")?;
+        // Apply the compacted snapshot first when present — it is the
+        // authoritative base. With no snapshot, the new document is the base.
+        if let Some(snapshot_bytes) = snapshot_bytes {
+            let snapshot =
+                Update::decode_v1(snapshot_bytes).context("Failed to decode compacted snapshot")?;
+            txn.apply_update(snapshot)
+                .context("Failed to apply compacted snapshot")?;
+        }
 
         // Fold in any pending updates that arrived after the last compaction.
         if let Some(raw) = pending_bytes {
@@ -68,7 +75,10 @@ pub fn extract_text(snapshot_bytes: &[u8], pending_bytes: Option<&[u8]>) -> Resu
 }
 
 /// Convenience wrapper: extract text and return it as `Bytes` for upload.
-pub fn extract_text_bytes(snapshot_bytes: &[u8], pending_bytes: Option<&[u8]>) -> Result<Bytes> {
+pub fn extract_text_bytes(
+    snapshot_bytes: Option<&[u8]>,
+    pending_bytes: Option<&[u8]>,
+) -> Result<Bytes> {
     let text = extract_text(snapshot_bytes, pending_bytes)?;
     Ok(Bytes::from(text.into_bytes()))
 }

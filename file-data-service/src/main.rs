@@ -15,6 +15,9 @@ mod http;
 mod proto;
 mod server;
 
+#[cfg(test)]
+mod export_tests;
+
 use std::net::SocketAddr;
 
 use tonic::transport::Server;

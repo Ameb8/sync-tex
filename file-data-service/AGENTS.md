@@ -43,8 +43,11 @@ Merges a base snapshot + update log into a new compacted snapshot.
 Produces a fully materialized document (plain text) from snapshot + pending updates.
 
 #### Request
-- **snapshot_url**: base snapshot
-- **pending_updates_url**: additional updates to apply
+- **snapshot_url**: optional base snapshot. An empty value means the object was
+  confirmed absent by projects-service, not that file-data-service should fetch
+  a missing object.
+- **pending_updates_url**: optional additional framed updates, with the same
+  absent-object semantics as `snapshot_url`.
 - **upload_url**: destination for exported result
 
 #### Response

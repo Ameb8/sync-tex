@@ -1,4 +1,4 @@
-    // src/http.rs
+// src/http.rs
 //
 // Async helpers for interacting with pre-signed object-storage URLs.
 
@@ -9,7 +9,7 @@ use tracing::{debug, info};
 
 /// Download the entire body of a pre-signed GET URL into memory.
 pub async fn download_bytes(client: &Client, url: &str) -> Result<Bytes> {
-    debug!(url = %url, "Starting download from pre-signed URL");
+    debug!("Starting download from pre-signed URL");
 
     let response = client
         .get(url)
@@ -21,8 +21,7 @@ pub async fn download_bytes(client: &Client, url: &str) -> Result<Bytes> {
     // the body for error XML.
     let status = response.status();
     if !status.is_success() {
-        let body = response.text().await.unwrap_or_default();
-        bail!("Download failed with HTTP {}: {}", status, body);
+        bail!("download request returned HTTP {}", status);
     }
 
     let content_length = response.content_length();
@@ -46,7 +45,7 @@ pub async fn download_bytes(client: &Client, url: &str) -> Result<Bytes> {
 /// is opaque binary data.
 pub async fn upload_bytes(client: &Client, url: &str, data: Bytes) -> Result<()> {
     let len = data.len();
-    debug!(url = %url, bytes = len, "Starting upload to pre-signed URL");
+    debug!(bytes = len, "Starting upload to pre-signed URL");
 
     let response = client
         .put(url)
@@ -62,8 +61,7 @@ pub async fn upload_bytes(client: &Client, url: &str, data: Bytes) -> Result<()>
 
     let status = response.status();
     if !status.is_success() {
-        let body = response.text().await.unwrap_or_default();
-        bail!("Upload failed with HTTP {}: {}", status, body);
+        bail!("upload request returned HTTP {}", status);
     }
 
     info!(bytes = len, "Upload complete");
@@ -73,7 +71,7 @@ pub async fn upload_bytes(client: &Client, url: &str, data: Bytes) -> Result<()>
 /// Upload UTF-8 text to a pre-signed PUT URL.
 pub async fn upload_text(client: &Client, url: &str, data: Bytes) -> Result<()> {
     let len = data.len();
-    debug!(url = %url, bytes = len, "Starting text upload to pre-signed URL");
+    debug!(bytes = len, "Starting text upload to pre-signed URL");
 
     let response = client
         .put(url)
@@ -86,8 +84,7 @@ pub async fn upload_text(client: &Client, url: &str, data: Bytes) -> Result<()> 
 
     let status = response.status();
     if !status.is_success() {
-        let body = response.text().await.unwrap_or_default();
-        bail!("Text upload failed with HTTP {}: {}", status, body);
+        bail!("text upload request returned HTTP {}", status);
     }
 
     info!(bytes = len, "Text upload complete");

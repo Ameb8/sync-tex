@@ -13,6 +13,7 @@
 
 use std::sync::Arc;
 
+use anyhow::Context;
 use tonic::{Request, Response, Status};
 use tracing::{error, info, instrument, warn};
 
@@ -117,16 +118,13 @@ impl CompactionService for CompactionServiceImpl {
     ) -> Result<Response<ExportResponse>, Status> {
         let req = request.into_inner();
 
-        if req.snapshot_url.is_empty() {
-            return Err(Status::invalid_argument("snapshot_url must not be empty"));
-        }
         if req.upload_url.is_empty() {
             return Err(Status::invalid_argument("upload_url must not be empty"));
         }
 
         info!(
-            snapshot_url  = %req.snapshot_url,
-            has_pending   = !req.pending_updates_url.is_empty(),
+            has_snapshot = !req.snapshot_url.is_empty(),
+            has_pending = !req.pending_updates_url.is_empty(),
             "Received ExportDocument request"
         );
 
@@ -152,28 +150,42 @@ impl CompactionService for CompactionServiceImpl {
 }
 
 async fn run_export(http: &reqwest::Client, req: &ExportRequest) -> anyhow::Result<u64> {
-    // Download the compacted snapshot (always required).
-    let snapshot = download_bytes(http, &req.snapshot_url).await?;
-    info!(bytes = snapshot.len(), "Downloaded snapshot");
+    // Sources are independently optional. The caller has already established
+    // absence with an object stat, so an empty URL never becomes a 404 request.
+    let snapshot: Option<bytes::Bytes> = if req.snapshot_url.is_empty() {
+        None
+    } else {
+        let source = download_bytes(http, &req.snapshot_url)
+            .await
+            .context("download snapshot source")?;
+        info!(bytes = source.len(), "Downloaded snapshot");
+        Some(source)
+    };
 
     // Download pending updates only if a URL was provided.
     let pending: Option<bytes::Bytes> = if req.pending_updates_url.is_empty() {
         None
     } else {
-        let p = download_bytes(http, &req.pending_updates_url).await?;
+        let p = download_bytes(http, &req.pending_updates_url)
+            .await
+            .context("download pending-update source")?;
         info!(bytes = p.len(), "Downloaded pending updates");
         Some(p)
     };
 
     // Extract text content from the reconstructed document.
-    let pending_ref = pending.as_deref(); // Option<&[u8]>
-    let text_bytes = extract_text_bytes(&snapshot, pending_ref)?;
+    let snapshot_ref = snapshot.as_deref();
+    let pending_ref = pending.as_deref();
+    let text_bytes = extract_text_bytes(snapshot_ref, pending_ref)
+        .context("decode and apply Yjs document sources")?;
 
     let exported_bytes = text_bytes.len() as u64;
     info!(exported_bytes, "Text extraction complete");
 
     // Upload the text file to the caller-supplied pre-signed PUT URL.
-    upload_text(http, &req.upload_url, text_bytes).await?;
+    upload_text(http, &req.upload_url, text_bytes)
+        .await
+        .context("upload materialized text")?;
 
     Ok(exported_bytes)
 }

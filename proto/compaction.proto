@@ -28,6 +28,10 @@ message CompactResponse {
 // ExportDocument
 
 message ExportRequest {
+  // Each source URL is independently optional. An omitted URL means the
+  // corresponding object was confirmed absent by projects-service; it must not
+  // be replaced with a URL expected to return 404. A supplied URL is required
+  // to be readable and malformed source data remains an error.
   string snapshot_url        = 1;
   string pending_updates_url = 2;
   string upload_url          = 3;

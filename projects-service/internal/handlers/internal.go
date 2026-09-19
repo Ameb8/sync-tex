@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"log"
 	"net/http"
@@ -15,6 +16,42 @@ import (
 
 	db "projects-service/db/sqlc"
 )
+
+// materializationSource records the complete identity of one optional Yjs
+// source object. Presence is part of the identity: an absent update log is not
+// equivalent to a present log with any ETag.
+type materializationSource struct {
+	present bool
+	etag    string
+}
+
+func materializationIdentity(snapshot, pending materializationSource) string {
+	part := func(source materializationSource) string {
+		if !source.present {
+			return "absent"
+		}
+		// ETags are opaque; encoding prevents delimiter ambiguity while retaining
+		// the actual stable object version in the persisted identity.
+		return "present:" + base64.RawURLEncoding.EncodeToString([]byte(source.etag))
+	}
+	return "v1;snapshot=" + part(snapshot) + ";pending=" + part(pending)
+}
+
+func objectNotFound(err error) bool {
+	code := minio.ToErrorResponse(err).Code
+	return code == "NoSuchKey" || code == "NoSuchObject" || code == "NotFound"
+}
+
+func (h *Handler) statMaterializationSource(ctx context.Context, bucket, key string) (materializationSource, error) {
+	info, err := h.minioClient.StatObject(ctx, bucket, key, minio.StatObjectOptions{})
+	if err == nil {
+		return materializationSource{present: true, etag: info.ETag}, nil
+	}
+	if objectNotFound(err) {
+		return materializationSource{}, nil
+	}
+	return materializationSource{}, fmt.Errorf("stat %s source: %w", bucket, err)
+}
 
 // DownloadFileInternal handles:
 // GET /internal/file/:fileID/download
@@ -234,36 +271,43 @@ func (h *Handler) InternalCompactFile(c *gin.Context) {
 }
 
 func (h *Handler) ensureTextUpToDate(ctx context.Context, file db.File) error {
-	// StatObject on the binary (uploads bucket) — fetches only metadata, no body
-	objInfo, err := h.minioClient.StatObject(ctx, "uploads", file.StorageKey, minio.StatObjectOptions{})
+	// Snapshot and pending updates are independently optional. Only an explicit
+	// object-not-found result means absent; auth, transport, and timeout errors
+	// must stop materialization rather than silently producing empty text.
+	snapshot, err := h.statMaterializationSource(ctx, "snapshot", file.StorageKey)
 	if err != nil {
-		return fmt.Errorf("stat binary object: %w", err)
+		return err
+	}
+	pending, err := h.statMaterializationSource(ctx, "uploads", file.StorageKey)
+	if err != nil {
+		return err
+	}
+	currentIdentity := materializationIdentity(snapshot, pending)
+
+	// A matching marker alone is insufficient: text may have been deleted.
+	if file.TextSourceEtag.Valid && file.TextSourceEtag.String == currentIdentity {
+		_, err := h.minioClient.StatObject(ctx, "text", file.StorageKey, minio.StatObjectOptions{})
+		if err == nil {
+			return nil
+		}
+		if !objectNotFound(err) {
+			return fmt.Errorf("stat materialized text object: %w", err)
+		}
 	}
 
-	currentETag := objInfo.ETag
-
-	// If DB etag matches current binary etag, text version is fresh — nothing to do
-	if file.TextSourceEtag.Valid && file.TextSourceEtag.String == currentETag {
-		return nil
+	var downloadSnapshotURL, downloadUpdatesURL string
+	if snapshot.present {
+		downloadSnapshotURL, err = h.generateDownloadURL(ctx, "snapshot", file.StorageKey, 3*time.Minute, true)
+		if err != nil {
+			return fmt.Errorf("generate snapshot download URL: %w", err)
+		}
 	}
-
-	// Generate download URL for snapshot file
-	downloadSnapshotURL, err := h.generateDownloadURL(
-		ctx,
-		"snapshot",
-		file.StorageKey,
-		3*time.Minute,
-		true,
-	)
-
-	// Generate download URL for uploads file
-	downloadUpdatesURL, err := h.generateDownloadURL(
-		ctx,
-		"uploads",
-		file.StorageKey,
-		3*time.Minute,
-		true,
-	)
+	if pending.present {
+		downloadUpdatesURL, err = h.generateDownloadURL(ctx, "uploads", file.StorageKey, 3*time.Minute, true)
+		if err != nil {
+			return fmt.Errorf("generate pending-update download URL: %w", err)
+		}
+	}
 
 	// Generate upload URL for text file
 	uploadTextURL, err := h.generateUploadURL(
@@ -273,6 +317,9 @@ func (h *Handler) ensureTextUpToDate(ctx context.Context, file db.File) error {
 		3*time.Minute,
 		true,
 	)
+	if err != nil {
+		return fmt.Errorf("generate text upload URL: %w", err)
+	}
 
 	// Make gRPC request to file-data-service
 	if err := h.fileDataClient.ExtractText(ctx, downloadSnapshotURL, downloadUpdatesURL, uploadTextURL); err != nil {
@@ -280,9 +327,24 @@ func (h *Handler) ensureTextUpToDate(ctx context.Context, file db.File) error {
 		return fmt.Errorf("invoke extract text service: %w", err)
 	}
 
+	// The objects can change while extraction is in flight. Never advance the
+	// freshness marker for bytes that may have come from an older pair; a later
+	// request will regenerate from the newly observed sources instead.
+	latestSnapshot, err := h.statMaterializationSource(ctx, "snapshot", file.StorageKey)
+	if err != nil {
+		return err
+	}
+	latestPending, err := h.statMaterializationSource(ctx, "uploads", file.StorageKey)
+	if err != nil {
+		return err
+	}
+	if materializationIdentity(latestSnapshot, latestPending) != currentIdentity {
+		return fmt.Errorf("materialization sources changed during extraction")
+	}
+
 	// Update the stored etag in DB so next request skips regeneration
-	if err := h.queries.UpdateFileTextEtag(ctx, file.ID, pgtype.Text{String: currentETag, Valid: true}); err != nil {
-		return fmt.Errorf("update text etag: %w", err)
+	if err := h.queries.UpdateFileTextEtag(ctx, file.ID, pgtype.Text{String: currentIdentity, Valid: true}); err != nil {
+		return fmt.Errorf("update text freshness identity: %w", err)
 	}
 
 	return nil
