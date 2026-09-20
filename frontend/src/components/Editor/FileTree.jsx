@@ -57,6 +57,7 @@ const messageFrom = (error, fallback) => error instanceof Error && error.message
 const FileTree = ({
   projectName = 'Project', treeData, onFileSelect, activeFileId, onCreateFile,
   onCreateFolder, onDeleteItem, onRenameItem, onImageUpload, readOnly,
+  onDownload,
 }) => {
   const { resolvedTheme, setThemePreference } = useTheme();
   const treeIndex = useMemo(() => indexTree(treeData), [treeData]);
@@ -75,6 +76,7 @@ const FileTree = ({
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deletePending, setDeletePending] = useState(false);
   const [operation, setOperation] = useState(null);
+  const [downloads, setDownloads] = useState({});
   const [toast, setToast] = useState(null);
 
   const rootId = treeIndex.roots[0] ?? null;
@@ -328,6 +330,37 @@ const FileTree = ({
     }
   }, [announce, currentDirectoryId, onImageUpload, readOnly]);
 
+  const fileIdsWithin = useCallback((node) => {
+    if (node.type === 'file') return [node.id];
+    const result = [];
+    const visit = (directoryId) => {
+      for (const childId of treeIndex.childrenByDirectory.get(directoryId) ?? []) {
+        const child = treeIndex.nodesById.get(childId);
+        if (!child) continue;
+        if (child.type === 'file') result.push(child.id);
+        else visit(child.id);
+      }
+    };
+    visit(node.id);
+    return result;
+  }, [treeIndex]);
+
+  const startDownload = useCallback(async (target) => {
+    const key = `${target.kind}:${target.id}`;
+    if (!onDownload || downloads[key]?.status === 'pending') return;
+    setDownloads((current) => ({ ...current, [key]: { ...target, key, status: 'pending', error: '' } }));
+    closeMenu(false);
+    try {
+      const result = await onDownload(target);
+      setDownloads((current) => { const next = { ...current }; delete next[key]; return next; });
+      announce(`Download started: ${result?.filename || target.name}`);
+    } catch (error) {
+      const message = messageFrom(error, `Could not download ${target.name}`);
+      setDownloads((current) => ({ ...current, [key]: { ...target, key, status: 'error', error: message } }));
+      announce(`Download failed: ${message}`, 'error');
+    }
+  }, [announce, closeMenu, downloads, onDownload]);
+
   const handleListKeyDown = (event) => {
     if (edit || contextMenu || !visibleIds.length) return;
     const currentIndex = Math.max(0, visibleIds.indexOf(focusedNodeId));
@@ -362,6 +395,8 @@ const FileTree = ({
   };
 
   const menuNode = contextMenu?.nodeId ? treeIndex.nodesById.get(contextMenu.nodeId) : null;
+  const menuDownloadKey = menuNode ? `${menuNode.type === 'file' ? 'file' : 'directory'}:${menuNode.id}` : '';
+  const menuDownload = menuNode && downloads[menuDownloadKey];
   const count = visibleNodes.length;
 
   return (
@@ -457,17 +492,30 @@ const FileTree = ({
         </div>
       </section>}
 
+      {Object.values(downloads).length > 0 && <section className="file-browser__operations" aria-label="Downloads" aria-live="polite">
+        <div className="file-browser__operations-heading">Downloads <span>Current session</span></div>
+        {Object.values(downloads).map((download) => <div key={download.key} className={`file-browser__operation${download.status === 'error' ? ' is-error' : ''}`}>
+          {download.status === 'pending' ? <FiLoader className="file-browser__spinner" aria-hidden="true" /> : <FiAlertCircle aria-hidden="true" />}
+          <span title={download.name}>{download.name}</span>
+          {download.status === 'pending' ? <span>Preparing download…</span> : <button type="button" onClick={() => startDownload(download)}>Retry</button>}
+          {download.status === 'error' && <small>{download.error}</small>}
+        </div>)}
+      </section>}
+
       {contextMenu && <div ref={menuRef} className="file-browser__menu" role="menu"
         style={{ left: contextMenu.left, top: contextMenu.top }} onKeyDown={handleMenuKeyDown}>
         {contextMenu.kind === 'options' ? <>
           <div className="file-browser__menu-note">{readOnly ? 'View only' : 'Editing'}</div>
           <button type="button" role="menuitem" onClick={() => rootId && openDirectory(rootId)} disabled={!rootId || currentDirectoryId === rootId}><FiFolder aria-hidden="true" /> Return to project root</button>
+          <button type="button" role="menuitem" onClick={() => startDownload({ kind: 'project', id: 'project', name: projectName, fileIds: [...treeIndex.nodesById.values()].filter((node) => node.type === 'file').map((node) => node.id) })}
+            disabled={downloads['project:project']?.status === 'pending'}><FiDownload aria-hidden="true" /> {downloads['project:project']?.status === 'pending' ? 'Downloading…' : 'Download project'}</button>
         </> : menuNode ? <>
           {menuNode.type === 'folder' && <><button type="button" role="menuitem" onClick={() => openDirectory(menuNode.id)}><FiFolder aria-hidden="true" /> Open folder</button><div className="file-browser__menu-separator" role="separator" /></>}
           <button type="button" role="menuitem" onClick={() => beginRename(menuNode)} disabled={readOnly} title={readOnly ? 'Unavailable in view-only mode' : undefined}><FiEdit2 aria-hidden="true" /> Rename</button>
           <button type="button" role="menuitem" disabled title="Duplicate unavailable"><FiCopy aria-hidden="true" /> Duplicate <small>Unavailable</small></button>
           <button type="button" role="menuitem" onClick={() => copyPath(menuNode.id)}><FiCopy aria-hidden="true" /> Copy relative path</button>
-          <button type="button" role="menuitem" disabled title="Download unavailable"><FiDownload aria-hidden="true" /> Download <small>Unavailable</small></button>
+          <button type="button" role="menuitem" onClick={() => startDownload({ kind: menuNode.type === 'file' ? 'file' : 'directory', id: menuNode.id, name: menuNode.label, fileIds: fileIdsWithin(menuNode) })}
+            disabled={menuDownload?.status === 'pending'}><FiDownload aria-hidden="true" /> {menuDownload?.status === 'pending' ? 'Downloading…' : 'Download'}</button>
           <div className="file-browser__menu-separator" role="separator" />
           <button type="button" role="menuitem" className="file-browser__menu-delete" disabled={readOnly}
             title={readOnly ? 'Unavailable in view-only mode' : undefined}

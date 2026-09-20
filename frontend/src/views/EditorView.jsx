@@ -10,7 +10,7 @@ import { useChatManager } from '../hooks/useChatManager';
 import { setupMonaco } from '../monaco/setupMonaco';
 import { scheduleIdleWarmup } from '../prefetch/scheduleIdleWarmup';
 import { warmAIPanel } from '../prefetch/warmups';
-import { fetchProject } from '../api/projects';
+import { downloadProjectTarget, fetchProject } from '../api/projects';
 
 import ActivityBar from '../components/Editor/ActivityBar';
 import FileTree from '../components/Editor/FileTree';
@@ -190,6 +190,7 @@ const EditorView = () => {
     clearFileContent,
     handleEditorChange,
     handleSaveFile,
+    persistPendingFiles,
     handleCreateFile,
     handleCreateFolder,
     handleDeleteItem,
@@ -270,12 +271,19 @@ const EditorView = () => {
     const handler = (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
-        if (activeFileId) handleSaveFile(activeFileId);
+        if (activeFileId) void handleSaveFile(activeFileId).catch(() => {});
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [activeFileId, handleSaveFile]);
+
+  const handleDownload = useCallback(async (target) => {
+    // This is the supported editor persistence boundary. It does not attempt to
+    // coordinate updates still buffered by a live collaboration relay.
+    await persistPendingFiles(target.fileIds ?? []);
+    return downloadProjectTarget(projectId, target);
+  }, [persistPendingFiles, projectId]);
 
   // Handle file select
   const handleFileSelect = useCallback(async (file) => {
@@ -440,6 +448,7 @@ const EditorView = () => {
             onRenameItem={handleRenameItemAndUpdateTab}
             onImageUpload={handleImageUploadAndOpen}
             readOnly={isReadOnly}
+            onDownload={handleDownload}
           />}
           {sidebarPanel === 'collaborators' && <CollaboratorsPanel projectId={projectId} liveEditors={activeLiveEditors} />}
           {sidebarPanel === 'ai' && <Suspense fallback={<PanelFallback />}>

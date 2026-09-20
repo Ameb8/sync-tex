@@ -43,6 +43,7 @@ export function useFileManager({ projectId, collabSessions }) {
 
   // Tracks the last-saved content per file for dirty detection (non-collab only)
   const originalContentsRef = useRef({});
+  const savesInFlightRef = useRef(new Map());
 
   // Handle tree refresh
   const refreshTree = useCallback(async () => {
@@ -86,26 +87,41 @@ export function useFileManager({ projectId, collabSessions }) {
 
   // Handle save
   const handleSaveFile = useCallback(async (activeTabId) => {
-    if (!activeTabId || isSaving) return;
-    try {
+    if (!activeTabId) return;
+    const existing = savesInFlightRef.current.get(activeTabId);
+    if (existing) return existing;
+
+    const save = (async () => {
       setIsSaving(true);
+      try {
+        // Collab files: read from Y.Doc. Non-collab: read from React state.
+        const session = collabSessions.current[activeTabId];
+        const content = session ? session.getContent() : fileContents[activeTabId];
 
-      // Collab files: read from Y.Doc. Non-collab: read from React state.
-      const session = collabSessions.current[activeTabId];
-      const content = session ? session.getContent() : fileContents[activeTabId];
+        await saveFileContent(projectId, activeTabId, content);
 
-      await saveFileContent(projectId, activeTabId, content);
-
-      if (!session) {
-        setUnsavedFiles((prev) => { const n = new Set(prev); n.delete(activeTabId); return n; });
-        originalContentsRef.current[activeTabId] = content;
+        if (!session) {
+          setUnsavedFiles((prev) => { const n = new Set(prev); n.delete(activeTabId); return n; });
+          originalContentsRef.current[activeTabId] = content;
+        }
+      } catch (err) {
+        setError(`Error saving file: ${err.message}`);
+        throw err;
+      } finally {
+        savesInFlightRef.current.delete(activeTabId);
+        setIsSaving(savesInFlightRef.current.size > 0);
       }
-    } catch (err) {
-      setError(`Error saving file: ${err.message}`);
-    } finally {
-      setIsSaving(false);
-    }
-  }, [fileContents, projectId, isSaving, collabSessions]);
+    })();
+    savesInFlightRef.current.set(activeTabId, save);
+    return save;
+  }, [fileContents, projectId, collabSessions]);
+
+  // Downloads only promise state that this editor can persist. Collaborative
+  // relay buffers are intentionally outside this boundary.
+  const persistPendingFiles = useCallback(async (fileIds) => {
+    const pending = fileIds.filter((fileId) => unsavedFiles.has(fileId));
+    for (const fileId of pending) await handleSaveFile(fileId);
+  }, [handleSaveFile, unsavedFiles]);
 
   // File CRUD handlers
 
@@ -176,6 +192,7 @@ export function useFileManager({ projectId, collabSessions }) {
     // Handlers
     handleEditorChange,
     handleSaveFile,
+    persistPendingFiles,
     handleCreateFile,
     handleCreateFolder,
     handleDeleteItem,
