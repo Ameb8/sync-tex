@@ -19,14 +19,18 @@ func (r *readCloser) Close() error               { r.closed = true; return nil }
 
 type storeCall struct{ bucket, key string }
 type fakeStore struct {
-	calls  []storeCall
-	reader *readCloser
-	info   ObjectInfo
-	err    error
+	calls    []storeCall
+	reader   *readCloser
+	info     ObjectInfo
+	err      error
+	noReader bool
 }
 
 func (s *fakeStore) Open(_ context.Context, bucket, key string) (io.ReadCloser, ObjectInfo, error) {
 	s.calls = append(s.calls, storeCall{bucket, key})
+	if s.noReader {
+		return nil, s.info, s.err
+	}
 	return s.reader, s.info, s.err
 }
 
@@ -117,6 +121,13 @@ func TestResolveErrorsAndCancellation(t *testing.T) {
 	_, err := NewResolver(store, &fakeMaterializer{}).Resolve(ctx, rawFile())
 	if !errors.Is(err, context.Canceled) || len(store.calls) != 0 {
 		t.Fatalf("cancellation ignored: %v, %#v", err, store.calls)
+	}
+}
+
+func TestResolveRejectsSuccessfulOpenWithoutAStream(t *testing.T) {
+	_, err := NewResolver(&fakeStore{noReader: true}, &fakeMaterializer{}).Resolve(context.Background(), rawFile())
+	if !errors.Is(err, ErrStorage) {
+		t.Fatalf("%v does not wrap storage error", err)
 	}
 }
 

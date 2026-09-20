@@ -98,6 +98,9 @@ func (r *Resolver) Resolve(ctx context.Context, file File) (Resolved, error) {
 		if err != nil {
 			return Resolved{}, err
 		}
+		if reader == nil {
+			return Resolved{}, fmt.Errorf("%w: storage returned no object stream", ErrStorage)
+		}
 		return Resolved{Reader: reader, Filename: file.Filename, ContentType: safeRawContentType(info.ContentType)}, nil
 	case ClassificationCollaborativeText:
 		if r.materializer == nil {
@@ -115,6 +118,9 @@ func (r *Resolver) Resolve(ctx context.Context, file File) (Resolved, error) {
 		reader, _, err := r.store.Open(ctx, "text", file.StorageKey)
 		if err != nil {
 			return Resolved{}, err
+		}
+		if reader == nil {
+			return Resolved{}, fmt.Errorf("%w: storage returned no text stream", ErrStorage)
 		}
 		return Resolved{Reader: reader, Filename: file.Filename, ContentType: "text/plain; charset=utf-8", Deflate: true}, nil
 	default:

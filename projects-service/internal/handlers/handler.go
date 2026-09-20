@@ -34,6 +34,13 @@ type Handler struct {
 	usersClient      *users.Client
 	externalURL      string
 	downloadResolver *download.Resolver
+
+	// Download collaborators are overridable only by package tests. Keeping the
+	// HTTP handler dependent on these small operations makes its authorization,
+	// ownership, and streaming contract testable without a database or MinIO.
+	downloadCanRead func(context.Context, pgtype.UUID, string) (bool, error)
+	downloadGetFile func(context.Context, pgtype.UUID) (db.File, error)
+	downloadResolve func(context.Context, db.File) (download.Resolved, error)
 }
 
 // NewHandler initializes a new Handler object
@@ -82,7 +89,11 @@ func (h *Handler) getUserID(c *gin.Context) (string, error) {
 	if !exists {
 		return "", fmt.Errorf("user_id not found in context")
 	}
-	return userID.(string), nil
+	value, ok := userID.(string)
+	if !ok || value == "" {
+		return "", fmt.Errorf("invalid user_id in context")
+	}
+	return value, nil
 }
 
 // stringToPgUUID converts a UUID string into pgtype.UUID
