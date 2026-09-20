@@ -18,6 +18,8 @@ func TestSetupRoutesRegistersInviteLinkEndpoints(t *testing.T) {
 
 	wanted := map[string]bool{
 		"GET /projects/v1/projects/:projectID/files/:fileID/download":           false,
+		"GET /projects/v1/projects/:projectID/directories/:dirID/download":      false,
+		"GET /projects/v1/projects/:projectID/download":                         false,
 		"GET /projects/v1/projects/:projectID/collaborators/links":              false,
 		"DELETE /projects/v1/projects/:projectID/collaborators/links/:inviteID": false,
 	}

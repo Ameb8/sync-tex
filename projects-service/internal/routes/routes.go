@@ -33,11 +33,13 @@ func SetupRoutes(r *gin.Engine, h *handlers.Handler, authMiddleware *middleware.
 	api.POST("/projects/:projectID/directories", h.CreateDirectory)
 	api.PATCH("/projects/:projectID/directories/:dirID", h.UpdateDirectory)
 	api.DELETE("/projects/:projectID/directories/:dirID", h.DeleteDirectory)
+	api.GET("/projects/:projectID/directories/:dirID/download", h.DownloadDirectory)
 
 	// Files
 	api.POST("/projects/:projectID/files", h.CreateFile)
 	api.POST("/projects/:projectID/files/:fileID/upload", h.GetUploadURL)
 	api.GET("/projects/:projectID/files/:fileID/download", h.DownloadFile)
+	api.GET("/projects/:projectID/download", h.DownloadProject)
 	api.GET("/projects/:projectID/files/:fileID", h.GetFile)
 	api.PATCH("/projects/:projectID/files/:fileID", h.UpdateFile)
 	api.DELETE("/projects/:projectID/files/:fileID", h.DeleteFile)

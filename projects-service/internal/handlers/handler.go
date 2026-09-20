@@ -38,9 +38,13 @@ type Handler struct {
 	// Download collaborators are overridable only by package tests. Keeping the
 	// HTTP handler dependent on these small operations makes its authorization,
 	// ownership, and streaming contract testable without a database or MinIO.
-	downloadCanRead func(context.Context, pgtype.UUID, string) (bool, error)
-	downloadGetFile func(context.Context, pgtype.UUID) (db.File, error)
-	downloadResolve func(context.Context, db.File) (download.Resolved, error)
+	downloadCanRead         func(context.Context, pgtype.UUID, string) (bool, error)
+	downloadGetFile         func(context.Context, pgtype.UUID) (db.File, error)
+	downloadResolve         func(context.Context, db.File) (download.Resolved, error)
+	downloadGetProject      func(context.Context, pgtype.UUID) (db.Project, error)
+	downloadGetDirectory    func(context.Context, pgtype.UUID) (db.Directory, error)
+	downloadListDirectories func(context.Context, pgtype.UUID) ([]db.Directory, error)
+	downloadListFiles       func(context.Context, pgtype.UUID) ([]db.File, error)
 }
 
 // NewHandler initializes a new Handler object

@@ -3,11 +3,13 @@
 package download
 
 import (
+	"archive/zip"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"mime"
+	"path/filepath"
 	"strings"
 )
 
@@ -35,6 +37,25 @@ type File struct {
 	Filename       string
 	StorageKey     string
 	Classification string
+}
+
+// ZIPMethod selects a ZIP compression method without trusting storage-provided
+// content types. Files which are normally compressed already are stored as-is;
+// all other content is deflated. Collaborative text always requests deflate.
+func ZIPMethod(filename, contentType string, deflate bool) uint16 {
+	if deflate {
+		return zip.Deflate
+	}
+	ext := strings.ToLower(filepath.Ext(filename))
+	switch ext {
+	case ".zip", ".gz", ".bz2", ".xz", ".7z", ".rar", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".pdf", ".mp3", ".mp4", ".webm", ".ogg":
+		return zip.Store
+	}
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err == nil && (strings.HasPrefix(mediaType, "image/") || strings.HasPrefix(mediaType, "audio/") || strings.HasPrefix(mediaType, "video/") || mediaType == "application/pdf" || mediaType == "application/zip") {
+		return zip.Store
+	}
+	return zip.Deflate
 }
 
 // ObjectInfo is metadata obtained from object storage when opening an object.

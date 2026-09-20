@@ -140,4 +140,18 @@ func TestSafeRawContentType(t *testing.T) {
 	}
 }
 
+func TestZIPMethodAvoidsRecompressingKnownCompressedFormats(t *testing.T) {
+	for _, filename := range []string{"diagram.png", "paper.PDF", "archive.zip", "movie.webm"} {
+		if got := ZIPMethod(filename, "application/octet-stream", false); got != 0 {
+			t.Fatalf("%s method = %d, want store", filename, got)
+		}
+	}
+	if got := ZIPMethod("main.tex", "text/plain", false); got != 8 {
+		t.Fatalf("text method = %d, want deflate", got)
+	}
+	if got := ZIPMethod("document.bin", "application/octet-stream", true); got != 8 {
+		t.Fatalf("materialized text method = %d, want deflate", got)
+	}
+}
+
 func stringsReader(s string) io.Reader { return bytes.NewBufferString(s) }
