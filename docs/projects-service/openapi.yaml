@@ -188,12 +188,100 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /projects/v1/projects/{projectID}/files/{fileID}/download:
+    get:
+      summary: Download a project file
+      description: >
+        Requires read access (owner, editor, or viewer). Raw files are streamed
+        unchanged; collaborative documents are materialized as UTF-8 text from
+        the persisted snapshot and pending-update objects when export begins.
+      operationId: downloadFile
+      tags: [Downloads]
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectID'
+        - $ref: '#/components/parameters/FileID'
+      responses:
+        '200':
+          $ref: '#/components/responses/FileDownload'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '502':
+          $ref: '#/components/responses/DownloadUnavailable'
+
+  /projects/v1/projects/{projectID}/directories/{dirID}/download:
+    get:
+      summary: Download a directory as a ZIP archive
+      description: >
+        Requires read access. The selected directory is the ZIP's top-level
+        entry; nested and empty directories are preserved. Unsafe or ambiguous
+        archive paths are rejected before streaming begins.
+      operationId: downloadDirectory
+      tags: [Downloads]
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectID'
+        - $ref: '#/components/parameters/DirID'
+      responses:
+        '200':
+          $ref: '#/components/responses/ZipDownload'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Unsafe, corrupt, duplicate, or ambiguous archive paths.
+        '502':
+          $ref: '#/components/responses/DownloadUnavailable'
+
+  /projects/v1/projects/{projectID}/download:
+    get:
+      summary: Download a project as a ZIP archive
+      description: >
+        Requires read access. ZIP entries are relative to the project's root;
+        no duplicate project-name directory is added.
+      operationId: downloadProject
+      tags: [Downloads]
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectID'
+      responses:
+        '200':
+          $ref: '#/components/responses/ZipDownload'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Unsafe, corrupt, duplicate, or ambiguous archive paths.
+        '502':
+          $ref: '#/components/responses/DownloadUnavailable'
+
   /projects/v1/projects/{projectID}/tree:
     get:
       summary: Get project tree
       description: >
         Returns the complete nested filesystem structure of a project.
-        Files in the tree include presigned download URLs (1 hour expiry) from the `uploads` bucket.
+        Files in the tree include legacy presigned object URLs for editor synchronization.
+        User-facing downloads must use the authenticated Download endpoints, which
+        resolve raw versus collaborative content safely.
         Also returns `is_collab` indicating whether the project has any collaborators.
       operationId: getProjectTree
       tags:
@@ -430,7 +518,7 @@ paths:
                   description: UUID of the target directory
                 file_type:
                   type: string
-                  enum: [image, tex, pdf, other]
+                  enum: [image, tex, pdf, other, collaborative_text]
                   default: other
       responses:
         '201':
@@ -981,7 +1069,8 @@ components:
           description: Storage location key in format `projectID/fileID`
         file_type:
           type: string
-          enum: [image, tex, pdf, other]
+          enum: [image, tex, pdf, other, collaborative_text]
+          description: Explicit persisted content classification; collaborative_text is exported through file-data-service, while image and pdf are raw object bytes.
 
     FileWithUploadURL:
       allOf:
@@ -1027,7 +1116,7 @@ components:
           type: string
         file_type:
           type: string
-          enum: [image, tex, pdf, other]
+          enum: [image, tex, pdf, other, collaborative_text]
         storage_key:
           type: string
         download_url:
@@ -1095,6 +1184,34 @@ components:
           type: string
 
   responses:
+    FileDownload:
+      description: A private attachment whose type and filename are taken from the recorded file metadata.
+      headers:
+        Cache-Control:
+          schema: { type: string, example: "private, no-store" }
+        Content-Disposition:
+          schema: { type: string, example: "attachment; filename=main.tex; filename*=UTF-8''main.tex" }
+      content:
+        application/octet-stream:
+          schema: { type: string, format: binary }
+        text/plain:
+          schema: { type: string, format: binary }
+    ZipDownload:
+      description: A private ZIP attachment with a safe RFC 6266 filename.
+      headers:
+        Cache-Control:
+          schema: { type: string, example: "private, no-store" }
+        Content-Disposition:
+          schema: { type: string, example: "attachment; filename=project.zip; filename*=UTF-8''project.zip" }
+      content:
+        application/zip:
+          schema: { type: string, format: binary }
+    DownloadUnavailable:
+      description: Storage or collaborative-text materialization could not be completed before the response started.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
     BadRequest:
       description: Bad request
       content:
@@ -1139,6 +1256,8 @@ tags:
     description: Directory structure within projects
   - name: Files
     description: File management and storage
+  - name: Downloads
+    description: Authenticated, private file and ZIP exports. See docs/projects-service/downloads.md for consistency and streaming limits.
   - name: Collaborators
     description: Project collaboration and sharing
   - name: Internal

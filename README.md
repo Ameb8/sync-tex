@@ -172,6 +172,7 @@ starting the stack.
 ## API And Service References
 
 - [Projects service OpenAPI reference](docs/projects-service/openapi.yaml)
+- [Projects download API and consistency guarantees](docs/projects-service/downloads.md)
 - [Generated projects service HTML reference](docs/projects-service-api.html)
 - [Collaboration service AsyncAPI reference](docs/collab-service/asyncapi.yaml)
 - [Users service database diagram](docs/users-service/users-db-erd.png)

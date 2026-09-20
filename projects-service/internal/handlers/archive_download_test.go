@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	db "projects-service/db/sqlc"
+	"projects-service/internal/archiveplan"
 	"projects-service/internal/download"
 )
 
@@ -136,6 +137,67 @@ func TestDownloadArchiveRejectsPathConflictBeforeZIPHeaders(t *testing.T) {
 	response := archiveRequest(t, h, "/projects/v1/projects/"+downloadProjectID+"/download", context.Background())
 	if response.Code != http.StatusConflict || response.Header().Get("Content-Type") == "application/zip" {
 		t.Fatalf("status/type = %d/%q", response.Code, response.Header().Get("Content-Type"))
+	}
+}
+
+func TestDownloadArchiveMapsFirstObjectFailureBeforeZIPHeaders(t *testing.T) {
+	h := archiveHandler(t, func(context.Context, db.File) (download.Resolved, error) {
+		return download.Resolved{}, download.ErrMissingObject
+	})
+	response := archiveRequest(t, h, "/projects/v1/projects/"+downloadProjectID+"/directories/"+downloadDirectoryID+"/download", context.Background())
+	if response.Code != http.StatusNotFound || response.Body.String() != `{"error":"File content not found"}` {
+		t.Fatalf("status/body: %d %q", response.Code, response.Body.String())
+	}
+	if response.Header().Get("Content-Type") == "application/zip" || response.Header().Get("Content-Disposition") != "" {
+		t.Fatalf("ZIP headers committed on error: %#v", response.Header())
+	}
+}
+
+type boundedGeneratedReader struct {
+	remaining int64
+	maxBuffer int
+}
+
+func (r *boundedGeneratedReader) Read(p []byte) (int, error) {
+	if len(p) > r.maxBuffer {
+		r.maxBuffer = len(p)
+	}
+	if r.remaining == 0 {
+		return 0, io.EOF
+	}
+	n := len(p)
+	if int64(n) > r.remaining {
+		n = int(r.remaining)
+	}
+	for i := range p[:n] {
+		p[i] = byte(i)
+	}
+	r.remaining -= int64(n)
+	return n, nil
+}
+
+func TestArchiveStreamsLargeGeneratedFileWithFixedCopyBuffer(t *testing.T) {
+	projectID, rootID, fileID := downloadProjectID, downloadRootID, downloadFileID
+	plan, err := archiveplan.ProjectPlan(projectID, archiveplan.Metadata{
+		Directories: []archiveplan.Directory{{ID: rootID, ProjectID: projectID, Name: "root"}},
+		Files:       []archiveplan.File{{ID: fileID, ProjectID: projectID, DirectoryID: rootID, Filename: "large.pdf", StorageKey: "large", Classification: download.ClassificationRaw}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reader := &boundedGeneratedReader{remaining: 8 << 20}
+	h := archiveHandler(t, func(context.Context, db.File) (download.Resolved, error) {
+		return download.Resolved{Reader: io.NopCloser(reader), Filename: "large.pdf", ContentType: "application/pdf"}, nil
+	})
+	writer := zip.NewWriter(io.Discard)
+	if err := h.writeArchive(context.Background(), writer, plan); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if reader.maxBuffer > downloadCopyBufferSize {
+		t.Fatalf("archive requested %d bytes at once; copy buffer is %d", reader.maxBuffer, downloadCopyBufferSize)
 	}
 }
 

@@ -81,6 +81,17 @@ func (h *Handler) downloadArchive(c *gin.Context, directory bool) {
 		writeArchivePlanError(c, err)
 		return
 	}
+	// Resolve the first file before committing ZIP headers. This catches missing
+	// objects and extraction failures while a recoverable JSON response is still
+	// possible, without pre-opening every archive source or buffering the ZIP.
+	firstID, first, err := h.openFirstArchiveFile(c.Request.Context(), plan)
+	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return
+		}
+		writeDownloadResolutionError(c, err)
+		return
+	}
 
 	name := project.Name.String
 	if directory {
@@ -93,7 +104,7 @@ func (h *Handler) downloadArchive(c *gin.Context, directory bool) {
 	c.Status(http.StatusOK)
 
 	writer := zip.NewWriter(c.Writer)
-	if err := h.writeArchive(c.Request.Context(), writer, plan); err != nil {
+	if err := h.writeArchiveWithFirst(c.Request.Context(), writer, plan, firstID, first); err != nil {
 		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
 			log.Printf("archive download stream failed project_id=%s kind=%s", pgUUIDToString(projectID), archiveKind(directory))
 		}
@@ -105,6 +116,40 @@ func (h *Handler) downloadArchive(c *gin.Context, directory bool) {
 }
 
 func (h *Handler) writeArchive(ctx context.Context, writer *zip.Writer, plan archiveplan.Plan) error {
+	return h.writeArchiveWithFirst(ctx, writer, plan, "", download.Resolved{})
+}
+
+func (h *Handler) openFirstArchiveFile(ctx context.Context, plan archiveplan.Plan) (string, download.Resolved, error) {
+	for _, entry := range plan.Entries() {
+		if entry.IsDirectory {
+			continue
+		}
+		file, err := archiveEntryFile(entry.File)
+		if err != nil {
+			return "", download.Resolved{}, err
+		}
+		resolved, err := h.resolveFileDownload(ctx, file)
+		if err != nil {
+			return "", download.Resolved{}, err
+		}
+		if resolved.Reader == nil {
+			return "", download.Resolved{}, download.ErrStorage
+		}
+		return entry.File.ID, resolved, nil
+	}
+	return "", download.Resolved{}, nil
+}
+
+// writeArchiveWithFirst consumes a previously opened first file, if present.
+// It keeps the normal write loop streaming one object at a time.
+func (h *Handler) writeArchiveWithFirst(ctx context.Context, writer *zip.Writer, plan archiveplan.Plan, firstID string, first download.Resolved) error {
+	// If cancellation happens before the pre-opened entry is reached, it still
+	// belongs to this request and must be released.
+	defer func() {
+		if firstID != "" {
+			_ = first.Close()
+		}
+	}()
 	for _, entry := range plan.Entries() {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -120,9 +165,15 @@ func (h *Handler) writeArchive(ctx context.Context, writer *zip.Writer, plan arc
 		if err != nil {
 			return err
 		}
-		resolved, err := h.resolveFileDownload(ctx, file)
-		if err != nil {
-			return err
+		resolved := download.Resolved{}
+		if entry.File.ID == firstID {
+			resolved, firstID = first, ""
+		} else {
+			var err error
+			resolved, err = h.resolveFileDownload(ctx, file)
+			if err != nil {
+				return err
+			}
 		}
 		if resolved.Reader == nil {
 			return download.ErrStorage
