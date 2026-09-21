@@ -20,10 +20,13 @@ async function throwIfError(res) {
 
 // Key management
 
-export async function upsertLLMKey(provider, apiKey) {
+export async function upsertLLMKey(provider, apiKey, baseUrl) {
+  const body = { provider, api_key: apiKey };
+  if (baseUrl) body.base_url = baseUrl;
+
   const res = await authFetch(`${BASE}/keys`, {
     method: 'PUT',
-    body: JSON.stringify({ provider, api_key: apiKey }),
+    body: JSON.stringify(body),
   });
   return (await throwIfError(res)).json();
 }

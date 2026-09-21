@@ -50,6 +50,12 @@ const PROVIDER_META = {
   gemini:    { label: 'Google Gemini', color: '#4285f4', placeholder: 'AIza…' },
   mistral:   { label: 'Mistral',   color: '#ff7000', placeholder: 'mis-…' },
   cohere:    { label: 'Cohere',    color: '#8b5cf6', placeholder: 'co-…' },
+  'openai-compatible': {
+    label: 'OpenAI-compatible',
+    color: '#6b7280',
+    placeholder: 'Paste API key…',
+    baseUrlPlaceholder: 'https://api.example.com/v1',
+  },
 };
 
 function getMeta(id) {
@@ -61,24 +67,27 @@ function ProviderRow({ provider, hasKey, onSaved, onDeleted }) {
   const meta = getMeta(provider);
   const [open, setOpen] = useState(false);
   const [keyVal, setKeyVal] = useState('');
+  const [baseUrl, setBaseUrl] = useState('');
   const [status, setStatus] = useState('idle'); // idle | saving | saved | deleting | error
   const [errMsg, setErrMsg] = useState('');
+  const needsBaseUrl = provider === 'openai-compatible';
 
   const handleSave = useCallback(async () => {
-    if (!keyVal.trim()) return;
+    if (!keyVal.trim() || (needsBaseUrl && !baseUrl.trim())) return;
     setStatus('saving');
     setErrMsg('');
     try {
-      await upsertLLMKey(provider, keyVal.trim());
+      await upsertLLMKey(provider, keyVal.trim(), needsBaseUrl ? baseUrl.trim() : undefined);
       setStatus('saved');
       setKeyVal('');
+      setBaseUrl('');
       onSaved();
       setTimeout(() => { setStatus('idle'); setOpen(false); }, 1200);
     } catch (e) {
       setStatus('error');
       setErrMsg(e.message ?? 'Failed to save key');
     }
-  }, [provider, keyVal, onSaved]);
+  }, [provider, keyVal, baseUrl, needsBaseUrl, onSaved]);
 
   const handleDelete = useCallback(async () => {
     setStatus('deleting');
@@ -96,6 +105,7 @@ function ProviderRow({ provider, hasKey, onSaved, onDeleted }) {
     setStatus('idle');
     setErrMsg('');
     setKeyVal('');
+    setBaseUrl('');
   };
 
   return (
@@ -145,9 +155,23 @@ function ProviderRow({ provider, hasKey, onSaved, onDeleted }) {
               autoComplete="new-password"
               spellCheck={false}
             />
+            {needsBaseUrl && (
+              <input
+                type="url"
+                className="llm-key-input llm-base-url-input"
+                placeholder={meta.baseUrlPlaceholder}
+                value={baseUrl}
+                onChange={e => { setBaseUrl(e.target.value); setStatus('idle'); }}
+                onKeyDown={e => e.key === 'Enter' && handleSave()}
+                autoComplete="url"
+                spellCheck={false}
+                required
+                aria-label="OpenAI-compatible base URL"
+              />
+            )}
             <button
               className={`llm-save-btn ${status}`}
-              disabled={!keyVal.trim() || status === 'saving' || status === 'saved'}
+              disabled={!keyVal.trim() || (needsBaseUrl && !baseUrl.trim()) || status === 'saving' || status === 'saved'}
               onClick={handleSave}
             >
               {status === 'saving' ? 'Saving…' :
@@ -159,7 +183,9 @@ function ProviderRow({ provider, hasKey, onSaved, onDeleted }) {
             <p className="llm-form-error">{errMsg}</p>
           )}
           <p className="llm-form-hint">
-            Keys are stored encrypted server-side and never returned in full.
+            {needsBaseUrl
+              ? 'Enter the provider API root, including /v1 (for example, https://api.example.com/v1).'
+              : 'Keys are stored encrypted server-side and never returned in full.'}
           </p>
         </div>
       )}

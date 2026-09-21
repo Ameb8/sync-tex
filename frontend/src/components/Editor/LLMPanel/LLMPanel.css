@@ -194,6 +194,7 @@
 .llm-key-input-row {
   display: flex;
   gap: 6px;
+  flex-wrap: wrap;
 }
 
 .llm-key-input {
@@ -208,6 +209,10 @@
   outline: none;
   transition: border-color 0.15s;
   min-width: 0;
+}
+
+.llm-base-url-input {
+  flex-basis: 100%;
 }
 
 .llm-key-input:focus {
